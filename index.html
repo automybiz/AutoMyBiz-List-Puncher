@@ -33,23 +33,48 @@
     })();
     </script>
 
-    <style>
+    <!-- Instant Head Pre-Hydration to prevent FOUC (Flash of Unstyled Content) -->
+    <script>
+    (function() {
+        try {
+            var cachedThemeCss = localStorage.getItem('automybiz_punch_theme_css');
+            if (cachedThemeCss) {
+                var styleEl = document.createElement('style');
+                styleEl.id = 'epwDynamicThemeStyles';
+                styleEl.textContent = cachedThemeCss;
+                document.head.appendChild(styleEl);
+            }
+        } catch (e) {}
+    })();
+    </script>
+
+    <style id="epwThemeStylesFallback">
         :root {
-            --bg-color: #0b0f19;
-            --card-bg: #111827;
-            --card-header-bg: #161f30;
-            --card-header-hover: #1e293b;
-            --card-hover-bg: #1a2438;
-            --border-color: #1f2937;
-            --accent-cyan: #00e5ff;
-            --accent-blue: #3b82f6;
-            --accent-green: #10b981;
-            --accent-red: #ef4444;
-            --text-primary: #f9fafb;
-            --text-secondary: #9ca3af;
-            --text-muted: #6b7280;
+            /* Base Theme Tokens (Fallback Dark Emerald Maroon Baseline) */
+            --page-bg: #011;
+            --card-bg: #011;
+            --card-header-bg: #033;
+            --card-header-hover: #044;
+            --card-hover-bg: #022;
+            --border-color: #0FF;
+            --accent-cyan: #0FF;
+            --accent-blue: #3BF;
+            --accent-green: #0F8;
+            --accent-red: #F33;
+            --text-primary: #FFF;
+            --text-secondary: #9AB;
+            --text-muted: #79A;
             --font-family: 'Inter', -apple-system, sans-serif;
             --indent-step: 26px;
+
+            /* Card Animation Tokens */
+            --card-border-color-1: #0FF;
+            --card-border-color-2: #F80;
+            --card-border-speed: 30s;
+            --special-effects-color-1: #064;
+            --special-effects-color-2: #0FF;
+            --special-effects-color-3: #3BF;
+            --special-effects-color-4: #A85;
         }
 
         * {
@@ -60,7 +85,7 @@
 
         body {
             font-family: var(--font-family);
-            background-color: var(--bg-color);
+            background-color: var(--page-bg);
             background-image: 
                 radial-gradient(rgba(0, 229, 255, 0.04) 1px, transparent 1px),
                 radial-gradient(rgba(0, 0, 0, 0.8) 15%, transparent 16%);
@@ -68,6 +93,7 @@
             color: var(--text-primary);
             line-height: 1.5;
             padding: 24px 16px 80px;
+            transition: background-color 0.25s ease, color 0.25s ease;
         }
 
         .container {
@@ -75,7 +101,7 @@
             margin: 0 auto;
         }
 
-        /* Top Control Header */
+        /* Top Control Header Card */
         .header-card {
             background: var(--card-bg);
             border: 1.5px solid var(--border-color);
@@ -108,8 +134,8 @@
         }
 
         .client-badge {
-            background: rgba(0, 229, 255, 0.1);
-            border: 1px solid rgba(0, 229, 255, 0.3);
+            background: rgba(0, 255, 255, 0.1);
+            border: 1px solid var(--accent-cyan);
             color: var(--accent-cyan);
             font-size: 0.8rem;
             font-weight: 700;
@@ -152,13 +178,13 @@
         .btn-primary {
             background: var(--accent-cyan);
             border-color: var(--accent-cyan);
-            color: #0b0f19;
-            font-weight: 700;
+            color: #011;
+            font-weight: 800;
         }
 
         .btn-primary:hover {
-            background: #33ecff;
-            color: #0b0f19;
+            background: #fff;
+            color: #011;
         }
 
         /* Progress Bar */
@@ -178,9 +204,10 @@
         .progress-track {
             width: 100%;
             height: 8px;
-            background: #1f2937;
+            background: rgba(0, 0, 0, 0.5);
             border-radius: 4px;
             overflow: hidden;
+            border: 1px solid rgba(0, 255, 255, 0.15);
         }
 
         .progress-fill {
@@ -190,7 +217,27 @@
             transition: width 0.3s cubic-bezier(0.16, 1, 0.3, 1);
         }
 
-        /* Section / Category Cards */
+        /* ==========================================================================
+           Decoupled Dual-Engine Border Animation Architecture (@property Isolated)
+           ========================================================================== */
+        @property --border-angle {
+            syntax: "<angle>";
+            inherits: false;
+            initial-value: 0deg;
+        }
+
+        @keyframes rotateBorderBeam {
+            to {
+                --border-angle: 360deg;
+            }
+        }
+
+        @keyframes flowBeamRail {
+            0% { background-position: 0% 50%; }
+            100% { background-position: 300% 50%; }
+        }
+
+        /* Section Deck (Accordion Container) */
         .section-deck {
             background: var(--card-bg);
             border: 1.5px solid var(--border-color);
@@ -202,16 +249,137 @@
         }
 
         .section-deck:hover {
-            border-color: #374151;
+            border-color: var(--accent-cyan);
         }
 
         .section-deck.is-collapsed {
-            border-color: #1f2937;
+            border-color: var(--border-color);
         }
 
         .section-deck.section-dragging {
             opacity: 0.35;
             border: 1.5px dashed var(--accent-cyan);
+        }
+
+        /* OPEN ACCORDION: Applies special border effect when NOT collapsed */
+        .card-border-animated .section-deck:not(.is-collapsed) {
+            border: 1.5px solid transparent !important;
+            animation: rotateBorderBeam var(--card-border-speed, 30s) linear infinite !important;
+            box-shadow: 0 4px 25px rgba(0,0,0,0.5);
+        }
+
+        .card-border-animated .section-deck:not(.is-collapsed) .section-header {
+            position: relative;
+            background: var(--card-header-hover) !important;
+        }
+
+        .card-border-animated .section-deck:not(.is-collapsed) .section-header::after {
+            content: "";
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            height: 1.5px;
+            z-index: 2;
+            pointer-events: none;
+        }
+
+        /* Effect A: Laser Comet */
+        .card-border-animated.effect-laser-comet .section-deck:not(.is-collapsed) {
+            background: 
+                linear-gradient(var(--card-bg), var(--card-bg)) padding-box,
+                conic-gradient(
+                    from var(--border-angle),
+                    transparent 0%,
+                    transparent 60%,
+                    var(--card-border-color-1) 85%,
+                    var(--card-border-color-2) 95%,
+                    transparent 100%
+                ) border-box !important;
+        }
+        .card-border-animated.effect-laser-comet .section-deck:not(.is-collapsed) .section-header::after {
+            background: linear-gradient(
+                90deg,
+                transparent 0%,
+                var(--card-border-color-1) 25%,
+                var(--card-border-color-2) 45%,
+                transparent 65%,
+                transparent 100%
+            );
+            background-size: 300% 100%;
+            animation: flowBeamRail var(--card-border-speed, 30s) linear infinite !important;
+        }
+
+        /* Effect B: Dual-Tone Blend */
+        .card-border-animated.effect-dual-tone-blend .section-deck:not(.is-collapsed) {
+            background: 
+                linear-gradient(var(--card-bg), var(--card-bg)) padding-box,
+                conic-gradient(
+                    from var(--border-angle),
+                    var(--card-border-color-1) 0%,
+                    var(--card-border-color-2) 50%,
+                    var(--card-border-color-1) 100%
+                ) border-box !important;
+        }
+        .card-border-animated.effect-dual-tone-blend .section-deck:not(.is-collapsed) .section-header::after {
+            background: linear-gradient(
+                90deg,
+                var(--card-border-color-1) 0%,
+                var(--card-border-color-2) 50%,
+                var(--card-border-color-1) 100%
+            );
+            background-size: 300% 100%;
+            animation: flowBeamRail var(--card-border-speed, 30s) linear infinite !important;
+        }
+
+        /* Effect C: Hue Sweep (Active Default) */
+        .card-border-animated.effect-hue-sweep .section-deck:not(.is-collapsed) {
+            background: 
+                linear-gradient(var(--card-bg), var(--card-bg)) padding-box,
+                conic-gradient(
+                    in hsl longer hue from var(--border-angle),
+                    var(--card-border-color-1) 0%,
+                    var(--card-border-color-2) 50%,
+                    var(--card-border-color-1) 100%
+                ) border-box !important;
+        }
+        .card-border-animated.effect-hue-sweep .section-deck:not(.is-collapsed) .section-header::after {
+            background: linear-gradient(
+                90deg,
+                var(--card-border-color-1) 0%,
+                #38BDF8 25%,
+                var(--card-border-color-2) 50%,
+                #A855F7 75%,
+                var(--card-border-color-1) 100%
+            );
+            background-size: 300% 100%;
+            animation: flowBeamRail var(--card-border-speed, 30s) linear infinite !important;
+        }
+
+        /* Effect D: FX Spectrum / Rainbow */
+        .card-border-animated.effect-fx-rainbow .section-deck:not(.is-collapsed) {
+            background: 
+                linear-gradient(var(--card-bg), var(--card-bg)) padding-box,
+                conic-gradient(
+                    from var(--border-angle),
+                    var(--special-effects-color-1) 0%,
+                    var(--special-effects-color-2) 25%,
+                    var(--special-effects-color-3) 50%,
+                    var(--special-effects-color-4) 75%,
+                    var(--special-effects-color-1) 100%
+                ) border-box !important;
+        }
+        .card-border-animated.effect-fx-rainbow .section-deck:not(.is-collapsed) .section-header::after {
+            background: linear-gradient(
+                90deg,
+                var(--special-effects-color-1) 0%,
+                var(--special-effects-color-2) 25%,
+                var(--special-effects-color-3) 50%,
+                var(--special-effects-color-4) 75%,
+                var(--special-effects-color-1) 100%
+            );
+            background-size: 300% 100%;
+            animation: flowBeamRail var(--card-border-speed, 30s) linear infinite !important;
         }
 
         /* Section Drop Line Indicator */
@@ -224,6 +392,7 @@
             pointer-events: none;
         }
 
+        /* Section Header - Consuming CARD_TITLE_BG_COLOR_1 & CARD_TITLE_TEXT_COLOR_1 */
         .section-header {
             background: var(--card-header-bg);
             padding: 14px 20px;
@@ -233,7 +402,7 @@
             border-bottom: 1px solid var(--border-color);
             cursor: pointer;
             user-select: none;
-            transition: background 0.2s ease;
+            transition: background 0.2s ease, color 0.2s ease;
         }
 
         .section-header:hover {
@@ -308,7 +477,7 @@
 
         .section-counter-badge.all-done {
             background: rgba(16, 185, 129, 0.15);
-            color: #10b981;
+            color: var(--accent-green);
             border-color: rgba(16, 185, 129, 0.35);
         }
 
@@ -324,10 +493,11 @@
             color: var(--text-muted);
         }
 
-        /* Section Collapsible Body */
+        /* Section Body */
         .section-body {
             transition: max-height 0.3s ease-out;
             overflow: hidden;
+            background: var(--card-bg);
         }
 
         .section-deck.is-collapsed .section-body {
@@ -343,7 +513,7 @@
             position: relative;
         }
 
-        /* Task Item Row with Unlimited Nesting Support */
+        /* Task Item Row */
         .task-row {
             display: flex;
             align-items: flex-start;
@@ -361,7 +531,6 @@
             border-color: rgba(255, 255, 255, 0.08);
         }
 
-        /* Dragging Subtree Group State */
         .task-row.is-dragging {
             opacity: 0.35;
             background: rgba(0, 229, 255, 0.05);
@@ -373,7 +542,6 @@
             border-left: 2px dashed rgba(0, 229, 255, 0.5) !important;
         }
 
-        /* Dynamic Drop Indicator with Clamped Indent Alignment */
         .drop-indicator-line {
             height: 3px;
             background: linear-gradient(90deg, var(--accent-cyan), #3b82f6);
@@ -384,7 +552,6 @@
             pointer-events: none;
         }
 
-        /* Nested Hierarchy Guidelines */
         .task-row.is-nested {
             border-left: 2px solid rgba(0, 229, 255, 0.25);
             border-radius: 0 8px 8px 0;
@@ -399,7 +566,6 @@
             flex-shrink: 0;
         }
 
-        /* Checkbox & Inputs */
         .task-checkbox-wrap {
             padding-top: 3px;
             flex-shrink: 0;
@@ -452,7 +618,6 @@
             color: var(--text-secondary);
         }
 
-        /* Optimistic Strikethrough */
         .task-row.is-checked .task-title-input {
             text-decoration: line-through;
             color: var(--text-muted) !important;
@@ -463,7 +628,6 @@
             opacity: 0.5;
         }
 
-        /* Actions Bar */
         .task-actions {
             display: flex;
             align-items: center;
@@ -499,10 +663,9 @@
             color: var(--accent-red);
         }
 
-        /* Quick Add Input */
         .quick-add-wrap {
             padding: 10px 16px 14px;
-            border-top: 1px dashed rgba(255, 255, 255, 0.05);
+            border-top: 1px dashed var(--border-color);
         }
 
         .quick-add-input {
@@ -522,12 +685,11 @@
             border-color: var(--accent-cyan);
         }
 
-        /* Toast Popup */
         .toast {
             position: fixed;
             bottom: 24px;
             right: 24px;
-            background: #1f2937;
+            background: #111827;
             border: 1px solid var(--accent-cyan);
             color: #fff;
             padding: 10px 18px;
@@ -547,7 +709,7 @@
         }
     </style>
 </head>
-<body>
+<body class="card-border-animated effect-hue-sweep">
 
 <div class="container">
 
@@ -593,11 +755,14 @@
 <script>
     // Global Constants avoiding protocol slashes inside template literals (Rule 9)
     const GOOGLE_DOCS_DOMAIN = 'https://docs.google.com';
-    const DEFAULT_GSHEET_ID = '1AT4h2VAvjsLo96IxldO5B0c_tWVhllPWyAvFJKLqlLE';
+    const SETTINGS_GATEWAY_DOMAIN = 'https://ghl-custom-workflow-settings.automybiz.workers.dev';
+    const DEFAULT_GLOBALS_ID = '1u_mZhsYM3J7in_8clshqbRYzHuCC83i15OMz2i3aAHQ';
+    const DEFAULT_PUNCH_SHEET_ID = '1AT4h2VAvjsLo96IxldO5B0c_tWVhllPWyAvFJKLqlLE';
 
     // Parse URL parameters dynamically
     const urlParams = new URLSearchParams(window.location.search);
-    const ACTIVE_GSHEET_ID = urlParams.get('gsheet_punch_list_id') || DEFAULT_GSHEET_ID;
+    const ACTIVE_GLOBALS_ID = urlParams.get('gsheet_globals_id') || DEFAULT_GLOBALS_ID;
+    const ACTIVE_GSHEET_ID = urlParams.get('gsheet_punch_list_id') || DEFAULT_PUNCH_SHEET_ID;
     const CLIENT_NAME = urlParams.get('location_name') || urlParams.get('client_name') || 'Euro Parts West';
 
     // In-memory Task State
@@ -609,14 +774,14 @@
     let DRAG_SUBTREE_COUNT = 1;
     let DRAG_START_X = 0;
     let DRAG_CURRENT_HOVER_INDEX = null;
-    let DRAG_TARGET_POSITION = 'before'; // 'before' | 'after'
+    let DRAG_TARGET_POSITION = 'before';
     let DRAG_PROPOSED_LEVEL = 1;
 
     // Section Deck Drag Reordering State
     let IS_DRAGGING_SECTION = false;
     let DRAGGED_SECTION_INDEX = null;
 
-    // Built-in Default Fallback Seed
+    // Default Fallback Seed Data
     const FALLBACK_SEED = [
         { visible: true, id: "CF_01", parentId: "", level: 0, order: 1, checked: true, title: "1. Cloudflare Infrastructure", notes: "Master DNS and edge routing" },
         { visible: true, id: "CF_02", parentId: "CF_01", level: 1, order: 2, checked: true, title: "Create account with admin@ email", notes: "Isolates domain security from public sales" },
@@ -642,9 +807,167 @@
         { visible: true, id: "GHL_03", parentId: "GHL_01", level: 1, order: 18, checked: false, title: "Generate Private Integration Token (PIT)", notes: "Required for live contact custom fields" }
     ];
 
-    // Initialize App & Fetch Live Sheet Data
+    // =========================================================================
+    // HIGH-VELOCITY EDGE THEME ENGINE (Google Sheets via Worker)
+    // Synchronizes with ACTIVE_ADMIN_THEME_NAME & CARD_* Animation Settings
+    // =========================================================================
+    async function fetchAndApplyLiveTheme() {
+        try {
+            const isForceRefresh = urlParams.has('refresh') && urlParams.get('refresh') !== '0' && urlParams.get('refresh') !== 'false';
+            const fetchUrl = SETTINGS_GATEWAY_DOMAIN + '/?action=styles&gsheet_globals_id=' + ACTIVE_GLOBALS_ID + (isForceRefresh ? '&refresh=1' : '') + '&t=' + Date.now();
+
+            const response = await fetch(fetchUrl);
+            if (!response.ok) return;
+
+            const data = await response.json();
+            if (!data || !data.success) return;
+
+            let activeThemeName = "DARK EMERALD MAROON";
+            let tokens = {};
+
+            if (data.tokens && typeof data.tokens === 'object') {
+                tokens = data.tokens;
+                if (data.active_admin_theme_name) activeThemeName = data.active_admin_theme_name;
+                else if (data.active_theme_name) activeThemeName = data.active_theme_name;
+            } else if (Array.isArray(data.styles)) {
+                const sRows = data.styles;
+                const adminRow = sRows.find(r => String(r[1] || r[0] || '').trim().toUpperCase() === "ACTIVE_ADMIN_THEME_NAME");
+                const generalRow = sRows.find(r => String(r[1] || r[0] || '').trim().toUpperCase() === "ACTIVE_THEME_NAME" || String(r[1] || r[0] || '').trim().toUpperCase() === "ACTIVE_PUBLIC_THEME_NAME");
+
+                if (adminRow && (adminRow[2] || adminRow[1])) {
+                    activeThemeName = String(adminRow[2] || adminRow[1]).trim().toUpperCase();
+                } else if (generalRow && (generalRow[2] || generalRow[1])) {
+                    activeThemeName = String(generalRow[2] || generalRow[1]).trim().toUpperCase();
+                }
+
+                let activeColIdx = -1;
+                for (let r = 0; r < Math.min(sRows.length, 8); r++) {
+                    const row = sRows[r];
+                    for (let c = 2; c < row.length; c++) {
+                        if (String(row[c] || '').trim().toUpperCase() === activeThemeName) {
+                            activeColIdx = c;
+                            break;
+                        }
+                    }
+                    if (activeColIdx !== -1) break;
+                }
+
+                if (activeColIdx === -1) activeColIdx = 2;
+
+                for (let r = 0; r < sRows.length; r++) {
+                    const k = String(sRows[r][1] || sRows[r][0] || '').trim().toUpperCase();
+                    if (!k || k === "SETTING NAME" || k.startsWith("<--") || k.startsWith("<~~")) continue;
+                    const val = sRows[r][activeColIdx];
+                    if (val !== undefined && val !== null && String(val).trim() !== "") {
+                        tokens[k] = String(val).trim();
+                    }
+                }
+            }
+
+            // Check URL query override (?theme=DARK_RUBY_GOLD)
+            const queryTheme = urlParams.get('theme') || urlParams.get('active_theme');
+            if (queryTheme) {
+                activeThemeName = queryTheme.replace(/_/g, () => ' ').trim().toUpperCase();
+            }
+
+            console.log('[AutoMyBiz Punch List Theme]: Active Admin Theme -> ' + activeThemeName);
+
+            // Map Sheet Tokens
+            const mainBg        = tokens["MAIN_BG_COLOR"] || "#011";
+            const cardBg        = tokens["CARD_BODY_BG_COLOR_1"] || tokens["CARD_BODY_BG_COLOR"] || "#011";
+            const cardTitleBg1  = tokens["CARD_TITLE_BG_COLOR_1"] || "#033";
+            const cardTitleBg2  = tokens["CARD_TITLE_BG_COLOR_2"] || "#044";
+            const cardTitleTxt1 = tokens["CARD_TITLE_TEXT_COLOR_1"] || tokens["MAIN_TITLE_TEXT_COLOR_1"] || "#0FF";
+            const cardTitleTxt2 = tokens["CARD_TITLE_TEXT_COLOR_2"] || "#FFF";
+            const borderClr     = tokens["MAIN_BORDER_COLOR"] || tokens["CARD_BORDER_COLOR_1"] || "#0FF";
+            const cardBorder1   = tokens["CARD_BORDER_COLOR_1"] || borderClr;
+            const cardBorder2   = tokens["CARD_BORDER_COLOR_2"] || tokens["ACCENT_COLOR_2"] || "#F80";
+            const textPrimary   = tokens["MAIN_TEXT_COLOR_1"] || "#FFF";
+            const textSecondary = tokens["MAIN_TEXT_COLOR_2"] || "#9AB";
+            const highlight     = tokens["MAIN_LINK_COLOR_1"] || tokens["SECTION_TITLE_TEXT_COLOR"] || "#0FF";
+
+            // Special Effects & Animated Border Settings
+            const fx1 = tokens["SPECIAL_EFFECTS_COLOR_1"] || "#064";
+            const fx2 = tokens["SPECIAL_EFFECTS_COLOR_2"] || "#0FF";
+            const fx3 = tokens["SPECIAL_EFFECTS_COLOR_3"] || "#3BF";
+            const fx4 = tokens["SPECIAL_EFFECTS_COLOR_4"] || "#A85";
+
+            const isAnimateEnabled = (tokens['CARD_BORDER_ANIMATE_ENABLE'] === true || String(tokens['CARD_BORDER_ANIMATE_ENABLE']).toUpperCase() === 'TRUE' || tokens['CARD_BORDER_ANIMATE_ENABLE'] === undefined);
+            const animSpeed = tokens['CARD_BORDER_ANIMATE_SPEED'] || '30s';
+            const animEffect = String(tokens['CARD_BORDER_ANIMATE_EFFECT'] || 'Hue Sweep').toLowerCase().replace(/\s+/g, () => '-');
+
+            document.body.style.setProperty('--card-border-speed', animSpeed);
+            document.body.classList.toggle('card-border-animated', isAnimateEnabled);
+            document.body.classList.remove('effect-laser-comet', 'effect-dual-tone-blend', 'effect-hue-sweep', 'effect-fx-rainbow');
+            if (isAnimateEnabled) {
+                document.body.classList.add('effect-' + animEffect);
+            }
+
+            const generatedCss = `
+                :root {
+                    --page-bg: ${mainBg} !important;
+                    --card-bg: ${cardBg} !important;
+                    --card-header-bg: ${cardTitleBg1} !important;
+                    --card-header-hover: ${cardTitleBg2} !important;
+                    --border-color: ${borderClr} !important;
+                    --card-border-color-1: ${cardBorder1} !important;
+                    --card-border-color-2: ${cardBorder2} !important;
+                    --accent-cyan: ${highlight} !important;
+                    --text-primary: ${textPrimary} !important;
+                    --text-secondary: ${textSecondary} !important;
+
+                    --special-effects-color-1: ${fx1} !important;
+                    --special-effects-color-2: ${fx2} !important;
+                    --special-effects-color-3: ${fx3} !important;
+                    --special-effects-color-4: ${fx4} !important;
+                }
+
+                body {
+                    background-color: ${mainBg} !important;
+                    color: ${textPrimary} !important;
+                }
+
+                .section-header {
+                    background: ${cardTitleBg1} !important;
+                }
+
+                .section-header:hover {
+                    background: ${cardTitleBg2} !important;
+                }
+
+                .section-deck:not(.is-collapsed) .section-header {
+                    background: ${cardTitleBg2} !important;
+                }
+
+                .section-title, .accordion-chevron {
+                    color: ${cardTitleTxt1} !important;
+                }
+            `;
+
+            let liveStyleEl = document.getElementById('epwDynamicThemeStyles');
+            if (!liveStyleEl) {
+                liveStyleEl = document.createElement('style');
+                liveStyleEl.id = 'epwDynamicThemeStyles';
+                document.head.appendChild(liveStyleEl);
+            }
+            liveStyleEl.textContent = generatedCss;
+
+            localStorage.setItem('automybiz_punch_theme_css', generatedCss);
+            localStorage.setItem('automybiz_punch_theme_name', activeThemeName);
+
+        } catch (err) {
+            console.warn('[AutoMyBiz Theme Handshake]:', err);
+        }
+    }
+
+    // =========================================================================
+    // APP INITIALIZATION
+    // =========================================================================
     async function initApp() {
         document.getElementById('clientBadge').innerText = CLIENT_NAME;
+
+        // Apply theme immediately
+        fetchAndApplyLiveTheme();
 
         // Load section collapse states
         const savedSections = localStorage.getItem('epw_punch_sections_' + ACTIVE_GSHEET_ID);
@@ -721,7 +1044,7 @@
         }
     }
 
-    // Identify Subtree Range (All contiguous children nested under parentIdx)
+    // Identify Subtree Range (Parent + All Contiguous Descendants)
     function getSubtreeRange(parentIdx) {
         const parent = TASKS_DATA[parentIdx];
         if (!parent) return { start: parentIdx, count: 1 };
@@ -737,7 +1060,6 @@
         return { start: parentIdx, count: count };
     }
 
-    // Identify Section Range (From Level 0 header up to next Level 0 header)
     function getSectionRange(sectionHeaderIdx) {
         let count = 1;
         for (let i = sectionHeaderIdx + 1; i < TASKS_DATA.length; i++) {
@@ -755,7 +1077,6 @@
         const deckContainer = document.getElementById('deckContainer');
         deckContainer.innerHTML = '';
 
-        // Group into sections by level 0
         let currentSection = null;
         const sections = [];
 
@@ -773,21 +1094,19 @@
         });
 
         sections.forEach((sec, sIdx) => {
-            const secId = sec.header.id || `SEC_${sIdx}`;
+            const secId = sec.header.id || 'SEC_' + sIdx;
             const isCollapsed = Boolean(SECTION_STATES[secId]);
 
-            // Calculate section stats
             const totalTasks = sec.tasks.length;
             const completedTasks = sec.tasks.filter(t => t.item.checked).length;
             const allDone = totalTasks > 0 && completedTasks === totalTasks;
 
             const deck = document.createElement('div');
-            deck.className = `section-deck ${isCollapsed ? 'is-collapsed' : ''}`;
-            deck.id = `deck_${secId}`;
+            deck.className = 'section-deck ' + (isCollapsed ? 'is-collapsed' : '');
+            deck.id = 'deck_' + secId;
             deck.dataset.sectionIndex = sIdx;
             deck.dataset.headerIndex = sec.headerIndex;
 
-            // Section Drag and Drop Event Listeners
             deck.addEventListener('dragover', handleSectionDragOver);
             deck.addEventListener('dragleave', handleSectionDragLeave);
             deck.addEventListener('drop', handleSectionDrop);
@@ -818,7 +1137,6 @@
                 </div>
             `;
 
-            // Attach section dragstart to the header handle specifically
             const secHandle = secHdr.querySelector('.section-drag-handle');
             secHandle.addEventListener('dragstart', handleSectionDragStart);
             secHandle.addEventListener('dragend', handleSectionDragEnd);
@@ -829,7 +1147,6 @@
             const secBody = document.createElement('div');
             secBody.className = 'section-body';
 
-            // Task List
             const list = document.createElement('div');
             list.className = 'task-list';
             list.dataset.sectionIndex = sIdx;
@@ -839,16 +1156,14 @@
                 const realIdx = tWrap.originalIndex;
                 const isNested = t.level > 1;
 
-                // Dynamic left indent based on folder level (26px per level step)
                 const dynamicPadding = Math.max(12, (t.level - 1) * 26 + 12);
 
                 const row = document.createElement('div');
-                row.className = `task-row ${isNested ? 'is-nested' : ''} ${t.checked ? 'is-checked' : ''}`;
+                row.className = 'task-row ' + (isNested ? 'is-nested ' : '') + (t.checked ? 'is-checked' : '');
                 row.draggable = true;
                 row.dataset.index = realIdx;
-                row.style.paddingLeft = `${dynamicPadding}px`;
+                row.style.paddingLeft = dynamicPadding + 'px';
 
-                // Task drag listeners
                 row.addEventListener('dragstart', handleTaskDragStart);
                 row.addEventListener('dragover', handleTaskDragOver);
                 row.addEventListener('dragleave', handleTaskDragLeave);
@@ -857,7 +1172,7 @@
 
                 row.innerHTML = `
                     <span class="drag-handle task-drag-handle" title="Drag to reorder • Drag right/left to indent/unnest">⋮⋮</span>
-                    ${isNested ? `<span class="nested-elbow">↳</span>` : ''}
+                    ${isNested ? '<span class="nested-elbow">↳</span>' : ''}
                     <div class="task-checkbox-wrap">
                         <input type="checkbox" class="task-checkbox" ${t.checked ? 'checked' : ''} onchange="toggleTask(${realIdx})" />
                     </div>
@@ -876,7 +1191,6 @@
 
             secBody.appendChild(list);
 
-            // Quick Add Task Input
             const quickAdd = document.createElement('div');
             quickAdd.className = 'quick-add-wrap';
             quickAdd.innerHTML = `
@@ -891,12 +1205,11 @@
         updateProgress();
     }
 
-    // Toggle Section Accordion
     function toggleSection(secId) {
         SECTION_STATES[secId] = !SECTION_STATES[secId];
         localStorage.setItem('epw_punch_sections_' + ACTIVE_GSHEET_ID, JSON.stringify(SECTION_STATES));
         
-        const deck = document.getElementById(`deck_${secId}`);
+        const deck = document.getElementById('deck_' + secId);
         if (deck) {
             deck.classList.toggle('is-collapsed', SECTION_STATES[secId]);
         }
@@ -924,14 +1237,12 @@
         renderAll();
     }
 
-    // Shift Entire Subtree Level (Enforcing Strict Natural Tree Nesting Limit)
     function changeSubtreeLevel(parentIdx, delta) {
         if (!TASKS_DATA[parentIdx]) return;
         const range = getSubtreeRange(parentIdx);
         const parentCurrentLevel = TASKS_DATA[parentIdx].level || 1;
 
         if (delta > 0) {
-            // Check item directly above: Can only nest at most 1 level deeper than it!
             const prevItem = TASKS_DATA[parentIdx - 1];
             const maxAllowed = prevItem ? (prevItem.level === 0 ? 1 : prevItem.level + 1) : 1;
             if (parentCurrentLevel >= maxAllowed) {
@@ -939,7 +1250,7 @@
                 return;
             }
         } else if (delta < 0) {
-            if (parentCurrentLevel <= 1) return; // Minimum task level is 1
+            if (parentCurrentLevel <= 1) return;
         }
 
         for (let i = range.start; i < range.start + range.count; i++) {
@@ -956,7 +1267,7 @@
         TASKS_DATA.splice(range.start, range.count);
         persistState();
         renderAll();
-        showToast(range.count > 1 ? `Deleted task and ${range.count - 1} nested subtask(s)` : 'Task removed');
+        showToast(range.count > 1 ? ('Deleted task and ' + (range.count - 1) + ' subtask(s)') : 'Task removed');
     }
 
     function updateTaskTitle(index, val) {
@@ -1016,7 +1327,7 @@
     }
 
     function addNewSection() {
-        const title = prompt('Enter New Section Title:', '6. Custom Client Setup');
+        const title = prompt('Enter New Section Title:', '6. Custom Setup');
         if (title && title.trim()) {
             TASKS_DATA.push({
                 visible: true,
@@ -1035,7 +1346,7 @@
     }
 
     // =========================================================================
-    // 1. SECTION CARD ACCORDION DRAG-AND-DROP REORDERING
+    // SECTION CARD ACCORDION DRAG-AND-DROP REORDERING
     // =========================================================================
 
     function handleSectionDragStart(e) {
@@ -1105,7 +1416,6 @@
         const midY = rect.top + rect.height / 2;
         const position = (e.clientY < midY) ? 'before' : 'after';
 
-        // Find all section header indexes
         const sectionHeaderIndices = [];
         TASKS_DATA.forEach((t, i) => {
             if (t.level === 0) sectionHeaderIndices.push(i);
@@ -1114,16 +1424,13 @@
         const sourceHeaderIdx = sectionHeaderIndices[DRAGGED_SECTION_INDEX];
         const sourceRange = getSectionRange(sourceHeaderIdx);
 
-        // Splice out entire source section (header + all child tasks)
         const movingSectionTasks = TASKS_DATA.splice(sourceRange.start, sourceRange.count);
 
-        // Recalculate section header indexes after removal
         const newHeaderIndices = [];
         TASKS_DATA.forEach((t, i) => {
             if (t.level === 0) newHeaderIndices.push(i);
         });
 
-        // Determine destination target header index
         let targetHeaderIdx = newHeaderIndices[hoverSectionIdx > DRAGGED_SECTION_INDEX ? hoverSectionIdx - 1 : hoverSectionIdx];
         let insertAt = 0;
 
@@ -1134,7 +1441,6 @@
             insertAt = targetRange.start + targetRange.count;
         }
 
-        // Insert entire section into new position
         TASKS_DATA.splice(insertAt, 0, ...movingSectionTasks);
 
         persistState();
@@ -1150,7 +1456,7 @@
     }
 
     // =========================================================================
-    // 2. SUBTREE TASK DRAG-AND-DROP + STRICT NATURAL TREE CLAMPING
+    // SUBTREE TASK DRAG-AND-DROP + STRICT NATURAL TREE CLAMPING
     // =========================================================================
 
     function handleTaskDragStart(e) {
@@ -1166,7 +1472,6 @@
         e.dataTransfer.setData('text/plain', String(DRAG_START_INDEX));
         e.stopPropagation();
 
-        // Mark all subtree children visually so the whole group moves together
         const allRows = document.querySelectorAll('.task-row');
         for (let i = 0; i < allRows.length; i++) {
             const idx = parseInt(allRows[i].dataset.index, 10);
@@ -1184,7 +1489,6 @@
         const hoverIdx = parseInt(this.dataset.index, 10);
         if (isNaN(hoverIdx)) return;
 
-        // Prevent dragging a parent into its own subtree
         if (hoverIdx >= DRAG_START_INDEX && hoverIdx < DRAG_START_INDEX + DRAG_SUBTREE_COUNT) {
             removeDropIndicator();
             return;
@@ -1195,33 +1499,27 @@
         const midY = rect.top + rect.height / 2;
         DRAG_TARGET_POSITION = (e.clientY < midY) ? 'before' : 'after';
 
-        // Calculate potential drop insertion index
         let tentativeInsertAt = (DRAG_TARGET_POSITION === 'before') ? hoverIdx : hoverIdx + 1;
         if (DRAG_START_INDEX < tentativeInsertAt) {
             tentativeInsertAt -= DRAG_SUBTREE_COUNT;
         }
 
-        // Identify the item directly above the proposed insertion point
         const remainingTasks = TASKS_DATA.filter((_, idx) => idx < DRAG_START_INDEX || idx >= DRAG_START_INDEX + DRAG_SUBTREE_COUNT);
         const prevItem = (tentativeInsertAt > 0) ? remainingTasks[tentativeInsertAt - 1] : null;
 
-        // NATURAL TREE CLAMPING: Maximum allowed level is ALWAYS (prevItem.level + 1)
-        // You can never jump deeper than 1 level below the item directly above you!
+        // Natural Tree Clamping Rule
         let maxAllowedLevel = 1;
         if (prevItem) {
             maxAllowedLevel = (prevItem.level === 0) ? 1 : prevItem.level + 1;
         }
 
-        // Calculate user's horizontal mouse displacement
         const deltaX = e.clientX - DRAG_START_X;
         const levelShift = Math.round(deltaX / 26);
         const parentItem = TASKS_DATA[DRAG_START_INDEX];
         const baseLevel = parentItem ? parentItem.level : 1;
 
-        // Clamped Level: Stays between 1 and maxAllowedLevel
         DRAG_PROPOSED_LEVEL = Math.max(1, Math.min(baseLevel + levelShift, maxAllowedLevel));
 
-        // Render drop indicator line at clamped indentation
         renderDropIndicator(this, DRAG_TARGET_POSITION, DRAG_PROPOSED_LEVEL);
     }
 
@@ -1232,9 +1530,8 @@
         line.className = 'drop-indicator-line';
         line.id = 'activeDropIndicator';
 
-        // Indent the drop line visually to match the strictly clamped nesting level
         const lineIndent = Math.max(12, (proposedLevel - 1) * 26 + 12);
-        line.style.marginLeft = `${lineIndent}px`;
+        line.style.marginLeft = lineIndent + 'px';
 
         if (position === 'before') {
             targetRow.parentElement.insertBefore(line, targetRow);
@@ -1264,19 +1561,14 @@
             return;
         }
 
-        // 1. Cut out entire subtree (parent + all children)
         const subtree = TASKS_DATA.splice(DRAG_START_INDEX, DRAG_SUBTREE_COUNT);
-
-        // 2. Compute effective level shift
         const oldParentLevel = subtree[0].level || 1;
         const effectiveLevelShift = DRAG_PROPOSED_LEVEL - oldParentLevel;
 
-        // Shift levels of entire subtree uniformly
         subtree.forEach(item => {
             item.level = Math.max(1, item.level + effectiveLevelShift);
         });
 
-        // 3. Determine new insertion index in TASKS_DATA
         let targetIdx = DRAG_CURRENT_HOVER_INDEX;
         if (DRAG_START_INDEX < targetIdx) {
             targetIdx -= DRAG_SUBTREE_COUNT;
@@ -1286,7 +1578,6 @@
         if (insertAt < 0) insertAt = 0;
         if (insertAt > TASKS_DATA.length) insertAt = TASKS_DATA.length;
 
-        // 4. Splice subtree back into new position
         TASKS_DATA.splice(insertAt, 0, ...subtree);
 
         persistState();
@@ -1311,15 +1602,14 @@
         const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
 
         document.getElementById('progressFill').style.width = pct + '%';
-        document.getElementById('progressStats').innerText = `${completed} / ${total} Completed (${pct}%)`;
+        document.getElementById('progressStats').innerText = completed + ' / ' + total + ' Completed (' + pct + '%)';
     }
 
-    // Local Persistence
     function persistState() {
         localStorage.setItem('punchlist_state_' + ACTIVE_GSHEET_ID, JSON.stringify(TASKS_DATA));
     }
 
-    // 1-Click TSV Exporter (Directly paste-ready into Google Sheets)
+    // 1-Click TSV Exporter (Strict Rule 5 Function Callback Replacement)
     function copyTSVToClipboard() {
         const headers = ['VISIBLE ( Admin Form )', 'TASK_ID', 'PARENT_ID', 'LEVEL', 'ORDER', 'CHECKED', 'TASK_TITLE', 'TASK_NOTES'];
         const lines = [headers.join('\t')];
