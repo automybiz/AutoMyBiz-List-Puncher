@@ -33,7 +33,7 @@
     })();
     </script>
 
-    <!-- Instant Head Pre-Hydration to prevent FOUC (Flash of Unstyled Content) -->
+    <!-- Instant Head Pre-Hydration to prevent FOUC -->
     <script>
     (function() {
         try {
@@ -50,7 +50,6 @@
 
     <style id="epwThemeStylesFallback">
         :root {
-            /* Base Theme Tokens (Fallback Dark Emerald Maroon Baseline) */
             --page-bg: #011;
             --card-bg: #011;
             --card-header-bg: #033;
@@ -60,6 +59,7 @@
             --accent-cyan: #0FF;
             --accent-blue: #3BF;
             --accent-green: #0F8;
+            --accent-yellow: #FA0;
             --accent-red: #F33;
             --text-primary: #FFF;
             --text-secondary: #9AB;
@@ -67,7 +67,6 @@
             --font-family: 'Inter', -apple-system, sans-serif;
             --indent-step: 26px;
 
-            /* Card Animation Tokens */
             --card-border-color-1: #0FF;
             --card-border-color-2: #F80;
             --card-border-speed: 30s;
@@ -109,6 +108,7 @@
             padding: 20px 24px;
             margin-bottom: 24px;
             box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6);
+            position: relative;
         }
 
         .header-top {
@@ -121,28 +121,148 @@
             padding-bottom: 16px;
         }
 
-        .brand-title {
-            font-size: 1.4rem;
-            font-weight: 800;
+        .brand-title-wrap {
             display: flex;
             align-items: center;
             gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .brand-title {
+            font-size: 1.35rem;
+            font-weight: 800;
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
 
         .brand-title span.cyan {
             color: var(--accent-cyan);
         }
 
-        .client-badge {
-            background: rgba(0, 255, 255, 0.1);
-            border: 1px solid var(--accent-cyan);
+        /* Combined Globals ID & Health Status Pill System */
+        .header-pill-wrap {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+        }
+
+        .status-pill {
+            background-color: var(--card-header-bg);
             color: var(--accent-cyan);
-            font-size: 0.8rem;
-            font-weight: 700;
-            padding: 4px 10px;
+            border: 1px solid var(--border-color);
             border-radius: 20px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
+            padding: 4px 12px;
+            font-size: 0.8rem;
+            font-family: inherit;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            user-select: none;
+            line-height: 1.2;
+            text-decoration: none;
+        }
+
+        .status-pill:hover {
+            border-color: var(--accent-cyan);
+            box-shadow: 0 0 10px rgba(0, 255, 255, 0.3);
+            transform: translateY(-1px);
+        }
+
+        .status-pill.status-healthy {
+            background: rgba(16, 185, 129, 0.12);
+            color: #10b981;
+            border-color: #10b981;
+        }
+
+        .status-pill.status-probing {
+            background: rgba(0, 229, 255, 0.1);
+            color: var(--accent-cyan);
+            border-color: var(--accent-cyan);
+        }
+
+        .status-pill.status-warning {
+            background: rgba(250, 160, 0, 0.15);
+            color: var(--accent-yellow);
+            border-color: var(--accent-yellow);
+            animation: pulseWarning 2.5s infinite;
+        }
+
+        .status-pill.status-error {
+            background: rgba(239, 68, 68, 0.15);
+            color: #ef4444;
+            border-color: #ef4444;
+        }
+
+        @keyframes pulseWarning {
+            0%, 100% { box-shadow: 0 0 4px rgba(250, 160, 0, 0.3); }
+            50% { box-shadow: 0 0 12px rgba(250, 160, 0, 0.6); }
+        }
+
+        /* Popover Tooltip for Status Pill */
+        .status-tooltip-popover {
+            visibility: hidden;
+            width: max-content;
+            min-width: 320px;
+            max-width: 440px;
+            background: #0d121f;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 12px 16px;
+            position: absolute;
+            top: calc(100% + 8px);
+            left: 0;
+            z-index: 10000;
+            box-shadow: 0 12px 35px rgba(0,0,0,0.85);
+            opacity: 0;
+            transform: translateY(-4px);
+            transition: opacity 0.2s ease, transform 0.2s ease;
+            pointer-events: none;
+            font-size: 11.5px;
+            line-height: 1.5;
+            user-select: text;
+        }
+
+        .header-pill-wrap:hover .status-tooltip-popover {
+            visibility: visible;
+            opacity: 1;
+            transform: translateY(0);
+            pointer-events: auto;
+        }
+
+        .tooltip-hdr {
+            font-weight: 700;
+            color: var(--accent-cyan);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding-bottom: 4px;
+            margin-bottom: 8px;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .tooltip-code-box {
+            font-family: monospace;
+            font-size: 11px;
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(0, 229, 255, 0.25);
+            border-radius: 4px;
+            padding: 6px 8px;
+            margin: 6px 0;
+            word-break: break-all;
+            color: #fff;
+            user-select: all;
+        }
+
+        .tooltip-footer-note {
+            color: var(--text-muted);
+            font-size: 10.5px;
+            display: block;
+            margin-top: 6px;
         }
 
         .header-actions {
@@ -218,7 +338,83 @@
         }
 
         /* ==========================================================================
-           Decoupled Dual-Engine Border Animation Architecture (@property Isolated)
+           Clean Slate / Empty Onboarding Welcome Card
+           ========================================================================== */
+        .welcome-card {
+            background: var(--card-bg);
+            border: 1.5px solid var(--border-color);
+            border-radius: 12px;
+            padding: 34px 28px;
+            margin: 20px 0;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.7);
+        }
+
+        .welcome-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+
+        .welcome-header h2 {
+            font-size: 1.45rem;
+            font-weight: 800;
+            color: #fff;
+        }
+
+        .welcome-header h2 span {
+            color: var(--accent-cyan);
+        }
+
+        .welcome-intro {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+            line-height: 1.6;
+            margin-bottom: 24px;
+        }
+
+        .welcome-steps-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 16px;
+            margin-bottom: 28px;
+        }
+
+        .welcome-step-box {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 18px 16px;
+            border-left: 3px solid var(--accent-cyan);
+        }
+
+        .welcome-step-title {
+            font-size: 0.95rem;
+            font-weight: 700;
+            color: #fff;
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .welcome-step-desc {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            line-height: 1.5;
+        }
+
+        .welcome-actions {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+            border-top: 1px solid var(--border-color);
+            padding-top: 20px;
+        }
+
+        /* ==========================================================================
+           Decoupled Border Animation Architecture (@property Isolated)
            ========================================================================== */
         @property --border-angle {
             syntax: "<angle>";
@@ -227,9 +423,7 @@
         }
 
         @keyframes rotateBorderBeam {
-            to {
-                --border-angle: 360deg;
-            }
+            to { --border-angle: 360deg; }
         }
 
         @keyframes flowBeamRail {
@@ -237,7 +431,6 @@
             100% { background-position: 300% 50%; }
         }
 
-        /* Section Deck (Accordion Container) */
         .section-deck {
             background: var(--card-bg);
             border: 1.5px solid var(--border-color);
@@ -261,7 +454,6 @@
             border: 1.5px dashed var(--accent-cyan);
         }
 
-        /* OPEN ACCORDION: Applies special border effect when NOT collapsed */
         .card-border-animated .section-deck:not(.is-collapsed) {
             border: 1.5px solid transparent !important;
             animation: rotateBorderBeam var(--card-border-speed, 30s) linear infinite !important;
@@ -284,55 +476,7 @@
             pointer-events: none;
         }
 
-        /* Effect A: Laser Comet */
-        .card-border-animated.effect-laser-comet .section-deck:not(.is-collapsed) {
-            background: 
-                linear-gradient(var(--card-bg), var(--card-bg)) padding-box,
-                conic-gradient(
-                    from var(--border-angle),
-                    transparent 0%,
-                    transparent 60%,
-                    var(--card-border-color-1) 85%,
-                    var(--card-border-color-2) 95%,
-                    transparent 100%
-                ) border-box !important;
-        }
-        .card-border-animated.effect-laser-comet .section-deck:not(.is-collapsed) .section-header::after {
-            background: linear-gradient(
-                90deg,
-                transparent 0%,
-                var(--card-border-color-1) 25%,
-                var(--card-border-color-2) 45%,
-                transparent 65%,
-                transparent 100%
-            );
-            background-size: 300% 100%;
-            animation: flowBeamRail var(--card-border-speed, 30s) linear infinite !important;
-        }
-
-        /* Effect B: Dual-Tone Blend */
-        .card-border-animated.effect-dual-tone-blend .section-deck:not(.is-collapsed) {
-            background: 
-                linear-gradient(var(--card-bg), var(--card-bg)) padding-box,
-                conic-gradient(
-                    from var(--border-angle),
-                    var(--card-border-color-1) 0%,
-                    var(--card-border-color-2) 50%,
-                    var(--card-border-color-1) 100%
-                ) border-box !important;
-        }
-        .card-border-animated.effect-dual-tone-blend .section-deck:not(.is-collapsed) .section-header::after {
-            background: linear-gradient(
-                90deg,
-                var(--card-border-color-1) 0%,
-                var(--card-border-color-2) 50%,
-                var(--card-border-color-1) 100%
-            );
-            background-size: 300% 100%;
-            animation: flowBeamRail var(--card-border-speed, 30s) linear infinite !important;
-        }
-
-        /* Effect C: Hue Sweep (Active Default) */
+        /* Effect C: Hue Sweep */
         .card-border-animated.effect-hue-sweep .section-deck:not(.is-collapsed) {
             background: 
                 linear-gradient(var(--card-bg), var(--card-bg)) padding-box,
@@ -356,33 +500,6 @@
             animation: flowBeamRail var(--card-border-speed, 30s) linear infinite !important;
         }
 
-        /* Effect D: FX Spectrum / Rainbow */
-        .card-border-animated.effect-fx-rainbow .section-deck:not(.is-collapsed) {
-            background: 
-                linear-gradient(var(--card-bg), var(--card-bg)) padding-box,
-                conic-gradient(
-                    from var(--border-angle),
-                    var(--special-effects-color-1) 0%,
-                    var(--special-effects-color-2) 25%,
-                    var(--special-effects-color-3) 50%,
-                    var(--special-effects-color-4) 75%,
-                    var(--special-effects-color-1) 100%
-                ) border-box !important;
-        }
-        .card-border-animated.effect-fx-rainbow .section-deck:not(.is-collapsed) .section-header::after {
-            background: linear-gradient(
-                90deg,
-                var(--special-effects-color-1) 0%,
-                var(--special-effects-color-2) 25%,
-                var(--special-effects-color-3) 50%,
-                var(--special-effects-color-4) 75%,
-                var(--special-effects-color-1) 100%
-            );
-            background-size: 300% 100%;
-            animation: flowBeamRail var(--card-border-speed, 30s) linear infinite !important;
-        }
-
-        /* Section Drop Line Indicator */
         .section-drop-indicator {
             height: 4px;
             background: linear-gradient(90deg, var(--accent-cyan), var(--accent-green));
@@ -392,7 +509,6 @@
             pointer-events: none;
         }
 
-        /* Section Header - Consuming CARD_TITLE_BG_COLOR_1 & CARD_TITLE_TEXT_COLOR_1 */
         .section-header {
             background: var(--card-header-bg);
             padding: 14px 20px;
@@ -493,7 +609,6 @@
             color: var(--text-muted);
         }
 
-        /* Section Body */
         .section-body {
             transition: max-height 0.3s ease-out;
             overflow: hidden;
@@ -504,7 +619,6 @@
             display: none;
         }
 
-        /* Task List Container */
         .task-list {
             padding: 10px 16px;
             display: flex;
@@ -513,7 +627,6 @@
             position: relative;
         }
 
-        /* Task Item Row */
         .task-row {
             display: flex;
             align-items: flex-start;
@@ -716,15 +829,39 @@
     <!-- Header Control Bar -->
     <div class="header-card">
         <div class="header-top">
-            <div class="brand-title">
-                ⚡ AutoMyBiz <span class="cyan">// Punch List</span>
-                <span class="client-badge" id="clientBadge">Client Onboarding</span>
+            <div class="brand-title-wrap">
+                <div class="brand-title">
+                    ⚡ AutoMyBiz <span class="cyan">// Punch List</span>
+                </div>
+                
+                <!-- Combined Globals ID & Sheet Health Status Pill -->
+                <div class="header-pill-wrap">
+                    <button id="sheetHealthPill" class="status-pill status-probing" onclick="copySheetId()" title="Click to copy Sheet ID">
+                        <span id="pillIcon">📋</span>
+                        <span id="pillText">Connecting to Sheet...</span>
+                    </button>
+                    <div class="status-tooltip-popover">
+                        <div class="tooltip-hdr">
+                            <span>📋</span>
+                            <span>Google Sheet Connection</span>
+                        </div>
+                        <div id="tooltipStatusNotice">Probing Google Sheet connection...</div>
+                        <div class="tooltip-code-box" id="tooltipSheetId">Loading...</div>
+                        <span class="tooltip-footer-note" id="tooltipFooterNote">Click pill to copy full Sheet ID</span>
+                    </div>
+                </div>
+
+                <span class="client-badge" id="clientBadge">Client Workspace</span>
             </div>
+
             <div class="header-actions">
-                <button type="button" class="btn-action" onclick="toggleAllSections()" id="btnToggleAll" title="Expand or collapse all accordion cards">
+                <button type="button" class="btn-action" onclick="forceSyncFromSheet()" title="Query Google Sheet directly">
+                    🔄 Re-Sync
+                </button>
+                <button type="button" class="btn-action" onclick="toggleAllSections()" id="btnToggleAll" title="Expand or collapse all cards">
                     ☰ Collapse All
                 </button>
-                <button type="button" class="btn-action" onclick="copyTSVToClipboard()" title="Copy entire table as TSV ready for Google Sheets">
+                <button type="button" class="btn-action" onclick="copyTSVToClipboard()" title="Copy table as TSV ready for Google Sheets">
                     📋 Copy TSV
                 </button>
                 <button type="button" class="btn-action btn-primary" onclick="addNewSection()" title="Add new section card">
@@ -767,7 +904,7 @@
 
     // In-memory Task State
     let TASKS_DATA = [];
-    let SECTION_STATES = {}; // sectionId -> boolean (true = collapsed)
+    let SECTION_STATES = {};
 
     // Task Drag-to-Indent & Subtree Tracking
     let DRAG_START_INDEX = null;
@@ -781,8 +918,8 @@
     let IS_DRAGGING_SECTION = false;
     let DRAGGED_SECTION_INDEX = null;
 
-    // Default Fallback Seed Data
-    const FALLBACK_SEED = [
+    // Standard Onboarding Blueprint (Available on empty sheet onboarding)
+    const ONBOARDING_BLUEPRINT = [
         { visible: true, id: "CF_01", parentId: "", level: 0, order: 1, checked: true, title: "1. Cloudflare Infrastructure", notes: "Master DNS and edge routing" },
         { visible: true, id: "CF_02", parentId: "CF_01", level: 1, order: 2, checked: true, title: "Create account with admin@ email", notes: "Isolates domain security from public sales" },
         { visible: true, id: "CF_03", parentId: "CF_01", level: 2, order: 3, checked: true, title: "Invite automybiz@gmail.com as Administrator", notes: "Enables agency management under single login" },
@@ -808,8 +945,7 @@
     ];
 
     // =========================================================================
-    // HIGH-VELOCITY EDGE THEME ENGINE (Google Sheets via Worker)
-    // Synchronizes with ACTIVE_ADMIN_THEME_NAME & CARD_* Animation Settings
+    // HIGH-VELOCITY EDGE THEME ENGINE
     // =========================================================================
     async function fetchAndApplyLiveTheme() {
         try {
@@ -864,13 +1000,10 @@
                 }
             }
 
-            // Check URL query override (?theme=DARK_RUBY_GOLD)
             const queryTheme = urlParams.get('theme') || urlParams.get('active_theme');
             if (queryTheme) {
                 activeThemeName = queryTheme.replace(/_/g, () => ' ').trim().toUpperCase();
             }
-
-            console.log('[AutoMyBiz Punch List Theme]: Active Admin Theme -> ' + activeThemeName);
 
             // Map Sheet Tokens
             const mainBg        = tokens["MAIN_BG_COLOR"] || "#011";
@@ -886,7 +1019,6 @@
             const textSecondary = tokens["MAIN_TEXT_COLOR_2"] || "#9AB";
             const highlight     = tokens["MAIN_LINK_COLOR_1"] || tokens["SECTION_TITLE_TEXT_COLOR"] || "#0FF";
 
-            // Special Effects & Animated Border Settings
             const fx1 = tokens["SPECIAL_EFFECTS_COLOR_1"] || "#064";
             const fx2 = tokens["SPECIAL_EFFECTS_COLOR_2"] || "#0FF";
             const fx3 = tokens["SPECIAL_EFFECTS_COLOR_3"] || "#3BF";
@@ -961,7 +1093,50 @@
     }
 
     // =========================================================================
-    // APP INITIALIZATION
+    // SHEET HEALTH STATUS & COMBINED PILL UI
+    // =========================================================================
+    function updateSheetPillUI(state, text, notice, isWarning) {
+        const pill = document.getElementById('sheetHealthPill');
+        const pillIcon = document.getElementById('pillIcon');
+        const pillText = document.getElementById('pillText');
+        const tooltipNotice = document.getElementById('tooltipStatusNotice');
+        const tooltipId = document.getElementById('tooltipSheetId');
+        const tooltipFooter = document.getElementById('tooltipFooterNote');
+
+        if (!pill) return;
+
+        pill.className = 'status-pill status-' + state;
+        if (pillText) pillText.innerText = text;
+
+        if (tooltipId) tooltipId.innerText = ACTIVE_GSHEET_ID || '(None provided)';
+        if (tooltipNotice) {
+            tooltipNotice.innerHTML = notice;
+            tooltipNotice.style.color = isWarning ? 'var(--accent-yellow)' : 'var(--text-secondary)';
+        }
+        if (tooltipFooter) {
+            tooltipFooter.innerHTML = 'Click pill to copy Sheet ID • <a href="' + GOOGLE_DOCS_DOMAIN + '/spreadsheets/d/' + ACTIVE_GSHEET_ID + '" target="_blank" style="color:var(--accent-cyan); text-decoration:underline;">Open Google Sheet ↗</a>';
+        }
+
+        if (state === 'healthy') {
+            if (pillIcon) pillIcon.innerText = '📋';
+        } else if (state === 'warning') {
+            if (pillIcon) pillIcon.innerText = '⚠️';
+        } else if (state === 'error') {
+            if (pillIcon) pillIcon.innerText = '❌';
+        } else {
+            if (pillIcon) pillIcon.innerText = '⌛';
+        }
+    }
+
+    function copySheetId() {
+        if (!ACTIVE_GSHEET_ID) return;
+        navigator.clipboard.writeText(ACTIVE_GSHEET_ID).then(() => {
+            showToast('📋 Copied Sheet ID to clipboard!');
+        });
+    }
+
+    // =========================================================================
+    // APP INITIALIZATION & SOURCE-OF-TRUTH RESOLVER
     // =========================================================================
     async function initApp() {
         document.getElementById('clientBadge').innerText = CLIENT_NAME;
@@ -969,43 +1144,55 @@
         // Apply theme immediately
         fetchAndApplyLiveTheme();
 
-        // Load section collapse states
+        // Load section collapse preferences
         const savedSections = localStorage.getItem('epw_punch_sections_' + ACTIVE_GSHEET_ID);
         if (savedSections) {
             try { SECTION_STATES = JSON.parse(savedSections); } catch(e) {}
         }
 
-        // Load local tasks cache
-        const localCached = localStorage.getItem('punchlist_state_' + ACTIVE_GSHEET_ID);
-        if (localCached) {
-            try {
-                TASKS_DATA = JSON.parse(localCached);
-                renderAll();
-            } catch(e) {}
-        } else {
-            TASKS_DATA = JSON.parse(JSON.stringify(FALLBACK_SEED));
-            renderAll();
-        }
-
+        // Primary Source of Truth: Fetch from Google Sheet
         await fetchLiveGSheetData();
     }
 
-    async function fetchLiveGSheetData() {
-        if (!ACTIVE_GSHEET_ID) return;
-        const gvizUrl = GOOGLE_DOCS_DOMAIN + '/spreadsheets/d/' + ACTIVE_GSHEET_ID + '/gviz/tq?tqx=out:json';
+    async function fetchLiveGSheetData(isManualSync = false) {
+        if (!ACTIVE_GSHEET_ID) {
+            updateSheetPillUI('warning', 'No Sheet ID', 'No gsheet_punch_list_id found in URL parameters.', true);
+            renderEmptyWelcomeState();
+            return;
+        }
+
+        const shortId = ACTIVE_GSHEET_ID.length > 12 ? (ACTIVE_GSHEET_ID.substring(0, 10) + '...') : ACTIVE_GSHEET_ID;
+        updateSheetPillUI('probing', 'Probing: ' + shortId, 'Querying Google Sheet for active tasks...', false);
+
+        const gvizUrl = GOOGLE_DOCS_DOMAIN + '/spreadsheets/d/' + ACTIVE_GSHEET_ID + '/gviz/tq?sheet=Sheet1&headers=1&tqx=out:json&t=' + Date.now();
 
         try {
             const res = await fetch(gvizUrl);
-            if (!res.ok) return;
+            
+            // Check if Google blocked access due to restricted permissions
+            if (!res.ok) {
+                handleConnectionFailure(isManualSync, 'Google Sheet access is restricted (401/403). Set General access to "Anyone with the link can view".');
+                return;
+            }
 
             const text = await res.text();
             const startIdx = text.indexOf('{');
             const endIdx = text.lastIndexOf('}');
-            if (startIdx === -1 || endIdx === -1) return;
+            if (startIdx === -1 || endIdx === -1) {
+                handleConnectionFailure(isManualSync, 'Received unparseable response from Google Sheets.');
+                return;
+            }
 
             const json = JSON.parse(text.substring(startIdx, endIdx + 1));
             const rows = json.table?.rows || [];
-            if (!rows.length) return;
+
+            // If the sheet has no rows, render the clean Welcome State
+            if (!rows.length) {
+                TASKS_DATA = [];
+                updateSheetPillUI('healthy', 'Sheet: ' + shortId + ' ⚡ Empty', '✓ Live Google Sheet connected successfully. Sheet contains 0 tasks.', false);
+                renderEmptyWelcomeState();
+                return;
+            }
 
             const parsed = [];
             rows.forEach((r, idx) => {
@@ -1019,7 +1206,7 @@
                 const title = c[6]?.v ? String(c[6].v).trim() : '';
                 const notes = c[7]?.v ? String(c[7].v).trim() : '';
 
-                if (title) {
+                if (title && isVis) {
                     parsed.push({
                         visible: isVis,
                         id: taskId,
@@ -1035,13 +1222,105 @@
 
             if (parsed.length > 0) {
                 TASKS_DATA = parsed;
-                persistState();
+                // Silently update local storage backup
+                localStorage.setItem('punchlist_backup_' + ACTIVE_GSHEET_ID, JSON.stringify(TASKS_DATA));
+                updateSheetPillUI('healthy', 'Sheet: ' + shortId + ' ⚡ Synced', '✓ 200 OK Live Google Sheet Connected. Loaded ' + parsed.length + ' tasks.', false);
                 renderAll();
                 showToast('Synced with live Google Sheet!');
+            } else {
+                TASKS_DATA = [];
+                updateSheetPillUI('healthy', 'Sheet: ' + shortId + ' ⚡ Empty', '✓ Live Google Sheet connected. No visible tasks found.', false);
+                renderEmptyWelcomeState();
             }
+
         } catch(e) {
-            console.log('GViz direct query restricted. Using local/fallback cache.');
+            handleConnectionFailure(isManualSync, 'Google Sheet query was blocked (CORS / Restricted). Please click Share > Anyone with the link can view.');
         }
+    }
+
+    function handleConnectionFailure(isManualSync, errorDetails) {
+        const shortId = ACTIVE_GSHEET_ID.length > 12 ? (ACTIVE_GSHEET_ID.substring(0, 10) + '...') : ACTIVE_GSHEET_ID;
+        
+        // Attempt fallback to local storage backup
+        const localBackup = localStorage.getItem('punchlist_backup_' + ACTIVE_GSHEET_ID);
+        if (localBackup) {
+            try {
+                TASKS_DATA = JSON.parse(localBackup);
+                updateSheetPillUI('warning', 'Sheet: Offline Backup', '⚠️ ' + errorDetails + '<br><br>Showing local cached backup.', true);
+                renderAll();
+                if (isManualSync) alert('Cannot reach live Google Sheet. Showing local offline backup.\n\nMake sure the sheet is shared as "Anyone with the link can view".');
+                return;
+            } catch(e) {}
+        }
+
+        // If no local backup exists, render Clean Slate with Error notice
+        TASKS_DATA = [];
+        updateSheetPillUI('error', 'Sheet: Connection Notice', '⚠️ ' + errorDetails, true);
+        renderEmptyWelcomeState();
+        if (isManualSync) alert('Failed to connect to Google Sheet:\n' + errorDetails);
+    }
+
+    function forceSyncFromSheet() {
+        showToast('Querying Google Sheet directly...');
+        fetchLiveGSheetData(true);
+    }
+
+    // Render Welcome Clean Slate State
+    function renderEmptyWelcomeState() {
+        const deckContainer = document.getElementById('deckContainer');
+        deckContainer.innerHTML = `
+            <div class="welcome-card">
+                <div class="welcome-header">
+                    <span style="font-size:2rem; line-height:1;">👋</span>
+                    <h2>Welcome to <span>AutoMyBiz Punch List</span></h2>
+                </div>
+                <p class="welcome-intro">
+                    This onboarding and task-management engine functions like Google Keep and modern outliner tools.
+                    Organize your high-level project milestones, nest multi-step subtasks, and track your progress in real time.
+                </p>
+
+                <div class="welcome-steps-grid">
+                    <div class="welcome-step-box">
+                        <div class="welcome-step-title">🎯 1. Main Goals in Headers</div>
+                        <div class="welcome-step-desc">Enter your primary milestones into the accordion card titles (e.g. <em>1. Cloudflare Setup</em>, <em>2. Stripe Gateway</em>).</div>
+                    </div>
+                    <div class="welcome-step-box">
+                        <div class="welcome-step-title">📋 2. Action Items in Body</div>
+                        <div class="welcome-step-desc">Add actionable checklist items required to reach each goal. Completed items strike through instantly.</div>
+                    </div>
+                    <div class="welcome-step-box">
+                        <div class="welcome-step-title">↳ 3. Drag-to-Indent Subtasks</div>
+                        <div class="welcome-step-desc">Drag any task to the right to nest it as a subtask under the item directly above it (up to 1 level deeper).</div>
+                    </div>
+                    <div class="welcome-step-box">
+                        <div class="welcome-step-title">⚡ 4. Live Google Sheet Sync</div>
+                        <div class="welcome-step-desc">Your tasks automatically link to your client's Google Sheet, or can be pasted in 1 click using <strong>📋 Copy TSV</strong>.</div>
+                    </div>
+                </div>
+
+                <div class="welcome-actions">
+                    <button type="button" class="btn-action btn-primary" onclick="addNewSection()">
+                        + Create First Section
+                    </button>
+                    <button type="button" class="btn-action" onclick="seedOnboardingBlueprint()" title="Pre-populate with the AutoMyBiz Onboarding Blueprint">
+                        📋 Load Onboarding Blueprint
+                    </button>
+                    <button type="button" class="btn-action" onclick="forceSyncFromSheet()">
+                        🔄 Re-Sync with Google Sheet
+                    </button>
+                </div>
+            </div>
+        `;
+
+        updateProgress();
+    }
+
+    // Seed Standard Blueprint on User Demand
+    function seedOnboardingBlueprint() {
+        TASKS_DATA = JSON.parse(JSON.stringify(ONBOARDING_BLUEPRINT));
+        localStorage.setItem('punchlist_backup_' + ACTIVE_GSHEET_ID, JSON.stringify(TASKS_DATA));
+        renderAll();
+        showToast('Loaded standard AutoMyBiz blueprint!');
     }
 
     // Identify Subtree Range (Parent + All Contiguous Descendants)
@@ -1076,6 +1355,11 @@
     function renderAll() {
         const deckContainer = document.getElementById('deckContainer');
         deckContainer.innerHTML = '';
+
+        if (!TASKS_DATA.length) {
+            renderEmptyWelcomeState();
+            return;
+        }
 
         let currentSection = null;
         const sections = [];
@@ -1233,7 +1517,7 @@
     function toggleTask(index) {
         if (!TASKS_DATA[index]) return;
         TASKS_DATA[index].checked = !TASKS_DATA[index].checked;
-        persistState();
+        localStorage.setItem('punchlist_backup_' + ACTIVE_GSHEET_ID, JSON.stringify(TASKS_DATA));
         renderAll();
     }
 
@@ -1257,7 +1541,7 @@
             TASKS_DATA[i].level = Math.max(1, (TASKS_DATA[i].level || 1) + delta);
         }
 
-        persistState();
+        localStorage.setItem('punchlist_backup_' + ACTIVE_GSHEET_ID, JSON.stringify(TASKS_DATA));
         renderAll();
     }
 
@@ -1265,7 +1549,7 @@
         if (!TASKS_DATA[parentIdx]) return;
         const range = getSubtreeRange(parentIdx);
         TASKS_DATA.splice(range.start, range.count);
-        persistState();
+        localStorage.setItem('punchlist_backup_' + ACTIVE_GSHEET_ID, JSON.stringify(TASKS_DATA));
         renderAll();
         showToast(range.count > 1 ? ('Deleted task and ' + (range.count - 1) + ' subtask(s)') : 'Task removed');
     }
@@ -1273,21 +1557,21 @@
     function updateTaskTitle(index, val) {
         if (TASKS_DATA[index]) {
             TASKS_DATA[index].title = val.trim();
-            persistState();
+            localStorage.setItem('punchlist_backup_' + ACTIVE_GSHEET_ID, JSON.stringify(TASKS_DATA));
         }
     }
 
     function updateTaskNotes(index, val) {
         if (TASKS_DATA[index]) {
             TASKS_DATA[index].notes = val.trim();
-            persistState();
+            localStorage.setItem('punchlist_backup_' + ACTIVE_GSHEET_ID, JSON.stringify(TASKS_DATA));
         }
     }
 
     function updateSectionTitle(index, val) {
         if (TASKS_DATA[index]) {
             TASKS_DATA[index].title = val.trim();
-            persistState();
+            localStorage.setItem('punchlist_backup_' + ACTIVE_GSHEET_ID, JSON.stringify(TASKS_DATA));
         }
     }
 
@@ -1320,14 +1604,14 @@
             }
 
             TASKS_DATA.splice(insertAt, 0, newTask);
-            persistState();
+            localStorage.setItem('punchlist_backup_' + ACTIVE_GSHEET_ID, JSON.stringify(TASKS_DATA));
             renderAll();
             showToast('Added task: ' + title);
         }
     }
 
     function addNewSection() {
-        const title = prompt('Enter New Section Title:', '6. Custom Setup');
+        const title = prompt('Enter New Section Title:', '1. Project Setup');
         if (title && title.trim()) {
             TASKS_DATA.push({
                 visible: true,
@@ -1339,16 +1623,15 @@
                 title: title.trim(),
                 notes: ''
             });
-            persistState();
+            localStorage.setItem('punchlist_backup_' + ACTIVE_GSHEET_ID, JSON.stringify(TASKS_DATA));
             renderAll();
             showToast('Created section: ' + title);
         }
     }
 
     // =========================================================================
-    // SECTION CARD ACCORDION DRAG-AND-DROP REORDERING
+    // SECTION & SUBTREE DRAG AND DROP
     // =========================================================================
-
     function handleSectionDragStart(e) {
         IS_DRAGGING_SECTION = true;
         DRAGGED_SECTION_INDEX = parseInt(this.dataset.sectionIndex, 10);
@@ -1443,7 +1726,7 @@
 
         TASKS_DATA.splice(insertAt, 0, ...movingSectionTasks);
 
-        persistState();
+        localStorage.setItem('punchlist_backup_' + ACTIVE_GSHEET_ID, JSON.stringify(TASKS_DATA));
         renderAll();
         showToast('Section reordered!');
     }
@@ -1454,10 +1737,6 @@
         removeSectionDropIndicator();
         document.querySelectorAll('.section-deck').forEach(d => d.classList.remove('section-dragging'));
     }
-
-    // =========================================================================
-    // SUBTREE TASK DRAG-AND-DROP + STRICT NATURAL TREE CLAMPING
-    // =========================================================================
 
     function handleTaskDragStart(e) {
         if (IS_DRAGGING_SECTION) return;
@@ -1507,7 +1786,6 @@
         const remainingTasks = TASKS_DATA.filter((_, idx) => idx < DRAG_START_INDEX || idx >= DRAG_START_INDEX + DRAG_SUBTREE_COUNT);
         const prevItem = (tentativeInsertAt > 0) ? remainingTasks[tentativeInsertAt - 1] : null;
 
-        // Natural Tree Clamping Rule
         let maxAllowedLevel = 1;
         if (prevItem) {
             maxAllowedLevel = (prevItem.level === 0) ? 1 : prevItem.level + 1;
@@ -1580,7 +1858,7 @@
 
         TASKS_DATA.splice(insertAt, 0, ...subtree);
 
-        persistState();
+        localStorage.setItem('punchlist_backup_' + ACTIVE_GSHEET_ID, JSON.stringify(TASKS_DATA));
         renderAll();
         showToast('Task & subtasks moved');
     }
@@ -1594,7 +1872,6 @@
         DRAG_CURRENT_HOVER_INDEX = null;
     }
 
-    // Update Progress Bar
     function updateProgress() {
         const actionable = TASKS_DATA.filter(t => t.level > 0);
         const completed = actionable.filter(t => t.checked).length;
@@ -1603,10 +1880,6 @@
 
         document.getElementById('progressFill').style.width = pct + '%';
         document.getElementById('progressStats').innerText = completed + ' / ' + total + ' Completed (' + pct + '%)';
-    }
-
-    function persistState() {
-        localStorage.setItem('punchlist_state_' + ACTIVE_GSHEET_ID, JSON.stringify(TASKS_DATA));
     }
 
     // 1-Click TSV Exporter (Strict Rule 5 Function Callback Replacement)
