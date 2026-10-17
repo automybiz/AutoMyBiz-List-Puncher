@@ -1,0 +1,1370 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex, nofollow">
+    <meta name="darkreader-lock">
+    <title>AutoMyBiz - Client Onboarding Punch List</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <script>
+    /* Universal Dark Reader Kill Switch (Rule 9) */
+    (function() {
+        function disarmDarkReader() {
+            const drStyles = document.querySelectorAll('style.darkreader, style[class*="darkreader"]');
+            drStyles.forEach(el => el.remove());
+        }
+        disarmDarkReader();
+        const observer = new MutationObserver(mutations => {
+            for (const m of mutations) {
+                for (const node of m.addedNodes) {
+                    if (node.nodeType === 1 && (node.classList?.contains('darkreader') || (node.tagName === 'STYLE' && node.className.includes('darkreader')))) {
+                        node.remove();
+                    }
+                }
+            }
+        });
+        observer.observe(document.documentElement, { childList: true, subtree: true });
+        window.addEventListener('DOMContentLoaded', disarmDarkReader);
+        window.addEventListener('load', disarmDarkReader);
+    })();
+    </script>
+
+    <style>
+        :root {
+            --bg-color: #0b0f19;
+            --card-bg: #111827;
+            --card-header-bg: #161f30;
+            --card-header-hover: #1e293b;
+            --card-hover-bg: #1a2438;
+            --border-color: #1f2937;
+            --accent-cyan: #00e5ff;
+            --accent-blue: #3b82f6;
+            --accent-green: #10b981;
+            --accent-red: #ef4444;
+            --text-primary: #f9fafb;
+            --text-secondary: #9ca3af;
+            --text-muted: #6b7280;
+            --font-family: 'Inter', -apple-system, sans-serif;
+            --indent-step: 26px;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: var(--font-family);
+            background-color: var(--bg-color);
+            background-image: 
+                radial-gradient(rgba(0, 229, 255, 0.04) 1px, transparent 1px),
+                radial-gradient(rgba(0, 0, 0, 0.8) 15%, transparent 16%);
+            background-size: 24px 24px, 16px 16px;
+            color: var(--text-primary);
+            line-height: 1.5;
+            padding: 24px 16px 80px;
+        }
+
+        .container {
+            max-width: 980px;
+            margin: 0 auto;
+        }
+
+        /* Top Control Header */
+        .header-card {
+            background: var(--card-bg);
+            border: 1.5px solid var(--border-color);
+            border-radius: 12px;
+            padding: 20px 24px;
+            margin-bottom: 24px;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6);
+        }
+
+        .header-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 12px;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 16px;
+        }
+
+        .brand-title {
+            font-size: 1.4rem;
+            font-weight: 800;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .brand-title span.cyan {
+            color: var(--accent-cyan);
+        }
+
+        .client-badge {
+            background: rgba(0, 229, 255, 0.1);
+            border: 1px solid rgba(0, 229, 255, 0.3);
+            color: var(--accent-cyan);
+            font-size: 0.8rem;
+            font-weight: 700;
+            padding: 4px 10px;
+            border-radius: 20px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .btn-action {
+            background: var(--card-header-bg);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            padding: 7px 14px;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            font-family: inherit;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            user-select: none;
+        }
+
+        .btn-action:hover {
+            border-color: var(--accent-cyan);
+            color: #fff;
+            transform: translateY(-1px);
+        }
+
+        .btn-primary {
+            background: var(--accent-cyan);
+            border-color: var(--accent-cyan);
+            color: #0b0f19;
+            font-weight: 700;
+        }
+
+        .btn-primary:hover {
+            background: #33ecff;
+            color: #0b0f19;
+        }
+
+        /* Progress Bar */
+        .progress-section {
+            margin-top: 16px;
+        }
+
+        .progress-labels {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+
+        .progress-track {
+            width: 100%;
+            height: 8px;
+            background: #1f2937;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent-cyan), var(--accent-green));
+            width: 0%;
+            transition: width 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        /* Section / Category Cards */
+        .section-deck {
+            background: var(--card-bg);
+            border: 1.5px solid var(--border-color);
+            border-radius: 12px;
+            margin-bottom: 20px;
+            overflow: hidden;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+            position: relative;
+        }
+
+        .section-deck:hover {
+            border-color: #374151;
+        }
+
+        .section-deck.is-collapsed {
+            border-color: #1f2937;
+        }
+
+        .section-deck.section-dragging {
+            opacity: 0.35;
+            border: 1.5px dashed var(--accent-cyan);
+        }
+
+        /* Section Drop Line Indicator */
+        .section-drop-indicator {
+            height: 4px;
+            background: linear-gradient(90deg, var(--accent-cyan), var(--accent-green));
+            border-radius: 2px;
+            margin: 8px 0;
+            box-shadow: 0 0 12px var(--accent-cyan);
+            pointer-events: none;
+        }
+
+        .section-header {
+            background: var(--card-header-bg);
+            padding: 14px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border-color);
+            cursor: pointer;
+            user-select: none;
+            transition: background 0.2s ease;
+        }
+
+        .section-header:hover {
+            background: var(--card-header-hover);
+        }
+
+        .section-deck.is-collapsed .section-header {
+            border-bottom: none;
+        }
+
+        .section-title-wrap {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex: 1;
+            min-width: 0;
+        }
+
+        .drag-handle {
+            color: var(--text-muted);
+            cursor: grab;
+            font-size: 14px;
+            padding: 2px 6px;
+            user-select: none;
+            opacity: 0.5;
+            transition: opacity 0.2s, color 0.2s, transform 0.15s ease;
+            flex-shrink: 0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .drag-handle:hover {
+            opacity: 1;
+            color: var(--accent-cyan);
+            transform: scale(1.15);
+        }
+
+        .section-title {
+            font-size: 1.05rem;
+            font-weight: 700;
+            color: var(--accent-cyan);
+            border: none;
+            background: transparent;
+            font-family: inherit;
+            width: 100%;
+            outline: none;
+            cursor: text;
+        }
+
+        .section-title:focus {
+            border-bottom: 1px dashed var(--accent-cyan);
+        }
+
+        .section-meta-right {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-shrink: 0;
+        }
+
+        .section-counter-badge {
+            font-size: 0.75rem;
+            font-weight: 700;
+            padding: 3px 8px;
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.06);
+            color: var(--text-secondary);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            letter-spacing: 0.3px;
+        }
+
+        .section-counter-badge.all-done {
+            background: rgba(16, 185, 129, 0.15);
+            color: #10b981;
+            border-color: rgba(16, 185, 129, 0.35);
+        }
+
+        .accordion-chevron {
+            font-size: 11px;
+            color: var(--accent-cyan);
+            transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+            display: inline-block;
+        }
+
+        .section-deck.is-collapsed .accordion-chevron {
+            transform: rotate(-90deg);
+            color: var(--text-muted);
+        }
+
+        /* Section Collapsible Body */
+        .section-body {
+            transition: max-height 0.3s ease-out;
+            overflow: hidden;
+        }
+
+        .section-deck.is-collapsed .section-body {
+            display: none;
+        }
+
+        /* Task List Container */
+        .task-list {
+            padding: 10px 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            position: relative;
+        }
+
+        /* Task Item Row with Unlimited Nesting Support */
+        .task-row {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 8px 12px;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid transparent;
+            transition: background 0.15s ease, border-color 0.15s ease, padding-left 0.2s ease;
+            position: relative;
+        }
+
+        .task-row:hover {
+            background: var(--card-hover-bg);
+            border-color: rgba(255, 255, 255, 0.08);
+        }
+
+        /* Dragging Subtree Group State */
+        .task-row.is-dragging {
+            opacity: 0.35;
+            background: rgba(0, 229, 255, 0.05);
+            border: 1px dashed var(--accent-cyan);
+        }
+
+        .task-row.is-subtree-child {
+            opacity: 0.45;
+            border-left: 2px dashed rgba(0, 229, 255, 0.5) !important;
+        }
+
+        /* Dynamic Drop Indicator with Clamped Indent Alignment */
+        .drop-indicator-line {
+            height: 3px;
+            background: linear-gradient(90deg, var(--accent-cyan), #3b82f6);
+            border-radius: 2px;
+            margin: 2px 0;
+            box-shadow: 0 0 10px var(--accent-cyan);
+            transition: margin-left 0.15s ease;
+            pointer-events: none;
+        }
+
+        /* Nested Hierarchy Guidelines */
+        .task-row.is-nested {
+            border-left: 2px solid rgba(0, 229, 255, 0.25);
+            border-radius: 0 8px 8px 0;
+        }
+
+        .nested-elbow {
+            color: rgba(0, 229, 255, 0.4);
+            font-size: 12px;
+            user-select: none;
+            margin-right: 2px;
+            line-height: 1.2;
+            flex-shrink: 0;
+        }
+
+        /* Checkbox & Inputs */
+        .task-checkbox-wrap {
+            padding-top: 3px;
+            flex-shrink: 0;
+        }
+
+        .task-checkbox {
+            width: 17px;
+            height: 17px;
+            cursor: pointer;
+            accent-color: var(--accent-green);
+        }
+
+        .task-body {
+            flex: 1;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .task-title-input {
+            width: 100%;
+            background: transparent;
+            border: none;
+            color: var(--text-primary);
+            font-size: 0.92rem;
+            font-family: inherit;
+            outline: none;
+            padding: 1px 0;
+            transition: color 0.15s ease;
+        }
+
+        .task-title-input:focus {
+            border-bottom: 1px dashed var(--accent-cyan);
+        }
+
+        .task-notes-input {
+            width: 100%;
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            font-size: 0.78rem;
+            font-family: inherit;
+            outline: none;
+            padding: 1px 0;
+        }
+
+        .task-notes-input:focus {
+            border-bottom: 1px dashed var(--text-secondary);
+            color: var(--text-secondary);
+        }
+
+        /* Optimistic Strikethrough */
+        .task-row.is-checked .task-title-input {
+            text-decoration: line-through;
+            color: var(--text-muted) !important;
+        }
+
+        .task-row.is-checked .task-notes-input {
+            text-decoration: line-through;
+            opacity: 0.5;
+        }
+
+        /* Actions Bar */
+        .task-actions {
+            display: flex;
+            align-items: center;
+            gap: 2px;
+            opacity: 0;
+            transition: opacity 0.15s ease;
+            flex-shrink: 0;
+        }
+
+        .task-row:hover .task-actions {
+            opacity: 1;
+        }
+
+        .btn-icon {
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            font-size: 13px;
+            padding: 3px 6px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            line-height: 1;
+        }
+
+        .btn-icon:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+        }
+
+        .btn-icon.delete-btn:hover {
+            background: rgba(239, 68, 68, 0.2);
+            color: var(--accent-red);
+        }
+
+        /* Quick Add Input */
+        .quick-add-wrap {
+            padding: 10px 16px 14px;
+            border-top: 1px dashed rgba(255, 255, 255, 0.05);
+        }
+
+        .quick-add-input {
+            width: 100%;
+            background: rgba(0, 0, 0, 0.25);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: var(--text-primary);
+            padding: 8px 12px;
+            font-size: 0.88rem;
+            font-family: inherit;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .quick-add-input:focus {
+            border-color: var(--accent-cyan);
+        }
+
+        /* Toast Popup */
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background: #1f2937;
+            border: 1px solid var(--accent-cyan);
+            color: #fff;
+            padding: 10px 18px;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.8);
+            transform: translateY(100px);
+            opacity: 0;
+            transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+            z-index: 9999;
+        }
+
+        .toast.show {
+            transform: translateY(0);
+            opacity: 1;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+
+    <!-- Header Control Bar -->
+    <div class="header-card">
+        <div class="header-top">
+            <div class="brand-title">
+                ⚡ AutoMyBiz <span class="cyan">// Punch List</span>
+                <span class="client-badge" id="clientBadge">Client Onboarding</span>
+            </div>
+            <div class="header-actions">
+                <button type="button" class="btn-action" onclick="toggleAllSections()" id="btnToggleAll" title="Expand or collapse all accordion cards">
+                    ☰ Collapse All
+                </button>
+                <button type="button" class="btn-action" onclick="copyTSVToClipboard()" title="Copy entire table as TSV ready for Google Sheets">
+                    📋 Copy TSV
+                </button>
+                <button type="button" class="btn-action btn-primary" onclick="addNewSection()" title="Add new section card">
+                    + New Section
+                </button>
+            </div>
+        </div>
+
+        <div class="progress-section">
+            <div class="progress-labels">
+                <span>Deployment &amp; Onboarding Readiness</span>
+                <span id="progressStats">0 / 0 Completed (0%)</span>
+            </div>
+            <div class="progress-track">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dynamic Section & Task Cards Container -->
+    <div id="deckContainer"></div>
+
+</div>
+
+<!-- Toast Popup Notification -->
+<div id="toast" class="toast">Action completed!</div>
+
+<script>
+    // Global Constants avoiding protocol slashes inside template literals (Rule 9)
+    const GOOGLE_DOCS_DOMAIN = 'https://docs.google.com';
+    const DEFAULT_GSHEET_ID = '1AT4h2VAvjsLo96IxldO5B0c_tWVhllPWyAvFJKLqlLE';
+
+    // Parse URL parameters dynamically
+    const urlParams = new URLSearchParams(window.location.search);
+    const ACTIVE_GSHEET_ID = urlParams.get('gsheet_punch_list_id') || DEFAULT_GSHEET_ID;
+    const CLIENT_NAME = urlParams.get('location_name') || urlParams.get('client_name') || 'Euro Parts West';
+
+    // In-memory Task State
+    let TASKS_DATA = [];
+    let SECTION_STATES = {}; // sectionId -> boolean (true = collapsed)
+
+    // Task Drag-to-Indent & Subtree Tracking
+    let DRAG_START_INDEX = null;
+    let DRAG_SUBTREE_COUNT = 1;
+    let DRAG_START_X = 0;
+    let DRAG_CURRENT_HOVER_INDEX = null;
+    let DRAG_TARGET_POSITION = 'before'; // 'before' | 'after'
+    let DRAG_PROPOSED_LEVEL = 1;
+
+    // Section Deck Drag Reordering State
+    let IS_DRAGGING_SECTION = false;
+    let DRAGGED_SECTION_INDEX = null;
+
+    // Built-in Default Fallback Seed
+    const FALLBACK_SEED = [
+        { visible: true, id: "CF_01", parentId: "", level: 0, order: 1, checked: true, title: "1. Cloudflare Infrastructure", notes: "Master DNS and edge routing" },
+        { visible: true, id: "CF_02", parentId: "CF_01", level: 1, order: 2, checked: true, title: "Create account with admin@ email", notes: "Isolates domain security from public sales" },
+        { visible: true, id: "CF_03", parentId: "CF_01", level: 2, order: 3, checked: true, title: "Invite automybiz@gmail.com as Administrator", notes: "Enables agency management under single login" },
+        { visible: true, id: "CF_04", parentId: "CF_01", level: 1, order: 4, checked: true, title: "Deploy Sveltia CMS OAuth Authenticator Worker", notes: "Handles secure GitHub OAuth proxying" },
+
+        { visible: true, id: "GH_01", parentId: "", level: 0, order: 5, checked: true, title: "2. GitHub Repository & Sveltia CMS", notes: "Codebase and CMS backend" },
+        { visible: true, id: "GH_02", parentId: "GH_01", level: 1, order: 6, checked: true, title: "Client creates GitHub account (EPWAdmin)", notes: "Gives client ownership credentials" },
+        { visible: true, id: "GH_03", parentId: "GH_01", level: 2, order: 7, checked: true, title: "Add client as repository collaborator", notes: "Allows client to commit changes via Sveltia" },
+        { visible: true, id: "GH_04", parentId: "GH_01", level: 2, order: 8, checked: true, title: "Test 1-click 'Sign In with GitHub' at /admin/", notes: "Verify login opens Sveltia dashboard" },
+
+        { visible: true, id: "ST_01", parentId: "", level: 0, order: 9, checked: false, title: "3. Stripe Payment Gateway", notes: "Direct on-site payments" },
+        { visible: true, id: "ST_02", parentId: "ST_01", level: 1, order: 10, checked: false, title: "Client creates & verifies Stripe merchant account", notes: "Connects bank for direct payouts" },
+        { visible: true, id: "ST_03", parentId: "ST_01", level: 1, order: 11, checked: false, title: "Generate Stripe Payment Links / Buy Buttons", notes: "Checkout links for high-ticket parts" },
+
+        { visible: true, id: "SB_01", parentId: "", level: 0, order: 12, checked: false, title: "4. Supabase Member Portal & Google Auth", notes: "Customer authentication engine" },
+        { visible: true, id: "SB_02", parentId: "SB_01", level: 1, order: 13, checked: false, title: "Client signs up at supabase.com (via GitHub)", notes: "Creates client-owned 2-project free org" },
+        { visible: true, id: "SB_03", parentId: "SB_01", level: 2, order: 14, checked: false, title: "Invite automybiz@gmail.com to Organization", notes: "Enables agency collaboration" },
+        { visible: true, id: "SB_04", parentId: "SB_01", level: 2, order: 15, checked: false, title: "Configure Google OAuth Provider", notes: "Enables 1-click customer login" },
+
+        { visible: true, id: "GHL_01", parentId: "", level: 0, order: 16, checked: true, title: "5. AutoMyBiz & GoHighLevel Integration", notes: "CRM and workflow automations" },
+        { visible: true, id: "GHL_02", parentId: "GHL_01", level: 1, order: 17, checked: true, title: "Add Custom Menu Link: Products & Variants", notes: "Embeds Sveltia CMS iframe in sidebar" },
+        { visible: true, id: "GHL_03", parentId: "GHL_01", level: 1, order: 18, checked: false, title: "Generate Private Integration Token (PIT)", notes: "Required for live contact custom fields" }
+    ];
+
+    // Initialize App & Fetch Live Sheet Data
+    async function initApp() {
+        document.getElementById('clientBadge').innerText = CLIENT_NAME;
+
+        // Load section collapse states
+        const savedSections = localStorage.getItem('epw_punch_sections_' + ACTIVE_GSHEET_ID);
+        if (savedSections) {
+            try { SECTION_STATES = JSON.parse(savedSections); } catch(e) {}
+        }
+
+        // Load local tasks cache
+        const localCached = localStorage.getItem('punchlist_state_' + ACTIVE_GSHEET_ID);
+        if (localCached) {
+            try {
+                TASKS_DATA = JSON.parse(localCached);
+                renderAll();
+            } catch(e) {}
+        } else {
+            TASKS_DATA = JSON.parse(JSON.stringify(FALLBACK_SEED));
+            renderAll();
+        }
+
+        await fetchLiveGSheetData();
+    }
+
+    async function fetchLiveGSheetData() {
+        if (!ACTIVE_GSHEET_ID) return;
+        const gvizUrl = GOOGLE_DOCS_DOMAIN + '/spreadsheets/d/' + ACTIVE_GSHEET_ID + '/gviz/tq?tqx=out:json';
+
+        try {
+            const res = await fetch(gvizUrl);
+            if (!res.ok) return;
+
+            const text = await res.text();
+            const startIdx = text.indexOf('{');
+            const endIdx = text.lastIndexOf('}');
+            if (startIdx === -1 || endIdx === -1) return;
+
+            const json = JSON.parse(text.substring(startIdx, endIdx + 1));
+            const rows = json.table?.rows || [];
+            if (!rows.length) return;
+
+            const parsed = [];
+            rows.forEach((r, idx) => {
+                const c = r.c || [];
+                const isVis = c[0] ? (c[0].v === true || String(c[0].v).toUpperCase() === 'TRUE') : true;
+                const taskId = c[1]?.v ? String(c[1].v).trim() : 'TASK_' + (idx + 1);
+                const parentId = c[2]?.v ? String(c[2].v).trim() : '';
+                const level = c[3]?.v !== undefined ? parseInt(c[3].v, 10) : 1;
+                const order = c[4]?.v !== undefined ? parseInt(c[4].v, 10) : idx + 1;
+                const isChecked = c[5] ? (c[5].v === true || String(c[5].v).toUpperCase() === 'TRUE') : false;
+                const title = c[6]?.v ? String(c[6].v).trim() : '';
+                const notes = c[7]?.v ? String(c[7].v).trim() : '';
+
+                if (title) {
+                    parsed.push({
+                        visible: isVis,
+                        id: taskId,
+                        parentId: parentId,
+                        level: isNaN(level) ? 1 : level,
+                        order: order,
+                        checked: isChecked,
+                        title: title,
+                        notes: notes
+                    });
+                }
+            });
+
+            if (parsed.length > 0) {
+                TASKS_DATA = parsed;
+                persistState();
+                renderAll();
+                showToast('Synced with live Google Sheet!');
+            }
+        } catch(e) {
+            console.log('GViz direct query restricted. Using local/fallback cache.');
+        }
+    }
+
+    // Identify Subtree Range (All contiguous children nested under parentIdx)
+    function getSubtreeRange(parentIdx) {
+        const parent = TASKS_DATA[parentIdx];
+        if (!parent) return { start: parentIdx, count: 1 };
+
+        let count = 1;
+        for (let i = parentIdx + 1; i < TASKS_DATA.length; i++) {
+            if (TASKS_DATA[i].level > parent.level) {
+                count++;
+            } else {
+                break;
+            }
+        }
+        return { start: parentIdx, count: count };
+    }
+
+    // Identify Section Range (From Level 0 header up to next Level 0 header)
+    function getSectionRange(sectionHeaderIdx) {
+        let count = 1;
+        for (let i = sectionHeaderIdx + 1; i < TASKS_DATA.length; i++) {
+            if (TASKS_DATA[i].level > 0) {
+                count++;
+            } else {
+                break;
+            }
+        }
+        return { start: sectionHeaderIdx, count: count };
+    }
+
+    // Render Grouped Accordion Sections with Folder-Hierarchy Nesting
+    function renderAll() {
+        const deckContainer = document.getElementById('deckContainer');
+        deckContainer.innerHTML = '';
+
+        // Group into sections by level 0
+        let currentSection = null;
+        const sections = [];
+
+        TASKS_DATA.forEach((task, index) => {
+            if (task.level === 0) {
+                currentSection = { header: task, tasks: [], headerIndex: index };
+                sections.push(currentSection);
+            } else {
+                if (!currentSection) {
+                    currentSection = { header: { title: "Tasks", id: "SEC_DEFAULT", level: 0 }, tasks: [], headerIndex: -1 };
+                    sections.push(currentSection);
+                }
+                currentSection.tasks.push({ item: task, originalIndex: index });
+            }
+        });
+
+        sections.forEach((sec, sIdx) => {
+            const secId = sec.header.id || `SEC_${sIdx}`;
+            const isCollapsed = Boolean(SECTION_STATES[secId]);
+
+            // Calculate section stats
+            const totalTasks = sec.tasks.length;
+            const completedTasks = sec.tasks.filter(t => t.item.checked).length;
+            const allDone = totalTasks > 0 && completedTasks === totalTasks;
+
+            const deck = document.createElement('div');
+            deck.className = `section-deck ${isCollapsed ? 'is-collapsed' : ''}`;
+            deck.id = `deck_${secId}`;
+            deck.dataset.sectionIndex = sIdx;
+            deck.dataset.headerIndex = sec.headerIndex;
+
+            // Section Drag and Drop Event Listeners
+            deck.addEventListener('dragover', handleSectionDragOver);
+            deck.addEventListener('dragleave', handleSectionDragLeave);
+            deck.addEventListener('drop', handleSectionDrop);
+
+            // Accordion Section Header
+            const secHdr = document.createElement('div');
+            secHdr.className = 'section-header';
+            secHdr.onclick = (e) => {
+                if (e.target.classList.contains('section-title') || e.target.classList.contains('drag-handle')) return;
+                toggleSection(secId);
+            };
+
+            secHdr.innerHTML = `
+                <div class="section-title-wrap">
+                    <span class="drag-handle section-drag-handle" 
+                          draggable="true" 
+                          title="Drag to reorder section card" 
+                          data-section-index="${sIdx}">⋮⋮</span>
+                    <input type="text" class="section-title" value="${escapeHtml(sec.header.title)}" 
+                           onchange="updateSectionTitle(${sec.headerIndex}, this.value)" 
+                           onclick="event.stopPropagation();" />
+                </div>
+                <div class="section-meta-right">
+                    <span class="section-counter-badge ${allDone ? 'all-done' : ''}">
+                        ${completedTasks} / ${totalTasks} Completed
+                    </span>
+                    <span class="accordion-chevron">▼</span>
+                </div>
+            `;
+
+            // Attach section dragstart to the header handle specifically
+            const secHandle = secHdr.querySelector('.section-drag-handle');
+            secHandle.addEventListener('dragstart', handleSectionDragStart);
+            secHandle.addEventListener('dragend', handleSectionDragEnd);
+
+            deck.appendChild(secHdr);
+
+            // Collapsible Section Body
+            const secBody = document.createElement('div');
+            secBody.className = 'section-body';
+
+            // Task List
+            const list = document.createElement('div');
+            list.className = 'task-list';
+            list.dataset.sectionIndex = sIdx;
+
+            sec.tasks.forEach(tWrap => {
+                const t = tWrap.item;
+                const realIdx = tWrap.originalIndex;
+                const isNested = t.level > 1;
+
+                // Dynamic left indent based on folder level (26px per level step)
+                const dynamicPadding = Math.max(12, (t.level - 1) * 26 + 12);
+
+                const row = document.createElement('div');
+                row.className = `task-row ${isNested ? 'is-nested' : ''} ${t.checked ? 'is-checked' : ''}`;
+                row.draggable = true;
+                row.dataset.index = realIdx;
+                row.style.paddingLeft = `${dynamicPadding}px`;
+
+                // Task drag listeners
+                row.addEventListener('dragstart', handleTaskDragStart);
+                row.addEventListener('dragover', handleTaskDragOver);
+                row.addEventListener('dragleave', handleTaskDragLeave);
+                row.addEventListener('drop', handleTaskDrop);
+                row.addEventListener('dragend', handleTaskDragEnd);
+
+                row.innerHTML = `
+                    <span class="drag-handle task-drag-handle" title="Drag to reorder • Drag right/left to indent/unnest">⋮⋮</span>
+                    ${isNested ? `<span class="nested-elbow">↳</span>` : ''}
+                    <div class="task-checkbox-wrap">
+                        <input type="checkbox" class="task-checkbox" ${t.checked ? 'checked' : ''} onchange="toggleTask(${realIdx})" />
+                    </div>
+                    <div class="task-body">
+                        <input type="text" class="task-title-input" value="${escapeHtml(t.title)}" onchange="updateTaskTitle(${realIdx}, this.value)" />
+                        <input type="text" class="task-notes-input" placeholder="Add note / description..." value="${escapeHtml(t.notes || '')}" onchange="updateTaskNotes(${realIdx}, this.value)" />
+                    </div>
+                    <div class="task-actions">
+                        <button type="button" class="btn-icon" title="Outdent (Shift Left)" onclick="changeSubtreeLevel(${realIdx}, -1)">⇤</button>
+                        <button type="button" class="btn-icon" title="Indent (Nest Right)" onclick="changeSubtreeLevel(${realIdx}, 1)">⇥</button>
+                        <button type="button" class="btn-icon delete-btn" title="Delete task and subtasks" onclick="deleteSubtree(${realIdx})">✕</button>
+                    </div>
+                `;
+                list.appendChild(row);
+            });
+
+            secBody.appendChild(list);
+
+            // Quick Add Task Input
+            const quickAdd = document.createElement('div');
+            quickAdd.className = 'quick-add-wrap';
+            quickAdd.innerHTML = `
+                <input type="text" class="quick-add-input" placeholder="+ Add a task to this section (Press Enter)..." onkeydown="handleQuickAdd(event, ${sIdx})" />
+            `;
+            secBody.appendChild(quickAdd);
+
+            deck.appendChild(secBody);
+            deckContainer.appendChild(deck);
+        });
+
+        updateProgress();
+    }
+
+    // Toggle Section Accordion
+    function toggleSection(secId) {
+        SECTION_STATES[secId] = !SECTION_STATES[secId];
+        localStorage.setItem('epw_punch_sections_' + ACTIVE_GSHEET_ID, JSON.stringify(SECTION_STATES));
+        
+        const deck = document.getElementById(`deck_${secId}`);
+        if (deck) {
+            deck.classList.toggle('is-collapsed', SECTION_STATES[secId]);
+        }
+    }
+
+    function toggleAllSections() {
+        const decks = document.querySelectorAll('.section-deck');
+        const anyOpen = Array.from(decks).some(d => !d.classList.contains('is-collapsed'));
+        const btn = document.getElementById('btnToggleAll');
+
+        decks.forEach(d => {
+            const secId = d.id.replace('deck_', () => '');
+            SECTION_STATES[secId] = anyOpen;
+            d.classList.toggle('is-collapsed', anyOpen);
+        });
+
+        localStorage.setItem('epw_punch_sections_' + ACTIVE_GSHEET_ID, JSON.stringify(SECTION_STATES));
+        if (btn) btn.innerText = anyOpen ? '▼ Expand All' : '☰ Collapse All';
+    }
+
+    function toggleTask(index) {
+        if (!TASKS_DATA[index]) return;
+        TASKS_DATA[index].checked = !TASKS_DATA[index].checked;
+        persistState();
+        renderAll();
+    }
+
+    // Shift Entire Subtree Level (Enforcing Strict Natural Tree Nesting Limit)
+    function changeSubtreeLevel(parentIdx, delta) {
+        if (!TASKS_DATA[parentIdx]) return;
+        const range = getSubtreeRange(parentIdx);
+        const parentCurrentLevel = TASKS_DATA[parentIdx].level || 1;
+
+        if (delta > 0) {
+            // Check item directly above: Can only nest at most 1 level deeper than it!
+            const prevItem = TASKS_DATA[parentIdx - 1];
+            const maxAllowed = prevItem ? (prevItem.level === 0 ? 1 : prevItem.level + 1) : 1;
+            if (parentCurrentLevel >= maxAllowed) {
+                showToast("Cannot nest deeper than previous item");
+                return;
+            }
+        } else if (delta < 0) {
+            if (parentCurrentLevel <= 1) return; // Minimum task level is 1
+        }
+
+        for (let i = range.start; i < range.start + range.count; i++) {
+            TASKS_DATA[i].level = Math.max(1, (TASKS_DATA[i].level || 1) + delta);
+        }
+
+        persistState();
+        renderAll();
+    }
+
+    function deleteSubtree(parentIdx) {
+        if (!TASKS_DATA[parentIdx]) return;
+        const range = getSubtreeRange(parentIdx);
+        TASKS_DATA.splice(range.start, range.count);
+        persistState();
+        renderAll();
+        showToast(range.count > 1 ? `Deleted task and ${range.count - 1} nested subtask(s)` : 'Task removed');
+    }
+
+    function updateTaskTitle(index, val) {
+        if (TASKS_DATA[index]) {
+            TASKS_DATA[index].title = val.trim();
+            persistState();
+        }
+    }
+
+    function updateTaskNotes(index, val) {
+        if (TASKS_DATA[index]) {
+            TASKS_DATA[index].notes = val.trim();
+            persistState();
+        }
+    }
+
+    function updateSectionTitle(index, val) {
+        if (TASKS_DATA[index]) {
+            TASKS_DATA[index].title = val.trim();
+            persistState();
+        }
+    }
+
+    function handleQuickAdd(e, sectionIndex) {
+        if (e.key === 'Enter' && e.target.value.trim()) {
+            const title = e.target.value.trim();
+            e.target.value = '';
+
+            const newTask = {
+                visible: true,
+                id: 'TASK_' + Date.now().toString().slice(-6),
+                parentId: '',
+                level: 1,
+                order: TASKS_DATA.length + 1,
+                checked: false,
+                title: title,
+                notes: ''
+            };
+
+            let insertAt = TASKS_DATA.length;
+            let currentSec = 0;
+            for (let i = 0; i < TASKS_DATA.length; i++) {
+                if (TASKS_DATA[i].level === 0) {
+                    if (currentSec === sectionIndex + 1) {
+                        insertAt = i;
+                        break;
+                    }
+                    currentSec++;
+                }
+            }
+
+            TASKS_DATA.splice(insertAt, 0, newTask);
+            persistState();
+            renderAll();
+            showToast('Added task: ' + title);
+        }
+    }
+
+    function addNewSection() {
+        const title = prompt('Enter New Section Title:', '6. Custom Client Setup');
+        if (title && title.trim()) {
+            TASKS_DATA.push({
+                visible: true,
+                id: 'SEC_' + Date.now().toString().slice(-6),
+                parentId: '',
+                level: 0,
+                order: TASKS_DATA.length + 1,
+                checked: false,
+                title: title.trim(),
+                notes: ''
+            });
+            persistState();
+            renderAll();
+            showToast('Created section: ' + title);
+        }
+    }
+
+    // =========================================================================
+    // 1. SECTION CARD ACCORDION DRAG-AND-DROP REORDERING
+    // =========================================================================
+
+    function handleSectionDragStart(e) {
+        IS_DRAGGING_SECTION = true;
+        DRAGGED_SECTION_INDEX = parseInt(this.dataset.sectionIndex, 10);
+
+        const deck = this.closest('.section-deck');
+        if (deck) deck.classList.add('section-dragging');
+
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', 'SECTION_' + DRAGGED_SECTION_INDEX);
+        e.stopPropagation();
+    }
+
+    function handleSectionDragOver(e) {
+        if (!IS_DRAGGING_SECTION) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+
+        const hoverSectionIdx = parseInt(this.dataset.sectionIndex, 10);
+        if (isNaN(hoverSectionIdx) || hoverSectionIdx === DRAGGED_SECTION_INDEX) {
+            removeSectionDropIndicator();
+            return;
+        }
+
+        const rect = this.getBoundingClientRect();
+        const midY = rect.top + rect.height / 2;
+        const position = (e.clientY < midY) ? 'before' : 'after';
+
+        renderSectionDropIndicator(this, position);
+    }
+
+    function renderSectionDropIndicator(targetDeck, position) {
+        removeSectionDropIndicator();
+
+        const line = document.createElement('div');
+        line.className = 'section-drop-indicator';
+        line.id = 'activeSectionDropIndicator';
+
+        if (position === 'before') {
+            targetDeck.parentElement.insertBefore(line, targetDeck);
+        } else {
+            targetDeck.parentElement.insertBefore(line, targetDeck.nextSibling);
+        }
+    }
+
+    function removeSectionDropIndicator() {
+        const existing = document.getElementById('activeSectionDropIndicator');
+        if (existing) existing.remove();
+    }
+
+    function handleSectionDragLeave(e) {
+        if (!e.relatedTarget || !e.relatedTarget.closest('#deckContainer')) {
+            removeSectionDropIndicator();
+        }
+    }
+
+    function handleSectionDrop(e) {
+        if (!IS_DRAGGING_SECTION) return;
+        e.preventDefault();
+        removeSectionDropIndicator();
+
+        const hoverSectionIdx = parseInt(this.dataset.sectionIndex, 10);
+        if (isNaN(hoverSectionIdx) || hoverSectionIdx === DRAGGED_SECTION_INDEX) return;
+
+        const rect = this.getBoundingClientRect();
+        const midY = rect.top + rect.height / 2;
+        const position = (e.clientY < midY) ? 'before' : 'after';
+
+        // Find all section header indexes
+        const sectionHeaderIndices = [];
+        TASKS_DATA.forEach((t, i) => {
+            if (t.level === 0) sectionHeaderIndices.push(i);
+        });
+
+        const sourceHeaderIdx = sectionHeaderIndices[DRAGGED_SECTION_INDEX];
+        const sourceRange = getSectionRange(sourceHeaderIdx);
+
+        // Splice out entire source section (header + all child tasks)
+        const movingSectionTasks = TASKS_DATA.splice(sourceRange.start, sourceRange.count);
+
+        // Recalculate section header indexes after removal
+        const newHeaderIndices = [];
+        TASKS_DATA.forEach((t, i) => {
+            if (t.level === 0) newHeaderIndices.push(i);
+        });
+
+        // Determine destination target header index
+        let targetHeaderIdx = newHeaderIndices[hoverSectionIdx > DRAGGED_SECTION_INDEX ? hoverSectionIdx - 1 : hoverSectionIdx];
+        let insertAt = 0;
+
+        if (position === 'before') {
+            insertAt = targetHeaderIdx;
+        } else {
+            const targetRange = getSectionRange(targetHeaderIdx);
+            insertAt = targetRange.start + targetRange.count;
+        }
+
+        // Insert entire section into new position
+        TASKS_DATA.splice(insertAt, 0, ...movingSectionTasks);
+
+        persistState();
+        renderAll();
+        showToast('Section reordered!');
+    }
+
+    function handleSectionDragEnd() {
+        IS_DRAGGING_SECTION = false;
+        DRAGGED_SECTION_INDEX = null;
+        removeSectionDropIndicator();
+        document.querySelectorAll('.section-deck').forEach(d => d.classList.remove('section-dragging'));
+    }
+
+    // =========================================================================
+    // 2. SUBTREE TASK DRAG-AND-DROP + STRICT NATURAL TREE CLAMPING
+    // =========================================================================
+
+    function handleTaskDragStart(e) {
+        if (IS_DRAGGING_SECTION) return;
+
+        DRAG_START_INDEX = parseInt(this.dataset.index, 10);
+        DRAG_START_X = e.clientX;
+        const range = getSubtreeRange(DRAG_START_INDEX);
+        DRAG_SUBTREE_COUNT = range.count;
+
+        this.classList.add('is-dragging');
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', String(DRAG_START_INDEX));
+        e.stopPropagation();
+
+        // Mark all subtree children visually so the whole group moves together
+        const allRows = document.querySelectorAll('.task-row');
+        for (let i = 0; i < allRows.length; i++) {
+            const idx = parseInt(allRows[i].dataset.index, 10);
+            if (idx > DRAG_START_INDEX && idx < DRAG_START_INDEX + DRAG_SUBTREE_COUNT) {
+                allRows[i].classList.add('is-subtree-child');
+            }
+        }
+    }
+
+    function handleTaskDragOver(e) {
+        if (IS_DRAGGING_SECTION) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+
+        const hoverIdx = parseInt(this.dataset.index, 10);
+        if (isNaN(hoverIdx)) return;
+
+        // Prevent dragging a parent into its own subtree
+        if (hoverIdx >= DRAG_START_INDEX && hoverIdx < DRAG_START_INDEX + DRAG_SUBTREE_COUNT) {
+            removeDropIndicator();
+            return;
+        }
+
+        DRAG_CURRENT_HOVER_INDEX = hoverIdx;
+        const rect = this.getBoundingClientRect();
+        const midY = rect.top + rect.height / 2;
+        DRAG_TARGET_POSITION = (e.clientY < midY) ? 'before' : 'after';
+
+        // Calculate potential drop insertion index
+        let tentativeInsertAt = (DRAG_TARGET_POSITION === 'before') ? hoverIdx : hoverIdx + 1;
+        if (DRAG_START_INDEX < tentativeInsertAt) {
+            tentativeInsertAt -= DRAG_SUBTREE_COUNT;
+        }
+
+        // Identify the item directly above the proposed insertion point
+        const remainingTasks = TASKS_DATA.filter((_, idx) => idx < DRAG_START_INDEX || idx >= DRAG_START_INDEX + DRAG_SUBTREE_COUNT);
+        const prevItem = (tentativeInsertAt > 0) ? remainingTasks[tentativeInsertAt - 1] : null;
+
+        // NATURAL TREE CLAMPING: Maximum allowed level is ALWAYS (prevItem.level + 1)
+        // You can never jump deeper than 1 level below the item directly above you!
+        let maxAllowedLevel = 1;
+        if (prevItem) {
+            maxAllowedLevel = (prevItem.level === 0) ? 1 : prevItem.level + 1;
+        }
+
+        // Calculate user's horizontal mouse displacement
+        const deltaX = e.clientX - DRAG_START_X;
+        const levelShift = Math.round(deltaX / 26);
+        const parentItem = TASKS_DATA[DRAG_START_INDEX];
+        const baseLevel = parentItem ? parentItem.level : 1;
+
+        // Clamped Level: Stays between 1 and maxAllowedLevel
+        DRAG_PROPOSED_LEVEL = Math.max(1, Math.min(baseLevel + levelShift, maxAllowedLevel));
+
+        // Render drop indicator line at clamped indentation
+        renderDropIndicator(this, DRAG_TARGET_POSITION, DRAG_PROPOSED_LEVEL);
+    }
+
+    function renderDropIndicator(targetRow, position, proposedLevel) {
+        removeDropIndicator();
+
+        const line = document.createElement('div');
+        line.className = 'drop-indicator-line';
+        line.id = 'activeDropIndicator';
+
+        // Indent the drop line visually to match the strictly clamped nesting level
+        const lineIndent = Math.max(12, (proposedLevel - 1) * 26 + 12);
+        line.style.marginLeft = `${lineIndent}px`;
+
+        if (position === 'before') {
+            targetRow.parentElement.insertBefore(line, targetRow);
+        } else {
+            targetRow.parentElement.insertBefore(line, targetRow.nextSibling);
+        }
+    }
+
+    function removeDropIndicator() {
+        const existing = document.getElementById('activeDropIndicator');
+        if (existing) existing.remove();
+    }
+
+    function handleTaskDragLeave(e) {
+        if (!e.relatedTarget || !e.relatedTarget.closest('.task-list')) {
+            removeDropIndicator();
+        }
+    }
+
+    function handleTaskDrop(e) {
+        if (IS_DRAGGING_SECTION) return;
+        e.preventDefault();
+        removeDropIndicator();
+
+        if (DRAG_START_INDEX === null || DRAG_CURRENT_HOVER_INDEX === null) return;
+        if (DRAG_CURRENT_HOVER_INDEX >= DRAG_START_INDEX && DRAG_CURRENT_HOVER_INDEX < DRAG_START_INDEX + DRAG_SUBTREE_COUNT) {
+            return;
+        }
+
+        // 1. Cut out entire subtree (parent + all children)
+        const subtree = TASKS_DATA.splice(DRAG_START_INDEX, DRAG_SUBTREE_COUNT);
+
+        // 2. Compute effective level shift
+        const oldParentLevel = subtree[0].level || 1;
+        const effectiveLevelShift = DRAG_PROPOSED_LEVEL - oldParentLevel;
+
+        // Shift levels of entire subtree uniformly
+        subtree.forEach(item => {
+            item.level = Math.max(1, item.level + effectiveLevelShift);
+        });
+
+        // 3. Determine new insertion index in TASKS_DATA
+        let targetIdx = DRAG_CURRENT_HOVER_INDEX;
+        if (DRAG_START_INDEX < targetIdx) {
+            targetIdx -= DRAG_SUBTREE_COUNT;
+        }
+
+        let insertAt = (DRAG_TARGET_POSITION === 'before') ? targetIdx : targetIdx + 1;
+        if (insertAt < 0) insertAt = 0;
+        if (insertAt > TASKS_DATA.length) insertAt = TASKS_DATA.length;
+
+        // 4. Splice subtree back into new position
+        TASKS_DATA.splice(insertAt, 0, ...subtree);
+
+        persistState();
+        renderAll();
+        showToast('Task & subtasks moved');
+    }
+
+    function handleTaskDragEnd() {
+        removeDropIndicator();
+        document.querySelectorAll('.task-row').forEach(row => {
+            row.classList.remove('is-dragging', 'is-subtree-child');
+        });
+        DRAG_START_INDEX = null;
+        DRAG_CURRENT_HOVER_INDEX = null;
+    }
+
+    // Update Progress Bar
+    function updateProgress() {
+        const actionable = TASKS_DATA.filter(t => t.level > 0);
+        const completed = actionable.filter(t => t.checked).length;
+        const total = actionable.length;
+        const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+        document.getElementById('progressFill').style.width = pct + '%';
+        document.getElementById('progressStats').innerText = `${completed} / ${total} Completed (${pct}%)`;
+    }
+
+    // Local Persistence
+    function persistState() {
+        localStorage.setItem('punchlist_state_' + ACTIVE_GSHEET_ID, JSON.stringify(TASKS_DATA));
+    }
+
+    // 1-Click TSV Exporter (Directly paste-ready into Google Sheets)
+    function copyTSVToClipboard() {
+        const headers = ['VISIBLE ( Admin Form )', 'TASK_ID', 'PARENT_ID', 'LEVEL', 'ORDER', 'CHECKED', 'TASK_TITLE', 'TASK_NOTES'];
+        const lines = [headers.join('\t')];
+
+        TASKS_DATA.forEach((t, i) => {
+            lines.push([
+                t.visible ? 'TRUE' : 'FALSE',
+                t.id || 'TASK_' + (i + 1),
+                t.parentId || '',
+                t.level || 0,
+                i + 1,
+                t.checked ? 'TRUE' : 'FALSE',
+                (t.title || '').replace(/\t/g, () => ' '),
+                (t.notes || '').replace(/\t/g, () => ' ')
+            ].join('\t'));
+        });
+
+        const tsvOutput = lines.join('\n');
+        navigator.clipboard.writeText(tsvOutput).then(() => {
+            showToast('📋 Copied full TSV! Ready to paste into Google Sheet.');
+        }).catch(() => {
+            showToast('Failed to copy. Please allow clipboard permissions.');
+        });
+    }
+
+    function showToast(msg) {
+        const t = document.getElementById('toast');
+        if (!t) return;
+        t.innerText = msg;
+        t.classList.add('show');
+        setTimeout(() => t.classList.remove('show'), 3000);
+    }
+
+    function escapeHtml(str) {
+        if (!str) return '';
+        return String(str)
+            .replace(/&/g, () => '&amp;')
+            .replace(/</g, () => '&lt;')
+            .replace(/>/g, () => '&gt;')
+            .replace(/"/g, () => '&quot;')
+            .replace(/'/g, () => '&#039;');
+    }
+
+    document.addEventListener('DOMContentLoaded', initApp);
+</script>
+
+</body>
+</html>
