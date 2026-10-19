@@ -114,7 +114,7 @@
 
             <!-- Action & Toggle Controls -->
             <div class="header-actions">
-                <button type="button" class="btn-action" onclick="copyAiPromptToClipboard()" title="Copy prompt for ChatGPT, Claude, Gemini or Grok">
+                <button type="button" class="btn-action" onclick="copyAiPromptToClipboard()" title="Copy prompt for Gemini, Grok, Claude, ChatGPT">
                     🤖 Copy AI Prompt
                 </button>
                 <button type="button" class="btn-action" onclick="toggleAllSections()" id="btnToggleAll" title="Expand or collapse all milestones">
@@ -2238,7 +2238,7 @@ tasks:
     - [ ] Subtask Title`;
 
         navigator.clipboard.writeText(aiPromptText).then(() => {
-            showToast('🤖 AI Prompt copied! Paste into ChatGPT, Claude, or Gemini.');
+            showToast('🤖 AI Prompt copied! Paste into Gemini, Grok, Claude, ChatGPT.');
         }).catch(() => {
             showToast('Failed to copy. Please allow clipboard permissions.');
         });
