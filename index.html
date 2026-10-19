@@ -52,7 +52,7 @@
     })();
     </script>
 </head>
-<body class="card-border-animated effect-hue-sweep">
+<body class="card-border-animated effect-hue-sweep nest-style-cards">
 
 <div class="container">
 
@@ -112,7 +112,7 @@
                 <span class="client-badge" id="clientBadge">Client Workspace</span>
             </div>
 
-            <!-- Granular Action & Filter Controls -->
+            <!-- Action & Toggle Controls -->
             <div class="header-actions">
                 <button type="button" class="btn-action" onclick="copyAiPromptToClipboard()" title="Copy prompt for ChatGPT, Claude, Gemini or Grok">
                     🤖 Copy AI Prompt
@@ -131,6 +131,10 @@
                 </button>
                 <button type="button" class="btn-action btn-toggle" id="btnAutoNumber" onclick="toggleAutoNumber()" title="Toggle dynamic #1, #2, #3 milestone numbering">
                     🔢 Auto-Number: ON
+                </button>
+                <!-- Dual-Engine Nesting Style Toggle (Option 2 Cards vs Option 1 Rails) -->
+                <button type="button" class="btn-action btn-toggle" id="btnNestStyle" onclick="toggleNestStyle()" title="Toggle between clean card brackets and continuous scope guide rails">
+                    🎋 Rails: OFF
                 </button>
                 <button type="button" class="btn-action" onclick="openYamlModal('full')" title="Open Full YAML Editor Overlay">
                     📝 YAML Editor
@@ -237,7 +241,8 @@
         branches: {},
         notesOpen: {},
         autoNumber: true,
-        completedAtBottom: false
+        completedAtBottom: false,
+        nestStyle: 'cards' // 'cards' (Default Option 2) | 'rails' (Option 1)
     };
 
     // Drag-and-drop state
@@ -294,18 +299,15 @@
     // BULLETPROOF AGENCY OWNER & WILDCARD PERMISSION ENGINE
     // =========================================================================
     function evaluatePermissions() {
-        // Direct override bypass for development
         if (MODE_OVERRIDE === 'edit' || MODE_OVERRIDE === 'true' || MODE_OVERRIDE === 'admin') {
             return { isEditor: true, isViewer: true, mode: 'editor', reason: 'URL Override (&edit=true)' };
         }
 
-        // Standalone default (No GHL parameters passed)
         if (!USER_NAME && !USER_EMAIL && !USER_ROLE && !EDITORS_PARAM && !VIEWERS_PARAM) {
             return { isEditor: true, isViewer: true, mode: 'editor', reason: 'Standalone (Full Access)' };
         }
 
-        // FOOLPROOF AGENCY OWNER / ADMIN DETECTION:
-        // Automatically identifies Brian Mulloney / Agency Owner accounts
+        // Automatic identification for Agency Owner / Admin accounts
         const isAgencyOwnerOrAdmin = (
             (USER_EMAIL && OWNER_EMAIL && USER_EMAIL === OWNER_EMAIL) ||
             USER_EMAIL.includes('automybiz') ||
@@ -412,6 +414,32 @@
             console.warn('[GHL Auto-Provisioner]:', e);
         }
     }
+
+    // Standard Onboarding Blueprint
+    const ONBOARDING_BLUEPRINT = [
+        { visible: true, id: "cf_01", parentId: "", level: 0, order: 1, checked: true, title: "Cloudflare Infrastructure", notes: "Master DNS and edge routing configuration for production domain." },
+        { visible: true, id: "cf_02", parentId: "cf_01", level: 1, order: 2, checked: true, title: "Create account with admin@ email", notes: "Isolates domain security from public sales channels." },
+        { visible: true, id: "cf_03", parentId: "cf_01", level: 2, order: 3, checked: true, title: "Invite automybiz@gmail.com as Administrator", notes: "Enables agency management under single login credentials." },
+        { visible: true, id: "cf_04", parentId: "cf_01", level: 1, order: 4, checked: true, title: "Deploy Sveltia CMS OAuth Authenticator Worker", notes: "Handles secure GitHub OAuth proxying without third-party auth." },
+
+        { visible: true, id: "gh_01", parentId: "", level: 0, order: 5, checked: true, title: "GitHub Repository & Sveltia CMS", notes: "Headless content management and Git repository access." },
+        { visible: true, id: "gh_02", parentId: "gh_01", level: 1, order: 6, checked: true, title: "Client creates GitHub account (EPWAdmin)", notes: "Gives client direct ownership credentials." },
+        { visible: true, id: "gh_03", parentId: "gh_01", level: 2, order: 7, checked: true, title: "Add client as repository collaborator", notes: "Allows client to commit changes via Sveltia CMS dashboard." },
+        { visible: true, id: "gh_04", parentId: "gh_01", level: 2, order: 8, checked: true, title: "Test 1-click 'Sign In with GitHub' at /admin/", notes: "Verify login opens Sveltia dashboard smoothly." },
+
+        { visible: true, id: "st_01", parentId: "", level: 0, order: 9, checked: false, title: "Stripe Payment Gateway", notes: "Direct on-site merchant payments and bank routing." },
+        { visible: true, id: "st_02", parentId: "st_01", level: 1, order: 10, checked: false, title: "Client creates & verifies Stripe merchant account", notes: "Connects bank for direct automated payouts." },
+        { visible: true, id: "st_03", parentId: "st_01", level: 1, order: 11, checked: false, title: "Generate Stripe Payment Links / Buy Buttons", notes: "Checkout links for high-ticket catalog items." },
+
+        { visible: true, id: "sb_01", parentId: "", level: 0, order: 12, checked: false, title: "Supabase Member Portal & Google Auth", notes: "Customer authentication engine and database sync." },
+        { visible: true, id: "sb_02", parentId: "sb_01", level: 1, order: 13, checked: false, title: "Client signs up at supabase.com (via GitHub)", notes: "Creates client-owned 2-project free organization." },
+        { visible: true, id: "sb_03", parentId: "sb_01", level: 2, order: 14, checked: false, title: "Invite automybiz@gmail.com to Organization", notes: "Enables agency collaboration." },
+        { visible: true, id: "sb_04", parentId: "sb_01", level: 2, order: 15, checked: false, title: "Configure Google OAuth Provider", notes: "Enables 1-click customer login on web portal." },
+
+        { visible: true, id: "ghl_01", parentId: "", level: 0, order: 16, checked: true, title: "AutoMyBiz & GoHighLevel Integration", notes: "CRM automation and workflow webhooks." },
+        { visible: true, id: "ghl_02", parentId: "ghl_01", level: 1, order: 17, checked: true, title: "Add Custom Menu Link: Products & Variants", notes: "Embeds Sveltia CMS iframe in HighLevel sidebar menu." },
+        { visible: true, id: "ghl_03", parentId: "ghl_01", level: 1, order: 18, checked: false, title: "Generate Private Integration Token (PIT)", notes: "Required for live contact custom fields lookups." }
+    ];
 
     // =========================================================================
     // AUTO MEDIA CONVERSION ENGINE (from FEATURE-SPEC-FOR-GEMINI.md)
@@ -635,23 +663,22 @@
     async function initApp() {
         document.getElementById('clientBadge').innerText = CLIENT_NAME;
 
-        // Apply theme immediately
-        fetchAndApplyLiveTheme();
+        if (!checkIsEditor()) {
+            document.body.classList.add('is-viewer-mode');
+            document.getElementById('clientBadge').innerText = `${CLIENT_NAME} (Viewer Mode)`;
+        }
 
-        // Initialize modal backdrops
+        fetchAndApplyLiveTheme();
         initModals();
 
-        // Evaluate permissions & setup mode badge
         const perms = evaluatePermissions();
         updatePermissionsUI(perms);
 
-        // If access restricted, show lock screen immediately
         if (!perms.isViewer) {
             renderAccessRestrictedScreen(perms);
             return;
         }
 
-        // Load Persistent UI State (Sections, Branches, Notes, Toggles)
         const savedUiState = localStorage.getItem('automybiz_punch_ui_state');
         if (savedUiState) {
             try { 
@@ -659,9 +686,10 @@
             } catch(e) {}
         }
 
+        // Apply active nesting mode (Option 2 Cards by default)
+        applyNestingModeClass();
         updateHeaderToggleButtonsUI();
 
-        // PRIMARY SOURCE OF TRUTH: Direct YAML LocalStorage
         const savedYaml = localStorage.getItem('list_puncher_yaml');
         if (savedYaml && savedYaml.trim()) {
             TASKS_DATA = parseYamlToTasks(savedYaml);
@@ -671,8 +699,13 @@
             seedOnboardingBlueprint();
         }
 
-        // HighLevel Self-Healing Provisioner (runs quietly in background)
         checkAndProvisionGHL();
+    }
+
+    function applyNestingModeClass() {
+        const isRails = (UI_STATE.nestStyle === 'rails');
+        document.body.classList.toggle('nest-style-rails', isRails);
+        document.body.classList.toggle('nest-style-cards', !isRails);
     }
 
     function updatePermissionsUI(perms) {
@@ -776,7 +809,7 @@
     }
 
     // =========================================================================
-    // RENDER ACCORDIONS & HIERARCHICAL TASK ROWS
+    // DUAL-ENGINE RENDERER: CARDS (OPTION 2) & RAILS (OPTION 1)
     // =========================================================================
     function renderAll() {
         const deckContainer = document.getElementById('deckContainer');
@@ -803,7 +836,7 @@
             }
         });
 
-        // Auto-Move Completed to Bottom Engine (Google Keep style toggle)
+        // Completed to Bottom Engine
         if (UI_STATE.completedAtBottom) {
             const activeSections = [];
             const completedSections = [];
@@ -866,7 +899,6 @@
                            onclick="event.stopPropagation();" />
                 </div>
                 <div class="section-meta-right">
-                    <!-- Section Actions: Add Task, Copy YAML, Paste YAML, Delete Section -->
                     <div class="section-header-actions" onclick="event.stopPropagation();">
                         <button type="button" class="btn-icon sec-action-btn" title="Add task to this milestone" onclick="quickAddTaskToSection(${sIdx})">
                             ${PLUS_ADD_SVG_ICON}
@@ -895,14 +927,13 @@
             const secHandle = secHdr.querySelector('.section-drag-handle');
             secHandle.addEventListener('dragstart', handleSectionDragStart);
             secHandle.addEventListener('dragend', handleSectionDragEnd);
-
             deck.appendChild(secHdr);
 
             // Collapsible Section Body
             const secBody = document.createElement('div');
             secBody.className = 'section-body';
 
-            // Milestone Description / Overview Banner at the Top
+            // Milestone Description Banner
             const secDescHtml = sec.header.notes && sec.header.notes.trim()
                 ? convertURLsToMedia(sec.header.notes)
                 : '<span class="section-description-placeholder">+ Add milestone description, objectives, YouTube videos, or architecture diagrams...</span>';
@@ -933,45 +964,57 @@
             list.className = 'task-list';
             list.dataset.sectionIndex = sIdx;
 
-            let hiddenBelowLevel = null;
+            // Build hierarchical tree for recursive rendering
+            const rootNodes = [];
+            const stack = [];
 
             sec.tasks.forEach(tWrap => {
-                const t = tWrap.item;
-                const realIdx = tWrap.originalIndex;
-                const isNested = t.level > 1;
+                const node = { item: tWrap.item, originalIndex: tWrap.originalIndex, children: [] };
+                const level = tWrap.item.level || 1;
+
+                while (stack.length > 0 && (stack[stack.length - 1].item.level || 1) >= level) {
+                    stack.pop();
+                }
+
+                if (stack.length === 0) {
+                    rootNodes.push(node);
+                } else {
+                    stack[stack.length - 1].children.push(node);
+                }
+                stack.push(node);
+            });
+
+            // Recursive task node renderer
+            function renderTaskNodeTree(node, targetContainer, depth = 1) {
+                const t = node.item;
+                const realIdx = node.originalIndex;
+                const isNested = (t.level > 1);
 
                 const taskId = t.id || generateSlugId('task', t.title, realIdx);
                 t.id = taskId;
+
+                const range = getSubtreeRange(realIdx);
+                const hasChildren = (range.count > 1);
+                const childCount = (range.count - 1);
 
                 const isBranchCollapsed = Boolean(UI_STATE.branches[taskId]);
                 const isNotesOpen = UI_STATE.notesOpen.hasOwnProperty(taskId) 
                     ? Boolean(UI_STATE.notesOpen[taskId]) 
                     : Boolean(t.notes && t.notes.trim());
 
-                if (hiddenBelowLevel !== null) {
-                    if (t.level > hiddenBelowLevel) {
-                        return;
-                    } else {
-                        hiddenBelowLevel = null;
-                    }
-                }
+                // Staggered depth classes for alternating colors
+                const depthClass = `task-depth-${depth} ${depth % 2 === 1 ? 'task-depth-odd' : 'task-depth-even'}`;
 
-                const range = getSubtreeRange(realIdx);
-                const hasChildren = range.count > 1;
-                const childCount = range.count - 1;
-
-                if (isBranchCollapsed && hasChildren) {
-                    hiddenBelowLevel = t.level;
-                }
-
-                // Relative indentation: Level 1 flush at 4px, subnodes indent 22px relatively
-                const dynamicPadding = Math.max(4, (t.level - 1) * 22 + 4);
+                // In Cards mode, indent dynamically; in Rails mode, indent is handled by rail
+                const isCardsMode = (UI_STATE.nestStyle !== 'rails');
+                const dynamicPadding = isCardsMode ? Math.max(4, (t.level - 1) * 22 + 4) : 4;
 
                 const row = document.createElement('div');
-                row.className = 'task-row ' + (isNested ? 'is-nested ' : '') + (t.checked ? 'is-checked' : '');
+                row.className = `task-row ${depthClass} ${isNested ? 'is-nested ' : ''} ${t.checked ? 'is-checked' : ''}`;
                 row.draggable = false;
                 row.dataset.index = realIdx;
                 row.dataset.taskId = taskId;
+                row.dataset.level = t.level;
                 row.style.paddingLeft = `${dynamicPadding}px`;
 
                 row.addEventListener('dragstart', handleTaskDragStart);
@@ -981,12 +1024,12 @@
                 row.addEventListener('dragend', handleTaskDragEnd);
 
                 const leftArrowClass = hasChildren 
-                    ? ('tree-arrow-btn left-arrow ' + (isBranchCollapsed ? 'is-collapsed' : ''))
-                    : ('tree-arrow-btn left-arrow is-leaf-arrow ' + (!isNotesOpen ? 'is-collapsed' : ''));
+                    ? (`tree-arrow-btn left-arrow ${isBranchCollapsed ? 'is-collapsed' : ''}`)
+                    : (`tree-arrow-btn left-arrow is-leaf-arrow ${!isNotesOpen ? 'is-collapsed' : ''}`);
 
                 const rightArrowClass = hasChildren 
-                    ? ('tree-arrow-btn right-arrow ' + (isBranchCollapsed ? 'is-collapsed' : ''))
-                    : ('tree-arrow-btn right-arrow is-leaf-arrow ' + (!isNotesOpen ? 'is-collapsed' : ''));
+                    ? (`tree-arrow-btn right-arrow ${isBranchCollapsed ? 'is-collapsed' : ''}`)
+                    : (`tree-arrow-btn right-arrow is-leaf-arrow ${!isNotesOpen ? 'is-collapsed' : ''}`);
 
                 const arrowTitle = hasChildren 
                     ? (isBranchCollapsed ? `Expand branch (${childCount} subtasks)` : `Collapse branch (${childCount} subtasks)`)
@@ -1001,7 +1044,6 @@
                     <div class="task-main-line">
                         <span class="drag-handle task-drag-handle" title="Drag to reorder • Drag right/left to indent/unnest">⋮⋮</span>
                         
-                        <!-- Left Arrow: Directly right of grab handle -->
                         <button type="button" class="${leftArrowClass}" title="${arrowTitle}" onclick="handleArrowClick(${realIdx})">
                             ${DOUBLE_CHEVRON_SVG}
                         </button>
@@ -1016,11 +1058,8 @@
                             <div class="task-actions">
                                 <button type="button" class="btn-icon" title="Outdent (Shift Left)" onclick="changeSubtreeLevel(${realIdx}, -1)">⇤</button>
                                 <button type="button" class="btn-icon" title="Indent (Nest Right)" onclick="changeSubtreeLevel(${realIdx}, 1)">⇥</button>
-                                <!-- Pre-nested Add Subtask Button: Left of Copy Button -->
                                 <button type="button" class="btn-icon add-btn" title="Add subtask under this item" onclick="addSubtaskToBranch(${realIdx})">${PLUS_ADD_SVG_ICON}</button>
-                                <!-- Grayscale AI Studio Style Copy Icon -->
                                 <button type="button" class="btn-icon copy-btn" title="Copy task &amp; branch as YAML" onclick="copyTaskBranch(${realIdx})">${COPY_SVG_ICON}</button>
-                                <!-- Paste Subtasks Directly into Branch -->
                                 <button type="button" class="btn-icon paste-btn" title="Paste YAML subtasks into this branch" onclick="openYamlModal('branch', ${realIdx})">${PASTE_SUBTASKS_SVG_ICON}</button>
                                 <button type="button" class="btn-icon delete-btn" title="Delete task and branch" onclick="confirmDeleteTask(${realIdx})">✕</button>
                             </div>
@@ -1028,14 +1067,13 @@
                             <!-- Pill Count without Parentheses -->
                             ${isBranchCollapsed ? `<span class="branch-count-badge" title="${childCount} subtasks collapsed">${childCount}</span>` : ''}
 
-                            <!-- Right Arrow: Rightmost Element -->
                             <button type="button" class="${rightArrowClass}" title="${arrowTitle}" onclick="handleArrowClick(${realIdx})">
                                 ${DOUBLE_CHEVRON_SVG}
                             </button>
                         </div>
                     </div>
 
-                    <!-- Tier 2: Task Notes Block (Full Width, Zero Right Squeeze!) -->
+                    <!-- Tier 2: Task Notes Block (Full Width, Zero Squeeze!) -->
                     <div class="task-notes-block ${!isNotesOpen ? 'is-hidden-notes' : ''}" id="notes_block_${taskId}">
                         <div class="task-notes-view" id="notes_view_${taskId}" onclick="startEditNotes('${taskId}', ${realIdx})">
                             ${renderedNotesHtml}
@@ -1065,7 +1103,6 @@
                     dragHandle.addEventListener('mousedown', () => { row.draggable = true; });
                 }
 
-                // Protect text selection in all inputs and textareas
                 row.querySelectorAll('input, textarea').forEach(inputEl => {
                     inputEl.addEventListener('mousedown', (e) => {
                         row.draggable = false;
@@ -1073,7 +1110,24 @@
                     });
                 });
 
-                list.appendChild(row);
+                targetContainer.appendChild(row);
+
+                // If node has children and is not collapsed, render continuous scope rail or children container
+                if (node.children.length > 0 && !isBranchCollapsed) {
+                    const rail = document.createElement('div');
+                    const railClass = `branch-rail rail-depth-${depth} ${depth % 2 === 1 ? 'rail-depth-1' : 'rail-depth-2'}`;
+                    rail.className = railClass;
+
+                    node.children.forEach(childNode => {
+                        renderTaskNodeTree(childNode, rail, depth + 1);
+                    });
+
+                    targetContainer.appendChild(rail);
+                }
+            }
+
+            rootNodes.forEach(rootNode => {
+                renderTaskNodeTree(rootNode, list, 1);
             });
 
             secBody.appendChild(list);
@@ -1084,12 +1138,20 @@
         updateProgress();
     }
 
-    // Toggle Section Accordion
+    function toggleNestStyle() {
+        UI_STATE.nestStyle = (UI_STATE.nestStyle === 'rails') ? 'cards' : 'rails';
+        saveState();
+        applyNestingModeClass();
+        updateHeaderToggleButtonsUI();
+        renderAll();
+        showToast(UI_STATE.nestStyle === 'rails' ? '🎋 Scope Rails: ON' : '🎋 Scope Rails: OFF (Cards Mode)');
+    }
+
     function toggleSection(secId) {
         UI_STATE.sections[secId] = !UI_STATE.sections[secId];
         saveState();
 
-        const deck = document.getElementById('deck_' + secId);
+        const deck = document.getElementById(`deck_${secId}`);
         if (deck) {
             deck.classList.toggle('is-collapsed', UI_STATE.sections[secId]);
         }
@@ -1110,7 +1172,6 @@
         if (btn) btn.innerText = anyOpen ? '▼ Expand All' : '☰ Collapse All';
     }
 
-    // Granular Filters: Completed vs To-Do
     function toggleCompletedSections() {
         const decks = document.querySelectorAll('.section-deck.all-tasks-completed');
         if (!decks.length) return;
@@ -1163,9 +1224,15 @@
             btnAutoNum.classList.toggle('active', Boolean(UI_STATE.autoNumber));
             btnAutoNum.innerText = `🔢 Auto-Number: ${UI_STATE.autoNumber ? 'ON' : 'OFF'}`;
         }
+
+        const btnNest = document.getElementById('btnNestStyle');
+        if (btnNest) {
+            const isRails = (UI_STATE.nestStyle === 'rails');
+            btnNest.classList.toggle('active', isRails);
+            btnNest.innerText = `🎋 Rails: ${isRails ? 'ON' : 'OFF'}`;
+        }
     }
 
-    // Toggle Branch Children or Leaf Notes
     function handleArrowClick(realIdx) {
         const task = TASKS_DATA[realIdx];
         if (!task) return;
@@ -1181,7 +1248,6 @@
         renderAll();
     }
 
-    // Section Description Controller
     function startEditSectionDescription(secId, headerIdx) {
         const viewEl = document.getElementById(`sec_desc_view_${secId}`);
         const editorEl = document.getElementById(`sec_desc_editor_${secId}`);
@@ -1235,7 +1301,6 @@
         }
     }
 
-    // Inline Task Notes Controller
     function startEditNotes(taskId, realIdx) {
         const viewEl = document.getElementById(`notes_view_${taskId}`);
         const editorEl = document.getElementById(`notes_editor_${taskId}`);
@@ -1334,7 +1399,6 @@
         }
     }
 
-    // Quick Add Task in Section with Viewport Center Scroll
     function quickAddTaskToSection(sectionIndex) {
         const newTask = {
             visible: true,
@@ -1376,7 +1440,6 @@
         }, 60);
     }
 
-    // Add Pre-nested Subtask under Current Branch with Viewport Center Scroll
     function addSubtaskToBranch(parentIdx) {
         const parent = TASKS_DATA[parentIdx];
         if (!parent) return;
@@ -1840,7 +1903,6 @@
         let noteLines = [];
         let descLines = [];
 
-        // Pre-scan: determine shallowest task indent per section
         let sectionBaseIndents = [];
         let curMinIndent = 999;
         lines.forEach(line => {
@@ -1974,7 +2036,7 @@
                     result.push(currentSection);
                 }
 
-                // Shallowest task in section is pinned to Level 1
+                // Shallowest task in section is Level 1
                 const relSpaces = Math.max(0, indentSpaces - activeBaseIndent);
                 const relativeLevel = Math.max(1, Math.round(relSpaces / 2) + 1);
 
@@ -2129,7 +2191,6 @@
         }
     }
 
-    // 1-Click Subtree Branch Copy as YAML
     function copyTaskBranch(index) {
         const range = getSubtreeRange(index);
         const subtree = TASKS_DATA.slice(range.start, range.start + range.count);
@@ -2142,7 +2203,6 @@
         });
     }
 
-    // 1-Click Full Punch List as YAML
     function copyAllAsYamlToClipboard() {
         const yamlStr = formatTasksSliceAsYaml(TASKS_DATA);
         navigator.clipboard.writeText(yamlStr).then(() => {
@@ -2152,7 +2212,7 @@
         });
     }
 
-    // Copy Tailored AI Prompt to Clipboard
+    // Context-friendly AI Prompt Copier
     function copyAiPromptToClipboard() {
         const aiPromptText = `Convert the goals, tasks and milestones from our discussion above into List Puncher YAML format.
 
