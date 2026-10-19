@@ -67,6 +67,8 @@
             --font-family: 'Inter', -apple-system, sans-serif;
             --indent-step: 26px;
 
+            --completed-opacity: 0.42;
+
             --card-border-color-1: #0FF;
             --card-border-color-2: #F80;
             --card-border-speed: 30s;
@@ -437,12 +439,21 @@
             border-radius: 12px;
             margin-bottom: 20px;
             overflow: hidden;
-            transition: border-color 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease, opacity 0.25s ease;
             position: relative;
         }
 
         .section-deck:hover {
             border-color: var(--accent-cyan);
+        }
+
+        /* Whole Accordion Opacity Fading When All Tasks Are Done */
+        .section-deck.all-tasks-completed {
+            opacity: var(--completed-opacity);
+        }
+
+        .section-deck.all-tasks-completed:hover {
+            opacity: 1 !important;
         }
 
         .section-deck.is-collapsed {
@@ -541,7 +552,7 @@
             color: var(--text-muted);
             cursor: grab;
             font-size: 14px;
-            padding: 2px 6px;
+            padding: 2px 4px;
             user-select: none;
             opacity: 0.5;
             transition: opacity 0.2s, color 0.2s, transform 0.15s ease;
@@ -627,21 +638,31 @@
             position: relative;
         }
 
+        /* Task Row Layout with Tree Style Tab Controls */
         .task-row {
             display: flex;
             align-items: flex-start;
-            gap: 10px;
+            gap: 8px;
             padding: 8px 12px;
             border-radius: 8px;
             background: rgba(255, 255, 255, 0.02);
             border: 1px solid transparent;
-            transition: background 0.15s ease, border-color 0.15s ease, padding-left 0.2s ease;
+            transition: background 0.15s ease, border-color 0.15s ease, padding-left 0.2s ease, opacity 0.2s ease;
             position: relative;
         }
 
         .task-row:hover {
             background: var(--card-hover-bg);
             border-color: rgba(255, 255, 255, 0.08);
+        }
+
+        /* 1. OPACITY FADING INSTEAD OF STRIKE-THROUGH */
+        .task-row.is-checked {
+            opacity: var(--completed-opacity);
+        }
+
+        .task-row.is-checked:hover {
+            opacity: 1 !important;
         }
 
         .task-row.is-dragging {
@@ -670,13 +691,46 @@
             border-radius: 0 8px 8px 0;
         }
 
-        .nested-elbow {
-            color: rgba(0, 229, 255, 0.4);
-            font-size: 12px;
-            user-select: none;
-            margin-right: 2px;
-            line-height: 1.2;
+        /* Tree Style Tab Arrow Buttons (Left & Right) */
+        .tree-arrow-btn {
+            background: transparent;
+            border: none;
+            color: var(--accent-cyan);
+            cursor: pointer;
+            padding: 2px 4px;
+            border-radius: 4px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.2s ease, color 0.15s ease, background 0.15s ease;
+            line-height: 1;
             flex-shrink: 0;
+            user-select: none;
+            margin-top: 2px;
+        }
+
+        .tree-arrow-btn:hover {
+            background: rgba(0, 255, 255, 0.15);
+            color: #fff;
+        }
+
+        .tree-arrow-btn svg {
+            display: block;
+            transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        /* Rotate arrow down when open, right when collapsed */
+        .tree-arrow-btn.is-collapsed svg {
+            transform: rotate(-90deg);
+            color: var(--text-muted);
+        }
+
+        .tree-arrow-btn.is-leaf-arrow {
+            color: var(--text-muted);
+        }
+
+        .tree-arrow-btn.is-leaf-arrow:hover {
+            color: var(--accent-cyan);
         }
 
         .task-checkbox-wrap {
@@ -696,7 +750,7 @@
             min-width: 0;
             display: flex;
             flex-direction: column;
-            gap: 2px;
+            gap: 4px;
         }
 
         .task-title-input {
@@ -715,30 +769,39 @@
             border-bottom: 1px dashed var(--accent-cyan);
         }
 
-        .task-notes-input {
+        /* Multi-line Notes Textarea */
+        .task-notes-textarea {
             width: 100%;
-            background: transparent;
-            border: none;
-            color: var(--text-muted);
-            font-size: 0.78rem;
+            background: rgba(0, 0, 0, 0.25);
+            border: 1px solid rgba(0, 229, 255, 0.18);
+            border-radius: 4px;
+            color: var(--text-secondary);
+            font-size: 0.8rem;
             font-family: inherit;
             outline: none;
-            padding: 1px 0;
+            padding: 6px 8px;
+            line-height: 1.45;
+            resize: vertical;
+            min-height: 48px;
+            transition: border-color 0.2s, background 0.2s, color 0.2s;
         }
 
-        .task-notes-input:focus {
-            border-bottom: 1px dashed var(--text-secondary);
-            color: var(--text-secondary);
+        .task-notes-textarea:focus {
+            border-color: var(--accent-cyan);
+            background: rgba(0, 0, 0, 0.45);
+            color: #fff;
         }
 
-        .task-row.is-checked .task-title-input {
-            text-decoration: line-through;
-            color: var(--text-muted) !important;
+        .task-notes-textarea.is-hidden-notes {
+            display: none !important;
         }
 
-        .task-row.is-checked .task-notes-input {
-            text-decoration: line-through;
-            opacity: 0.5;
+        .task-right-cluster {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex-shrink: 0;
+            margin-top: 2px;
         }
 
         .task-actions {
@@ -754,6 +817,20 @@
             opacity: 1;
         }
 
+        /* Tree Style Tab Parenthesis Branch Badge */
+        .branch-count-badge {
+            font-size: 0.8rem;
+            font-weight: 700;
+            color: var(--accent-cyan);
+            background: rgba(0, 255, 255, 0.1);
+            border: 1px solid rgba(0, 255, 255, 0.25);
+            border-radius: 10px;
+            padding: 1px 7px;
+            line-height: 1.2;
+            user-select: none;
+            letter-spacing: 0.3px;
+        }
+
         .btn-icon {
             background: transparent;
             border: none;
@@ -764,11 +841,19 @@
             cursor: pointer;
             transition: all 0.15s ease;
             line-height: 1;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
         }
 
         .btn-icon:hover {
             background: rgba(255, 255, 255, 0.1);
             color: #fff;
+        }
+
+        .btn-icon.copy-btn:hover {
+            background: rgba(0, 229, 255, 0.2);
+            color: var(--accent-cyan);
         }
 
         .btn-icon.delete-btn:hover {
@@ -861,6 +946,9 @@
                 <button type="button" class="btn-action" onclick="toggleAllSections()" id="btnToggleAll" title="Expand or collapse all cards">
                     ☰ Collapse All
                 </button>
+                <button type="button" class="btn-action" onclick="copyAllAsYamlToClipboard()" title="Copy entire punch list as human-readable YAML for Notepad++">
+                    📋 Copy YAML
+                </button>
                 <button type="button" class="btn-action" onclick="copyTSVToClipboard()" title="Copy table as TSV ready for Google Sheets">
                     📋 Copy TSV
                 </button>
@@ -918,7 +1006,11 @@
     let IS_DRAGGING_SECTION = false;
     let DRAGGED_SECTION_INDEX = null;
 
-    // Standard Onboarding Blueprint (Available on empty sheet onboarding)
+    const CHEVRON_SVG = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="6 9 12 15 18 9"></polyline>
+    </svg>`;
+
+    // Standard Onboarding Blueprint
     const ONBOARDING_BLUEPRINT = [
         { visible: true, id: "CF_01", parentId: "", level: 0, order: 1, checked: true, title: "1. Cloudflare Infrastructure", notes: "Master DNS and edge routing" },
         { visible: true, id: "CF_02", parentId: "CF_01", level: 1, order: 2, checked: true, title: "Create account with admin@ email", notes: "Isolates domain security from public sales" },
@@ -1169,7 +1261,6 @@
         try {
             const res = await fetch(gvizUrl);
             
-            // Check if Google blocked access due to restricted permissions
             if (!res.ok) {
                 handleConnectionFailure(isManualSync, 'Google Sheet access is restricted (401/403). Set General access to "Anyone with the link can view".');
                 return;
@@ -1186,7 +1277,6 @@
             const json = JSON.parse(text.substring(startIdx, endIdx + 1));
             const rows = json.table?.rows || [];
 
-            // If the sheet has no rows, render the clean Welcome State
             if (!rows.length) {
                 TASKS_DATA = [];
                 updateSheetPillUI('healthy', 'Sheet: ' + shortId + ' ⚡ Empty', '✓ Live Google Sheet connected successfully. Sheet contains 0 tasks.', false);
@@ -1215,14 +1305,15 @@
                         order: order,
                         checked: isChecked,
                         title: title,
-                        notes: notes
+                        notes: notes,
+                        collapsed: false,
+                        notesOpen: Boolean(notes && notes.trim())
                     });
                 }
             });
 
             if (parsed.length > 0) {
                 TASKS_DATA = parsed;
-                // Silently update local storage backup
                 localStorage.setItem('punchlist_backup_' + ACTIVE_GSHEET_ID, JSON.stringify(TASKS_DATA));
                 updateSheetPillUI('healthy', 'Sheet: ' + shortId + ' ⚡ Synced', '✓ 200 OK Live Google Sheet Connected. Loaded ' + parsed.length + ' tasks.', false);
                 renderAll();
@@ -1241,7 +1332,6 @@
     function handleConnectionFailure(isManualSync, errorDetails) {
         const shortId = ACTIVE_GSHEET_ID.length > 12 ? (ACTIVE_GSHEET_ID.substring(0, 10) + '...') : ACTIVE_GSHEET_ID;
         
-        // Attempt fallback to local storage backup
         const localBackup = localStorage.getItem('punchlist_backup_' + ACTIVE_GSHEET_ID);
         if (localBackup) {
             try {
@@ -1253,7 +1343,6 @@
             } catch(e) {}
         }
 
-        // If no local backup exists, render Clean Slate with Error notice
         TASKS_DATA = [];
         updateSheetPillUI('error', 'Sheet: Connection Notice', '⚠️ ' + errorDetails, true);
         renderEmptyWelcomeState();
@@ -1265,7 +1354,6 @@
         fetchLiveGSheetData(true);
     }
 
-    // Render Welcome Clean Slate State
     function renderEmptyWelcomeState() {
         const deckContainer = document.getElementById('deckContainer');
         deckContainer.innerHTML = `
@@ -1315,9 +1403,12 @@
         updateProgress();
     }
 
-    // Seed Standard Blueprint on User Demand
     function seedOnboardingBlueprint() {
         TASKS_DATA = JSON.parse(JSON.stringify(ONBOARDING_BLUEPRINT));
+        TASKS_DATA.forEach(t => {
+            t.collapsed = false;
+            t.notesOpen = Boolean(t.notes && t.notes.trim());
+        });
         localStorage.setItem('punchlist_backup_' + ACTIVE_GSHEET_ID, JSON.stringify(TASKS_DATA));
         renderAll();
         showToast('Loaded standard AutoMyBiz blueprint!');
@@ -1351,7 +1442,9 @@
         return { start: sectionHeaderIdx, count: count };
     }
 
-    // Render Grouped Accordion Sections with Folder-Hierarchy Nesting
+    // =========================================================================
+    // RENDER ACCORDIONS & HIERARCHICAL TASK ROWS WITH TREE STYLE CONTROLS
+    // =========================================================================
     function renderAll() {
         const deckContainer = document.getElementById('deckContainer');
         deckContainer.innerHTML = '';
@@ -1386,7 +1479,7 @@
             const allDone = totalTasks > 0 && completedTasks === totalTasks;
 
             const deck = document.createElement('div');
-            deck.className = 'section-deck ' + (isCollapsed ? 'is-collapsed' : '');
+            deck.className = 'section-deck ' + (isCollapsed ? 'is-collapsed ' : '') + (allDone ? 'all-tasks-completed' : '');
             deck.id = 'deck_' + secId;
             deck.dataset.sectionIndex = sIdx;
             deck.dataset.headerIndex = sec.headerIndex;
@@ -1435,12 +1528,32 @@
             list.className = 'task-list';
             list.dataset.sectionIndex = sIdx;
 
+            // Fold-Tracking for Nested Tree Style Tab Branches
+            let hiddenBelowLevel = null;
+
             sec.tasks.forEach(tWrap => {
                 const t = tWrap.item;
                 const realIdx = tWrap.originalIndex;
                 const isNested = t.level > 1;
 
-                const dynamicPadding = Math.max(12, (t.level - 1) * 26 + 12);
+                // Check if this task is hidden inside a collapsed parent branch
+                if (hiddenBelowLevel !== null) {
+                    if (t.level > hiddenBelowLevel) {
+                        return; // Hidden inside collapsed ancestor!
+                    } else {
+                        hiddenBelowLevel = null;
+                    }
+                }
+
+                const range = getSubtreeRange(realIdx);
+                const hasChildren = range.count > 1;
+                const childCount = range.count - 1;
+
+                if (t.collapsed && hasChildren) {
+                    hiddenBelowLevel = t.level;
+                }
+
+                const dynamicPadding = Math.max(8, (t.level - 1) * 26 + 8);
 
                 const row = document.createElement('div');
                 row.className = 'task-row ' + (isNested ? 'is-nested ' : '') + (t.checked ? 'is-checked' : '');
@@ -1454,20 +1567,59 @@
                 row.addEventListener('drop', handleTaskDrop);
                 row.addEventListener('dragend', handleTaskDragEnd);
 
+                // Left Arrow: Directly to the right of the grab handle
+                const isBranchCollapsed = Boolean(t.collapsed && hasChildren);
+                const isLeafNotesClosed = Boolean(!hasChildren && !t.notesOpen);
+
+                const leftArrowClass = hasChildren 
+                    ? ('tree-arrow-btn left-arrow ' + (isBranchCollapsed ? 'is-collapsed' : ''))
+                    : ('tree-arrow-btn left-arrow is-leaf-arrow ' + (isLeafNotesClosed ? 'is-collapsed' : ''));
+
+                const rightArrowClass = hasChildren 
+                    ? ('tree-arrow-btn right-arrow ' + (isBranchCollapsed ? 'is-collapsed' : ''))
+                    : ('tree-arrow-btn right-arrow is-leaf-arrow ' + (isLeafNotesClosed ? 'is-collapsed' : ''));
+
+                const arrowTitle = hasChildren 
+                    ? (isBranchCollapsed ? `Expand branch (${childCount} subtasks)` : `Collapse branch (${childCount} subtasks)`)
+                    : (isLeafNotesClosed ? 'Expand multi-line notes' : 'Collapse multi-line notes');
+
                 row.innerHTML = `
                     <span class="drag-handle task-drag-handle" title="Drag to reorder • Drag right/left to indent/unnest">⋮⋮</span>
-                    ${isNested ? '<span class="nested-elbow">↳</span>' : ''}
+                    
+                    <!-- Left Arrow: Directly right of grab handle -->
+                    <button type="button" class="${leftArrowClass}" title="${arrowTitle}" onclick="handleArrowClick(${realIdx})">
+                        ${CHEVRON_SVG}
+                    </button>
+
                     <div class="task-checkbox-wrap">
                         <input type="checkbox" class="task-checkbox" ${t.checked ? 'checked' : ''} onchange="toggleTask(${realIdx})" />
                     </div>
+
                     <div class="task-body">
                         <input type="text" class="task-title-input" value="${escapeHtml(t.title)}" onchange="updateTaskTitle(${realIdx}, this.value)" />
-                        <input type="text" class="task-notes-input" placeholder="Add note / description..." value="${escapeHtml(t.notes || '')}" onchange="updateTaskNotes(${realIdx}, this.value)" />
+                        
+                        <!-- Multi-line Task Notes Textarea -->
+                        <textarea class="task-notes-textarea auto-expand-textarea ${(!hasChildren && !t.notesOpen) ? 'is-hidden-notes' : ''}" 
+                                  placeholder="Add notes / description (multi-line)..." 
+                                  oninput="autoExpandTextarea(this); updateTaskNotes(${realIdx}, this.value);">${escapeHtml(t.notes || '')}</textarea>
                     </div>
-                    <div class="task-actions">
-                        <button type="button" class="btn-icon" title="Outdent (Shift Left)" onclick="changeSubtreeLevel(${realIdx}, -1)">⇤</button>
-                        <button type="button" class="btn-icon" title="Indent (Nest Right)" onclick="changeSubtreeLevel(${realIdx}, 1)">⇥</button>
-                        <button type="button" class="btn-icon delete-btn" title="Delete task and subtasks" onclick="deleteSubtree(${realIdx})">✕</button>
+
+                    <div class="task-right-cluster">
+                        <div class="task-actions">
+                            <button type="button" class="btn-icon" title="Outdent (Shift Left)" onclick="changeSubtreeLevel(${realIdx}, -1)">⇤</button>
+                            <button type="button" class="btn-icon" title="Indent (Nest Right)" onclick="changeSubtreeLevel(${realIdx}, 1)">⇥</button>
+                            <!-- Subtree Branch Copy Button: Left of X Delete -->
+                            <button type="button" class="btn-icon copy-btn" title="Copy task &amp; branch as YAML" onclick="copyTaskBranch(${realIdx})">📋</button>
+                            <button type="button" class="btn-icon delete-btn" title="Delete task and branch" onclick="deleteSubtree(${realIdx})">✕</button>
+                        </div>
+
+                        <!-- Tree Style Tab Collapsed Count Badge in Parenthesis -->
+                        ${isBranchCollapsed ? `<span class="branch-count-badge" title="${childCount} subtasks collapsed">(${childCount})</span>` : ''}
+
+                        <!-- Right Arrow: Rightmost Element -->
+                        <button type="button" class="${rightArrowClass}" title="${arrowTitle}" onclick="handleArrowClick(${realIdx})">
+                            ${CHEVRON_SVG}
+                        </button>
                     </div>
                 `;
                 list.appendChild(row);
@@ -1485,6 +1637,9 @@
             deck.appendChild(secBody);
             deckContainer.appendChild(deck);
         });
+
+        // Auto-expand any open textareas
+        document.querySelectorAll('textarea.auto-expand-textarea:not(.is-hidden-notes)').forEach(autoExpandTextarea);
 
         updateProgress();
     }
@@ -1512,6 +1667,24 @@
 
         localStorage.setItem('epw_punch_sections_' + ACTIVE_GSHEET_ID, JSON.stringify(SECTION_STATES));
         if (btn) btn.innerText = anyOpen ? '▼ Expand All' : '☰ Collapse All';
+    }
+
+    // Toggle Branch Children or Leaf Multi-Line Notes
+    function handleArrowClick(realIdx) {
+        const task = TASKS_DATA[realIdx];
+        if (!task) return;
+
+        const range = getSubtreeRange(realIdx);
+        if (range.count > 1) {
+            // Parent branch: toggle folding of all descendants
+            task.collapsed = !task.collapsed;
+        } else {
+            // Leaf task: toggle open/close of multi-line notes
+            task.notesOpen = !task.notesOpen;
+        }
+
+        localStorage.setItem('punchlist_backup_' + ACTIVE_GSHEET_ID, JSON.stringify(TASKS_DATA));
+        renderAll();
     }
 
     function toggleTask(index) {
@@ -1588,7 +1761,9 @@
                 order: TASKS_DATA.length + 1,
                 checked: false,
                 title: title,
-                notes: ''
+                notes: '',
+                collapsed: false,
+                notesOpen: false
             };
 
             let insertAt = TASKS_DATA.length;
@@ -1627,6 +1802,13 @@
             renderAll();
             showToast('Created section: ' + title);
         }
+    }
+
+    // Auto-Expand Textarea Helper
+    function autoExpandTextarea(el) {
+        if (!el) return;
+        el.style.height = 'auto';
+        el.style.height = Math.max(48, el.scrollHeight + 2) + 'px';
     }
 
     // =========================================================================
@@ -1808,7 +1990,7 @@
         line.className = 'drop-indicator-line';
         line.id = 'activeDropIndicator';
 
-        const lineIndent = Math.max(12, (proposedLevel - 1) * 26 + 12);
+        const lineIndent = Math.max(8, (proposedLevel - 1) * 26 + 8);
         line.style.marginLeft = lineIndent + 'px';
 
         if (position === 'before') {
@@ -1880,6 +2062,72 @@
 
         document.getElementById('progressFill').style.width = pct + '%';
         document.getElementById('progressStats').innerText = completed + ' / ' + total + ' Completed (' + pct + '%)';
+    }
+
+    // =========================================================================
+    // YAML & TSV CLIPBOARD EXPORT ENGINE
+    // =========================================================================
+
+    // Format any slice of tasks into clean, human-readable YAML for Notepad++
+    function formatTasksSliceAsYaml(tasks) {
+        if (!tasks || !tasks.length) return '';
+        const baseLevel = tasks[0].level || 0;
+        const lines = [];
+
+        tasks.forEach(t => {
+            const isSection = (t.level === 0);
+            if (isSection) {
+                lines.push('\n# ==========================================');
+                lines.push('# ' + t.title.toUpperCase());
+                lines.push('# ==========================================');
+                lines.push('section: "' + t.title.replace(/"/g, () => '\\"') + '"');
+                if (t.notes && t.notes.trim()) {
+                    lines.push('description: "' + t.notes.replace(/"/g, () => '\\"') + '"');
+                }
+                lines.push('tasks:');
+            } else {
+                const relLevel = Math.max(0, (t.level || baseLevel) - (baseLevel === 0 ? 1 : baseLevel));
+                const indent = '  '.repeat(relLevel + (baseLevel === 0 ? 1 : 0));
+                const checkMark = t.checked ? '[x]' : '[ ]';
+                lines.push(indent + '- ' + checkMark + ' ' + (t.title || 'Untitled'));
+
+                if (t.notes && t.notes.trim()) {
+                    const noteLines = t.notes.trim().split('\n');
+                    if (noteLines.length === 1) {
+                        lines.push(indent + '  notes: "' + noteLines[0].replace(/"/g, () => '\\"') + '"');
+                    } else {
+                        lines.push(indent + '  notes: |');
+                        noteLines.forEach(nl => {
+                            lines.push(indent + '    ' + nl);
+                        });
+                    }
+                }
+            }
+        });
+        return lines.join('\n').trim();
+    }
+
+    // 1-Click Subtree Branch Copy as YAML
+    function copyTaskBranch(index) {
+        const range = getSubtreeRange(index);
+        const subtree = TASKS_DATA.slice(range.start, range.start + range.count);
+        const yamlStr = formatTasksSliceAsYaml(subtree);
+
+        navigator.clipboard.writeText(yamlStr).then(() => {
+            showToast('📋 Copied ' + range.count + ' task(s) in branch as YAML!');
+        }).catch(() => {
+            showToast('Failed to copy. Please allow clipboard permissions.');
+        });
+    }
+
+    // 1-Click Full Punch List as YAML
+    function copyAllAsYamlToClipboard() {
+        const yamlStr = formatTasksSliceAsYaml(TASKS_DATA);
+        navigator.clipboard.writeText(yamlStr).then(() => {
+            showToast('📋 Copied full punch list as YAML (ready for Notepad++)!');
+        }).catch(() => {
+            showToast('Failed to copy. Please allow clipboard permissions.');
+        });
     }
 
     // 1-Click TSV Exporter (Strict Rule 5 Function Callback Replacement)
