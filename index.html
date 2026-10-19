@@ -58,20 +58,49 @@
 
     <!-- Header Control Bar -->
     <div class="header-card">
-        <!-- Top-Right YAML Local Storage Pill -->
-        <div class="header-pill-wrap">
-            <button id="storageStatusPill" class="status-pill status-healthy" onclick="openYamlModal('full')" title="Click to view &amp; edit full YAML">
-                <span id="pillIcon">💾</span>
-                <span id="pillText">YAML Local Storage</span>
-            </button>
-            <div class="status-tooltip-popover">
-                <div class="tooltip-hdr">
-                    <span>💾</span>
-                    <span>Direct YAML Storage Engine</span>
+        <!-- Dual Status Badges Cluster (Anchored Top-Right) -->
+        <div class="header-pills-cluster">
+            <!-- Mode Status Pill -->
+            <div class="header-pill-wrap">
+                <button id="modeStatusPill" class="status-pill status-editor" onclick="openYamlModal('full')" title="Click to view permissions &amp; rules">
+                    <span id="modeIcon">✏️</span>
+                    <span id="modeText">Editor Mode</span>
+                </button>
+                <div class="status-tooltip-popover" id="modeTooltip">
+                    <div class="tooltip-hdr">
+                        <span>🛡️</span>
+                        <span>Permissions &amp; Wildcards</span>
+                    </div>
+                    <div id="modeTooltipDesc" style="color: var(--text-secondary); margin-bottom: 6px;">Loading role status...</div>
+                    <table class="tooltip-table">
+                        <tr>
+                            <td class="prop">list_puncher_editors</td>
+                            <td class="val"><code>ADMINS</code> (Default), <code>ALL</code>, <code>ANYONE</code>, or comma-separated names/emails</td>
+                        </tr>
+                        <tr>
+                            <td class="prop">list_puncher_viewers</td>
+                            <td class="val"><code>ALL</code> (Default), <code>ANYONE</code>, or specific comma-separated names/emails</td>
+                        </tr>
+                    </table>
+                    <div class="tooltip-code-box" id="modeUserDetected">Role: Probing...</div>
                 </div>
-                <div id="tooltipStatusNotice">Saved in browser localStorage (YAML format).</div>
-                <div class="tooltip-code-box">Key: list_puncher_yaml</div>
-                <span class="tooltip-footer-note">Click pill to open the Full YAML Modal Editor</span>
+            </div>
+
+            <!-- Storage Pill -->
+            <div class="header-pill-wrap">
+                <button id="storageStatusPill" class="status-pill status-healthy" onclick="openYamlModal('full')" title="Click to view &amp; edit full YAML">
+                    <span id="pillIcon">💾</span>
+                    <span id="pillText">YAML Local Storage</span>
+                </button>
+                <div class="status-tooltip-popover">
+                    <div class="tooltip-hdr">
+                        <span>💾</span>
+                        <span>Direct YAML Storage Engine</span>
+                    </div>
+                    <div id="tooltipStatusNotice">Saved in browser localStorage (YAML format).</div>
+                    <div class="tooltip-code-box">Key: list_puncher_yaml</div>
+                    <span class="tooltip-footer-note">Click pill to open the Full YAML Modal Editor</span>
+                </div>
             </div>
         </div>
 
@@ -85,7 +114,7 @@
 
             <!-- Granular Action & Filter Controls -->
             <div class="header-actions">
-                <button type="button" class="btn-action" onclick="copyAiPromptToClipboard()" title="Copy tailored prompt to drop into any existing AI conversation">
+                <button type="button" class="btn-action" onclick="copyAiPromptToClipboard()" title="Copy prompt for ChatGPT, Claude, Gemini or Grok">
                     🤖 Copy AI Prompt
                 </button>
                 <button type="button" class="btn-action" onclick="toggleAllSections()" id="btnToggleAll" title="Expand or collapse all milestones">
@@ -190,13 +219,15 @@
     const ACTIVE_GLOBALS_ID = urlParams.get('gsheet_globals_id') || DEFAULT_GLOBALS_ID;
     const CLIENT_NAME = urlParams.get('location_name') || urlParams.get('client_name') || 'Euro Parts West';
 
-    // HighLevel Self-Healing & Permission Contexts
+    // HighLevel Role, Permissions & Self-Healing Credentials
     const LOCATION_ID   = urlParams.get('location_id') || '';
     const API_TOKEN     = urlParams.get('token') || urlParams.get('automybiz_api_token') || '';
     const USER_NAME     = urlParams.get('user_name') || '';
     const USER_EMAIL    = urlParams.get('user_email') || '';
     const USER_ROLE     = (urlParams.get('user_role') || '').toLowerCase();
     const EDITORS_PARAM = urlParams.get('editors') || '';
+    const VIEWERS_PARAM = urlParams.get('viewers') || '';
+    const MODE_OVERRIDE = (urlParams.get('mode') || urlParams.get('edit') || '').toLowerCase();
 
     // In-memory Task State & Persistent UI State
     let TASKS_DATA = [];
@@ -258,21 +289,75 @@
         return `${prefix}_${slug || 'item'}_${index}`;
     }
 
-    // Permission Verification Engine
-    function checkIsEditor() {
-        if (!USER_NAME && !USER_EMAIL && !USER_ROLE && !EDITORS_PARAM) return true;
-        if (USER_ROLE === 'admin') return true;
+    // =========================================================================
+    // WILDCARD WHITELIST & PERMISSION ENGINE
+    // =========================================================================
+    function evaluatePermissions() {
+        // Direct override bypass for testing
+        if (MODE_OVERRIDE === 'edit' || MODE_OVERRIDE === 'true' || MODE_OVERRIDE === 'admin') {
+            return { isEditor: true, isViewer: true, mode: 'editor', reason: 'URL Override (&edit=true)' };
+        }
 
-        if (EDITORS_PARAM) {
-            const allowed = EDITORS_PARAM.split(/[,+]/).map(s => s.trim().toLowerCase()).filter(Boolean);
+        // Standalone default (No GHL parameters passed)
+        if (!USER_NAME && !USER_EMAIL && !USER_ROLE && !EDITORS_PARAM && !VIEWERS_PARAM) {
+            return { isEditor: true, isViewer: true, mode: 'editor', reason: 'Standalone (Full Access)' };
+        }
+
+        // Automatic full access for Agency Owners, Agency Admins & Location Admins
+        const isAgencyOrAdmin = ['admin', 'agency', 'agency_admin', 'agency_owner', 'owner'].some(r => USER_ROLE.includes(r));
+
+        const cleanEditors = EDITORS_PARAM.includes('{{') ? '' : EDITORS_PARAM.trim().toLowerCase();
+        const cleanViewers = VIEWERS_PARAM.includes('{{') ? '' : VIEWERS_PARAM.trim().toLowerCase();
+
+        // 1. Evaluate Editor Permissions
+        let isEditor = false;
+        let editorReason = '';
+
+        if (isAgencyOrAdmin) {
+            isEditor = true;
+            editorReason = `Agency/Admin Access (${USER_ROLE})`;
+        } else if (cleanEditors === 'all' || cleanEditors === 'anyone' || cleanEditors === '*') {
+            isEditor = true;
+            editorReason = 'Wildcard (ALL/ANYONE)';
+        } else if (cleanEditors) {
+            const allowed = cleanEditors.split(/[,+]/).map(s => s.trim()).filter(Boolean);
             const nameMatch = USER_NAME && allowed.some(a => USER_NAME.toLowerCase().includes(a));
             const emailMatch = USER_EMAIL && allowed.includes(USER_EMAIL.toLowerCase());
-            if (nameMatch || emailMatch) return true;
+            if (nameMatch || emailMatch) {
+                isEditor = true;
+                editorReason = 'Whitelisted in Editors';
+            }
         }
-        return false;
+
+        // 2. Evaluate Viewer Permissions (Editors automatically authorized to view)
+        let isViewer = isEditor;
+        let viewerReason = isEditor ? editorReason : '';
+
+        if (!isViewer) {
+            if (!cleanViewers || cleanViewers === 'all' || cleanViewers === 'anyone' || cleanViewers === '*') {
+                isViewer = true;
+                viewerReason = 'Wildcard (ALL)';
+            } else if (cleanViewers === 'admins') {
+                if (isAgencyOrAdmin) {
+                    isViewer = true;
+                    viewerReason = 'Admin/Agency Role';
+                }
+            } else {
+                const allowed = cleanViewers.split(/[,+]/).map(s => s.trim()).filter(Boolean);
+                const nameMatch = USER_NAME && allowed.some(a => USER_NAME.toLowerCase().includes(a));
+                const emailMatch = USER_EMAIL && allowed.includes(USER_EMAIL.toLowerCase());
+                if (nameMatch || emailMatch) {
+                    isViewer = true;
+                    viewerReason = 'Whitelisted in Viewers';
+                }
+            }
+        }
+
+        const mode = isEditor ? 'editor' : (isViewer ? 'viewer' : 'restricted');
+        return { isEditor, isViewer, mode, reason: isEditor ? editorReason : viewerReason };
     }
 
-    // Self-Healing HighLevel Custom Value Provisioner
+    // HighLevel Self-Healing Provisioner (Auto-creates both custom values)
     async function checkAndProvisionGHL() {
         if (!LOCATION_ID || !API_TOKEN) return;
         const cleanToken = API_TOKEN.trim();
@@ -292,18 +377,28 @@
 
             const data = await res.json();
             const values = data.customValues || [];
-            const exists = values.some(v => (v.name || '').toLowerCase() === 'list_puncher_editors');
 
-            if (!exists) {
-                const createUrl = `${GHL_API_BASE}/locations/${LOCATION_ID}/customValues`;
-                const postRes = await fetch(createUrl, {
+            const hasEditors = values.some(v => (v.name || '').toLowerCase() === 'list_puncher_editors');
+            const hasViewers = values.some(v => (v.name || '').toLowerCase() === 'list_puncher_viewers');
+
+            if (!hasEditors) {
+                await fetch(`${GHL_API_BASE}/locations/${LOCATION_ID}/customValues`, {
                     method: 'POST',
                     headers: headers,
-                    body: JSON.stringify({ name: 'list_puncher_editors', value: '' })
+                    body: JSON.stringify({ name: 'list_puncher_editors', value: 'ADMINS' })
                 });
-                if (postRes.ok) {
-                    showToast('⚡ Auto-provisioned "list_puncher_editors" custom value in HighLevel!');
-                }
+            }
+
+            if (!hasViewers) {
+                await fetch(`${GHL_API_BASE}/locations/${LOCATION_ID}/customValues`, {
+                    method: 'POST',
+                    headers: headers,
+                    body: JSON.stringify({ name: 'list_puncher_viewers', value: 'ALL' })
+                });
+            }
+
+            if (!hasEditors || !hasViewers) {
+                showToast('⚡ Auto-provisioned list_puncher custom values in HighLevel!');
             }
         } catch(e) {
             console.warn('[GHL Auto-Provisioner]:', e);
@@ -460,7 +555,7 @@
     async function fetchAndApplyLiveTheme() {
         try {
             const isForceRefresh = urlParams.has('refresh') && urlParams.get('refresh') !== '0' && urlParams.get('refresh') !== 'false';
-            const fetchUrl = SETTINGS_GATEWAY_DOMAIN + '/?action=styles&gsheet_globals_id=' + ACTIVE_GLOBALS_ID + (isForceRefresh ? '&refresh=1' : '') + '&t=' + Date.now();
+            const fetchUrl = `${SETTINGS_GATEWAY_DOMAIN}/?action=styles&gsheet_globals_id=${ACTIVE_GLOBALS_ID}${isForceRefresh ? '&refresh=1' : ''}&t=${Date.now()}`;
 
             const response = await fetch(fetchUrl);
             if (!response.ok) return;
@@ -494,7 +589,7 @@
             document.body.classList.toggle('card-border-animated', isAnimateEnabled);
             document.body.classList.remove('effect-laser-comet', 'effect-dual-tone-blend', 'effect-hue-sweep', 'effect-fx-rainbow');
             if (isAnimateEnabled) {
-                document.body.classList.add('effect-' + animEffect);
+                document.body.classList.add(`effect-${animEffect}`);
             }
 
             const generatedCss = `
@@ -558,17 +653,21 @@
     async function initApp() {
         document.getElementById('clientBadge').innerText = CLIENT_NAME;
 
-        // Verify user role & permissions
-        if (!checkIsEditor()) {
-            document.body.classList.add('is-viewer-mode');
-            document.getElementById('clientBadge').innerText = `${CLIENT_NAME} (Viewer Mode)`;
-        }
-
-        // Apply theme
+        // Apply theme immediately
         fetchAndApplyLiveTheme();
 
         // Initialize modal backdrops
         initModals();
+
+        // Evaluate permissions & setup mode badge
+        const perms = evaluatePermissions();
+        updatePermissionsUI(perms);
+
+        // If access restricted, show lock screen immediately
+        if (!perms.isViewer) {
+            renderAccessRestrictedScreen(perms);
+            return;
+        }
 
         // Load Persistent UI State (Sections, Branches, Notes, Toggles)
         const savedUiState = localStorage.getItem('automybiz_punch_ui_state');
@@ -578,7 +677,6 @@
             } catch(e) {}
         }
 
-        // Synchronize header button toggle states
         updateHeaderToggleButtonsUI();
 
         // PRIMARY SOURCE OF TRUTH: Direct YAML LocalStorage
@@ -591,8 +689,66 @@
             seedOnboardingBlueprint();
         }
 
-        // HighLevel Self-Healing Provisioner
+        // HighLevel Self-Healing Provisioner (runs quietly in background)
         checkAndProvisionGHL();
+    }
+
+    function updatePermissionsUI(perms) {
+        const modePill = document.getElementById('modeStatusPill');
+        const modeIcon = document.getElementById('modeIcon');
+        const modeText = document.getElementById('modeText');
+        const modeDesc = document.getElementById('modeTooltipDesc');
+        const modeUser = document.getElementById('modeUserDetected');
+
+        if (perms.mode === 'editor') {
+            document.body.classList.remove('is-viewer-mode');
+            if (modePill) modePill.className = 'status-pill status-editor';
+            if (modeIcon) modeIcon.innerText = '✏️';
+            if (modeText) modeText.innerText = 'Editor Mode';
+            if (modeDesc) modeDesc.innerText = `Full editing access granted: ${perms.reason}`;
+        } else if (perms.mode === 'viewer') {
+            document.body.classList.add('is-viewer-mode');
+            if (modePill) modePill.className = 'status-pill status-viewer';
+            if (modeIcon) modeIcon.innerText = '👁️';
+            if (modeText) modeText.innerText = 'Viewer Mode';
+            if (modeDesc) modeDesc.innerText = `Read-only viewing authorized: ${perms.reason}`;
+            document.getElementById('clientBadge').innerText = `${CLIENT_NAME} (Viewer Mode)`;
+        } else {
+            document.body.classList.add('is-viewer-mode');
+            if (modePill) modePill.className = 'status-pill status-restricted';
+            if (modeIcon) modeIcon.innerText = '🔒';
+            if (modeText) modeText.innerText = 'Restricted';
+            if (modeDesc) modeDesc.innerText = 'Access restricted: account not whitelisted.';
+        }
+
+        if (modeUser) {
+            const detectedStr = USER_NAME || USER_EMAIL ? `${USER_NAME || USER_EMAIL} (${USER_ROLE || 'user'})` : 'Anonymous / No Params';
+            modeUser.innerText = `Active User: ${detectedStr}`;
+        }
+    }
+
+    function renderAccessRestrictedScreen(perms) {
+        const deckContainer = document.getElementById('deckContainer');
+        const detectedUser = USER_NAME || USER_EMAIL || 'Current User';
+        deckContainer.innerHTML = `
+            <div class="restricted-card">
+                <span class="restricted-icon">🔒</span>
+                <div class="restricted-title">Access Restricted</div>
+                <div class="restricted-msg">
+                    You are not currently authorized to view this onboarding punch list.
+                </div>
+                <div class="restricted-box">
+                    <strong>Detected Account:</strong> ${escapeHtml(detectedUser)}<br>
+                    <strong>Detected Role:</strong> ${escapeHtml(USER_ROLE || 'user')}<br>
+                    <strong>Reason:</strong> Not listed in <code>list_puncher_viewers</code> or <code>list_puncher_editors</code>.
+                </div>
+                <p style="font-size: 0.82rem; color: var(--text-muted); line-height: 1.5;">
+                    To gain access, ask your workspace administrator to add your name or email to the <strong>list_puncher_viewers</strong> Custom Value in HighLevel.
+                </p>
+            </div>
+        `;
+        document.querySelector('.progress-section').style.display = 'none';
+        document.querySelector('.header-actions').style.display = 'none';
     }
 
     function saveState() {
@@ -1096,9 +1252,9 @@
 
     // Inline Task Notes Controller
     function startEditNotes(taskId, realIdx) {
-        const viewEl = document.getElementById('notes_view_' + taskId);
-        const editorEl = document.getElementById('notes_editor_' + taskId);
-        const textarea = document.getElementById('notes_textarea_' + taskId);
+        const viewEl = document.getElementById(`notes_view_${taskId}`);
+        const editorEl = document.getElementById(`notes_editor_${taskId}`);
+        const textarea = document.getElementById(`notes_textarea_${taskId}`);
 
         if (!viewEl || !editorEl || !textarea) return;
 
@@ -1120,8 +1276,8 @@
             saveState();
         }
 
-        const viewEl = document.getElementById('notes_view_' + taskId);
-        const editorEl = document.getElementById('notes_editor_' + taskId);
+        const viewEl = document.getElementById(`notes_view_${taskId}`);
+        const editorEl = document.getElementById(`notes_editor_${taskId}`);
 
         if (viewEl && editorEl) {
             viewEl.innerHTML = newVal 
@@ -1139,8 +1295,8 @@
         } else if (e.key === 'Escape') {
             e.preventDefault();
             textarea.value = textarea.dataset.originalValue || '';
-            const viewEl = document.getElementById('notes_view_' + taskId);
-            const editorEl = document.getElementById('notes_editor_' + taskId);
+            const viewEl = document.getElementById(`notes_view_${taskId}`);
+            const editorEl = document.getElementById(`notes_editor_${taskId}`);
             if (viewEl && editorEl) {
                 editorEl.style.display = 'none';
                 viewEl.style.display = 'block';
@@ -1177,6 +1333,15 @@
 
         saveState();
         renderAll();
+    }
+
+    function deleteSubtree(parentIdx) {
+        if (!TASKS_DATA[parentIdx]) return;
+        const range = getSubtreeRange(parentIdx);
+        TASKS_DATA.splice(range.start, range.count);
+        saveState();
+        renderAll();
+        showToast(range.count > 1 ? ('Deleted task and ' + (range.count - 1) + ' subtask(s)') : 'Task removed');
     }
 
     function updateTaskTitle(index, val) {
@@ -1256,7 +1421,7 @@
         };
 
         TASKS_DATA.splice(insertAt, 0, newSubtask);
-        UI_STATE.branches[parent.id] = false; // Expand parent branch
+        UI_STATE.branches[parent.id] = false;
 
         saveState();
         renderAll();
@@ -1286,7 +1451,7 @@
         const yamlStr = formatTasksSliceAsYaml(sectionSlice);
 
         navigator.clipboard.writeText(yamlStr).then(() => {
-            showToast(`📋 Copied section "${TASKS_DATA[headerIdx].title}" as YAML!`);
+            showToast(`📋 Copied milestone "${TASKS_DATA[headerIdx].title}" as YAML!`);
         });
     }
 
@@ -1306,7 +1471,7 @@
             });
             saveState();
             renderAll();
-            showToast('Created section: ' + cleanTitle);
+            showToast(`Created milestone: ${cleanTitle}`);
         }
     }
 
@@ -1348,7 +1513,7 @@
         DELETE_CONTEXT = { type: 'section', targetIndex: sectionIndex, headerIdx, range };
 
         const bodyEl = document.getElementById('deleteModalBody');
-        bodyEl.innerHTML = `Are you sure you want to permanently delete section <strong>"${escapeHtml(secTitle)}"</strong> and all <strong>${range.count - 1} milestone tasks</strong>?`;
+        bodyEl.innerHTML = `Are you sure you want to permanently delete milestone <strong>"${escapeHtml(secTitle)}"</strong> and all <strong>${range.count - 1} tasks</strong>?`;
 
         document.getElementById('deleteModal').classList.add('open');
     }
@@ -1366,14 +1531,14 @@
             TASKS_DATA.splice(range.start, range.count);
             saveState();
             renderAll();
-            showToast(range.count > 1 ? ('Deleted task and ' + (range.count - 1) + ' subtask(s)') : 'Task removed');
+            showToast(range.count > 1 ? (`Deleted task and ${range.count - 1} subtask(s)`) : 'Task removed');
         } else if (DELETE_CONTEXT.type === 'section') {
             const { range, headerIdx } = DELETE_CONTEXT;
             const secTitle = TASKS_DATA[headerIdx].title;
             TASKS_DATA.splice(range.start, range.count);
             saveState();
             renderAll();
-            showToast(`Deleted section "${secTitle}"`);
+            showToast(`Deleted milestone "${secTitle}"`);
         }
 
         closeDeleteModal();
@@ -1390,7 +1555,7 @@
         if (deck) deck.classList.add('section-dragging');
 
         e.dataTransfer.effectAllowed = 'move';
-        e.dataTransfer.setData('text/plain', 'SECTION_' + DRAGGED_SECTION_INDEX);
+        e.dataTransfer.setData('text/plain', `SECTION_${DRAGGED_SECTION_INDEX}`);
         e.stopPropagation();
     }
 
@@ -1478,7 +1643,7 @@
 
         saveState();
         renderAll();
-        showToast('Section reordered!');
+        showToast('Milestone reordered!');
     }
 
     function handleSectionDragEnd() {
@@ -1560,7 +1725,7 @@
         line.id = 'activeDropIndicator';
 
         const lineIndent = Math.max(4, (proposedLevel - 1) * 22 + 4);
-        line.style.marginLeft = lineIndent + 'px';
+        line.style.marginLeft = `${lineIndent}px`;
 
         if (position === 'before') {
             targetRow.parentElement.insertBefore(line, targetRow);
@@ -1631,8 +1796,8 @@
         const total = actionable.length;
         const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
 
-        document.getElementById('progressFill').style.width = pct + '%';
-        document.getElementById('progressStats').innerText = completed + ' / ' + total + ' Completed (' + pct + '%)';
+        document.getElementById('progressFill').style.width = `${pct}%`;
+        document.getElementById('progressStats').innerText = `${completed} / ${total} Completed (${pct}%)`;
     }
 
     // =========================================================================
@@ -1647,16 +1812,16 @@
             const isSection = (t.level === 0);
             if (isSection) {
                 lines.push('\n# ==========================================');
-                lines.push('# ' + t.title.toUpperCase());
+                lines.push(`# ${t.title.toUpperCase()}`);
                 lines.push('# ==========================================');
-                lines.push('section: "' + t.title.replace(/"/g, () => '\\"') + '"');
+                lines.push(`section: "${t.title.replace(/"/g, () => '\\"')}"`);
                 if (t.notes && t.notes.trim()) {
                     const descLines = t.notes.trim().split(/\r?\n/);
                     if (descLines.length === 1) {
-                        lines.push('description: "' + descLines[0].replace(/"/g, () => '\\"') + '"');
+                        lines.push(`description: "${descLines[0].replace(/"/g, () => '\\"')}"`);
                     } else {
                         lines.push('description: |');
-                        descLines.forEach(dl => lines.push('  ' + dl));
+                        descLines.forEach(dl => lines.push(`  ${dl}`));
                     }
                 }
                 lines.push('tasks:');
@@ -1664,16 +1829,16 @@
                 const relLevel = Math.max(0, (t.level || baseLevel) - (baseLevel === 0 ? 1 : baseLevel));
                 const indent = '  '.repeat(relLevel + (baseLevel === 0 ? 1 : 0));
                 const checkMark = t.checked ? '[x]' : '[ ]';
-                lines.push(indent + '- ' + checkMark + ' ' + (t.title || 'Untitled'));
+                lines.push(`${indent}- ${checkMark} ${t.title || 'Untitled'}`);
 
                 if (t.notes && t.notes.trim()) {
                     const noteLines = t.notes.trim().split(/\r?\n/);
                     if (noteLines.length === 1) {
-                        lines.push(indent + '  notes: "' + noteLines[0].replace(/"/g, () => '\\"') + '"');
+                        lines.push(`${indent}  notes: "${noteLines[0].replace(/"/g, () => '\\"')}"`);
                     } else {
-                        lines.push(indent + '  notes: |');
+                        lines.push(`${indent}  notes: |`);
                         noteLines.forEach(nl => {
-                            lines.push(indent + '    ' + nl);
+                            lines.push(`${indent}    ${nl}`);
                         });
                     }
                 }
@@ -1879,7 +2044,7 @@
             subtitle.innerText = 'Edit, copy, or paste your entire punch list directly.';
             textarea.value = formatTasksSliceAsYaml(TASKS_DATA);
         } else if (mode === 'section') {
-            title.innerHTML = '📥 Paste Tasks into Section';
+            title.innerHTML = '📥 Paste Tasks into Milestone';
             subtitle.innerText = 'Paste YAML tasks to insert into this milestone.';
             textarea.value = `  - [ ] New Task\n    notes: Task note with image or YouTube\n    - [ ] Nested Subtask`;
         } else if (mode === 'branch') {
@@ -1996,7 +2161,7 @@
         const yamlStr = formatTasksSliceAsYaml(subtree);
 
         navigator.clipboard.writeText(yamlStr).then(() => {
-            showToast('📋 Copied ' + range.count + ' task(s) in branch as YAML!');
+            showToast(`📋 Copied ${range.count} task(s) in branch as YAML!`);
         }).catch(() => {
             showToast('Failed to copy. Please allow clipboard permissions.');
         });

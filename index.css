@@ -1,14 +1,15 @@
 /**
- * List Puncher - Master Stylesheet (v1.02)
+ * List Puncher - Master Stylesheet (v1.03)
  * File: index.css
  * 
  * AutoMyBiz Core Engineering Standards:
- * - Two-tier task row architecture with full-width task notes & media embeds
- * - Stable top-right local storage badge layout
+ * - Dual top-right status pill cluster (YAML Storage + Permission Mode)
+ * - Permission pill colorways (Editor, Viewer, Restricted) with detailed rule tooltip
+ * - Locked-down Access Restricted error card
+ * - Two-tier task row architecture with full-width notes and media embeds
  * - Milestone description banner at top of accordion body with media embeds
  * - Dynamic auto-numbering badge styles (#1, #2, #3)
  * - Header toggle controls for Auto-Number, Completed-at-Bottom & Filter Toggles
- * - High-contrast completed item opacity fading with instant hover restoration
  * - Responsive 16:9 YouTube containers and constrained auto-images
  */
 
@@ -67,7 +68,7 @@ body {
 }
 
 /* ==========================================================================
-   Header Control Card & Top-Right Storage Badge
+   Header Control Card & Dual Top-Right Status Badge Cluster
    ========================================================================== */
 .header-card {
     background: var(--card-bg);
@@ -87,7 +88,7 @@ body {
     gap: 12px;
     border-bottom: 1px solid var(--border-color);
     padding-bottom: 16px;
-    padding-right: 180px; /* Reserves space for top-right storage badge */
+    padding-right: 340px; /* Reserves space for dual top-right badge cluster */
 }
 
 .brand-title-wrap {
@@ -122,14 +123,21 @@ body {
     border-radius: 12px;
 }
 
-/* Storage Pill: Anchored in Top-Right Corner of Header Card */
-.header-pill-wrap {
+/* Dual Status Badges Cluster (Anchored Top-Right) */
+.header-pills-cluster {
     position: absolute;
     top: 20px;
     right: 24px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    z-index: 10;
+}
+
+.header-pill-wrap {
+    position: relative;
     display: inline-flex;
     align-items: center;
-    z-index: 10;
 }
 
 .status-pill {
@@ -149,11 +157,11 @@ body {
     user-select: none;
     line-height: 1.2;
     text-decoration: none;
+    white-space: nowrap;
 }
 
 .status-pill:hover {
-    border-color: var(--accent-cyan);
-    box-shadow: 0 0 10px rgba(0, 255, 255, 0.35);
+    box-shadow: 0 0 10px rgba(0, 229, 255, 0.35);
     transform: translateY(-1px);
 }
 
@@ -163,11 +171,37 @@ body {
     border-color: #10b981;
 }
 
+/* Mode Pill Colorways */
+.status-pill.status-editor {
+    background: rgba(0, 229, 255, 0.12);
+    color: var(--accent-cyan);
+    border-color: var(--accent-cyan);
+}
+
+.status-pill.status-viewer {
+    background: rgba(250, 160, 0, 0.14);
+    color: var(--accent-yellow);
+    border-color: var(--accent-yellow);
+}
+
+.status-pill.status-restricted {
+    background: rgba(239, 68, 68, 0.18);
+    color: var(--accent-red);
+    border-color: var(--accent-red);
+    animation: pulseWarning 2.5s infinite;
+}
+
+@keyframes pulseWarning {
+    0%, 100% { box-shadow: 0 0 4px rgba(239, 68, 68, 0.3); }
+    50% { box-shadow: 0 0 12px rgba(239, 68, 68, 0.65); }
+}
+
+/* Tooltip Popover */
 .status-tooltip-popover {
     visibility: hidden;
     width: max-content;
-    min-width: 280px;
-    max-width: 380px;
+    min-width: 320px;
+    max-width: 440px;
     background: #0d121f;
     border: 1px solid var(--border-color);
     border-radius: 8px;
@@ -216,6 +250,28 @@ body {
     word-break: break-all;
     color: #fff;
     user-select: all;
+}
+
+.tooltip-table {
+    width: 100%;
+    margin-top: 6px;
+    font-size: 11px;
+    border-collapse: collapse;
+}
+
+.tooltip-table td {
+    padding: 3px 0;
+    vertical-align: top;
+}
+
+.tooltip-table td.prop {
+    color: var(--accent-cyan);
+    font-family: var(--font-mono);
+    width: 125px;
+}
+
+.tooltip-table td.val {
+    color: var(--text-primary);
 }
 
 .header-actions {
@@ -1134,6 +1190,54 @@ body {
 }
 
 /* ==========================================================================
+   Locked-Down Access Restricted Card
+   ========================================================================== */
+.restricted-card {
+    background: var(--card-bg);
+    border: 1.5px solid var(--accent-red);
+    border-radius: 12px;
+    padding: 42px 28px;
+    text-align: center;
+    margin: 30px auto;
+    max-width: 620px;
+    box-shadow: 0 16px 50px rgba(0, 0, 0, 0.85);
+}
+
+.restricted-icon {
+    font-size: 2.8rem;
+    line-height: 1;
+    margin-bottom: 14px;
+    display: inline-block;
+}
+
+.restricted-title {
+    font-size: 1.35rem;
+    font-weight: 800;
+    color: #fff;
+    margin-bottom: 10px;
+}
+
+.restricted-msg {
+    color: var(--text-secondary);
+    font-size: 0.92rem;
+    line-height: 1.6;
+    margin-bottom: 20px;
+}
+
+.restricted-box {
+    background: rgba(0, 0, 0, 0.45);
+    border: 1px solid rgba(239, 68, 68, 0.35);
+    border-radius: 6px;
+    padding: 12px 14px;
+    font-size: 0.8rem;
+    color: #fca5a5;
+    text-align: left;
+    line-height: 1.6;
+    margin: 0 auto 16px auto;
+    font-family: var(--font-mono);
+}
+
+/* ==========================================================================
    Read-Only Viewer Mode (Role / Permission Guard)
    ========================================================================== */
 body.is-viewer-mode .task-actions,
@@ -1185,13 +1289,13 @@ body.is-viewer-mode .section-description-view {
     opacity: 1;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 860px) {
     .header-top {
         padding-right: 0;
     }
-    .header-pill-wrap {
+    .header-pills-cluster {
         position: static;
-        margin-top: 8px;
+        margin-top: 10px;
     }
     .task-notes-block {
         padding-left: 28px;
