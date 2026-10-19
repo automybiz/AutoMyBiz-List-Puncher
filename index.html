@@ -143,7 +143,7 @@
             color: var(--accent-cyan);
         }
 
-        /* Combined Storage Pill System */
+        /* Storage Pill */
         .header-pill-wrap {
             position: relative;
             display: inline-flex;
@@ -179,24 +179,6 @@
             background: rgba(16, 185, 129, 0.12);
             color: #10b981;
             border-color: #10b981;
-        }
-
-        .status-pill.status-probing {
-            background: rgba(0, 229, 255, 0.1);
-            color: var(--accent-cyan);
-            border-color: var(--accent-cyan);
-        }
-
-        .status-pill.status-warning {
-            background: rgba(250, 160, 0, 0.15);
-            color: var(--accent-yellow);
-            border-color: var(--accent-yellow);
-            animation: pulseWarning 2.5s infinite;
-        }
-
-        @keyframes pulseWarning {
-            0%, 100% { box-shadow: 0 0 4px rgba(250, 160, 0, 0.3); }
-            50% { box-shadow: 0 0 12px rgba(250, 160, 0, 0.6); }
         }
 
         .status-tooltip-popover {
@@ -326,9 +308,7 @@
             transition: width 0.3s cubic-bezier(0.16, 1, 0.3, 1);
         }
 
-        /* ==========================================================================
-           Decoupled Border Animation Architecture (@property Isolated)
-           ========================================================================== */
+        /* Border Animation Architecture */
         @property --border-angle {
             syntax: "<angle>";
             inherits: false;
@@ -358,7 +338,6 @@
             border-color: var(--accent-cyan);
         }
 
-        /* Whole Accordion Opacity Fading When All Tasks Are Done */
         .section-deck.all-tasks-completed {
             opacity: var(--completed-opacity);
         }
@@ -398,7 +377,6 @@
             pointer-events: none;
         }
 
-        /* Effect C: Hue Sweep */
         .card-border-animated.effect-hue-sweep .section-deck:not(.is-collapsed) {
             background: 
                 linear-gradient(var(--card-bg), var(--card-bg)) padding-box,
@@ -549,7 +527,7 @@
             position: relative;
         }
 
-        /* Task Row Layout with Tree Style Tab Controls */
+        /* Task Row Layout */
         .task-row {
             display: flex;
             align-items: flex-start;
@@ -568,7 +546,6 @@
             border-color: rgba(255, 255, 255, 0.08);
         }
 
-        /* OPACITY FADING INSTEAD OF STRIKE-THROUGH */
         .task-row.is-checked {
             opacity: var(--completed-opacity);
         }
@@ -618,7 +595,7 @@
             line-height: 1;
             flex-shrink: 0;
             user-select: none;
-            margin-top: 2px;
+            margin-top: 3px;
             width: 22px;
             height: 22px;
         }
@@ -649,7 +626,7 @@
         }
 
         .task-checkbox-wrap {
-            padding-top: 3px;
+            padding-top: 4px;
             flex-shrink: 0;
         }
 
@@ -686,33 +663,130 @@
             border-bottom: 1px dashed var(--accent-cyan);
         }
 
-        /* Multi-line Task Notes Textarea */
-        .task-notes-textarea {
+        /* Notion-Style Task Notes Architecture */
+        .task-notes-block {
             width: 100%;
-            background: rgba(0, 0, 0, 0.25);
-            border: 1px solid rgba(0, 229, 255, 0.18);
-            border-radius: 4px;
-            color: var(--text-secondary);
-            font-size: 0.8rem;
-            font-family: inherit;
-            outline: none;
-            padding: 6px 8px;
-            line-height: 1.45;
-            resize: vertical;
-            min-height: 48px;
-            cursor: text;
-            user-select: text;
-            transition: border-color 0.2s, background 0.2s, color 0.2s;
+            margin-top: 2px;
         }
 
-        .task-notes-textarea:focus {
+        .task-notes-block.is-hidden-notes {
+            display: none !important;
+        }
+
+        .task-notes-view {
+            font-size: 0.82rem;
+            color: var(--text-secondary);
+            line-height: 1.5;
+            padding: 6px 10px;
+            border-radius: 6px;
+            background: rgba(0, 0, 0, 0.22);
+            border: 1px solid rgba(0, 229, 255, 0.12);
+            cursor: pointer;
+            transition: all 0.15s ease;
+            min-height: 28px;
+            word-break: break-word;
+        }
+
+        .task-notes-view:hover {
             border-color: var(--accent-cyan);
-            background: rgba(0, 0, 0, 0.45);
+            background: rgba(0, 0, 0, 0.35);
             color: #fff;
         }
 
-        .task-notes-textarea.is-hidden-notes {
-            display: none !important;
+        .notes-placeholder {
+            color: var(--text-muted);
+            font-style: italic;
+            font-size: 0.78rem;
+        }
+
+        .task-notes-view:hover .notes-placeholder {
+            color: var(--accent-cyan);
+        }
+
+        .task-notes-editor {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            width: 100%;
+        }
+
+        .task-notes-textarea {
+            width: 100%;
+            background: rgba(0, 0, 0, 0.45);
+            border: 1px solid var(--accent-cyan);
+            border-radius: 4px;
+            color: #fff;
+            font-size: 0.82rem;
+            font-family: inherit;
+            outline: none;
+            padding: 8px 10px;
+            line-height: 1.45;
+            resize: vertical;
+            min-height: 60px;
+            cursor: text;
+            user-select: text;
+        }
+
+        .notes-edit-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.72rem;
+            color: var(--text-muted);
+            padding: 0 2px;
+        }
+
+        /* Auto Media Display Containers */
+        .media-video-container {
+            position: relative;
+            width: 100%;
+            max-width: 520px;
+            aspect-ratio: 16 / 9;
+            margin: 8px 0;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+        }
+
+        .media-video-frame {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+
+        .media-image-container {
+            margin: 8px 0;
+            display: inline-block;
+            max-width: 100%;
+        }
+
+        .media-image-content {
+            max-width: 100%;
+            max-height: 380px;
+            border-radius: 6px;
+            border: 1px solid rgba(0, 229, 255, 0.25);
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+            cursor: pointer;
+            transition: transform 0.15s ease, border-color 0.15s ease;
+            display: block;
+        }
+
+        .media-image-content:hover {
+            border-color: var(--accent-cyan);
+            transform: scale(1.01);
+        }
+
+        .note-link {
+            color: var(--accent-cyan);
+            text-decoration: underline;
+            word-break: break-all;
+        }
+
+        .note-link:hover {
+            color: #fff;
         }
 
         .task-right-cluster {
@@ -720,7 +794,7 @@
             align-items: center;
             gap: 6px;
             flex-shrink: 0;
-            margin-top: 2px;
+            margin-top: 3px;
         }
 
         .task-actions {
@@ -736,7 +810,6 @@
             opacity: 1;
         }
 
-        /* Tree Style Tab Parenthesis Branch Badge */
         .branch-count-badge {
             font-size: 0.8rem;
             font-weight: 700;
@@ -805,9 +878,7 @@
             border-color: var(--accent-cyan);
         }
 
-        /* ==========================================================================
-           YAML Overlay Modal Architecture
-           ========================================================================== */
+        /* YAML Modal Overlay */
         .modal-overlay {
             position: fixed;
             inset: 0;
@@ -937,6 +1008,11 @@
         .modal-hint {
             font-size: 0.75rem;
             color: var(--text-muted);
+        }
+
+        .btn-sm {
+            padding: 4px 10px !important;
+            font-size: 0.75rem !important;
         }
 
         .toast {
@@ -1069,9 +1145,13 @@
     const ACTIVE_GSHEET_ID = urlParams.get('gsheet_punch_list_id') || DEFAULT_PUNCH_SHEET_ID;
     const CLIENT_NAME = urlParams.get('location_name') || urlParams.get('client_name') || 'Euro Parts West';
 
-    // In-memory Task State
+    // In-memory Task State & Persistent UI State
     let TASKS_DATA = [];
-    let SECTION_STATES = {};
+    let UI_STATE = {
+        sections: {},
+        branches: {},
+        notesOpen: {}
+    };
 
     // Task Drag-to-Indent & Subtree Tracking
     let IS_DRAGGING_TASK = false;
@@ -1107,6 +1187,16 @@
         <rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect>
     </svg>`;
 
+    // Deterministic slug generator for stable persistence across page refreshes
+    function generateSlugId(prefix, title, index) {
+        const slug = String(title || '')
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, () => '_')
+            .replace(/^_+|_+$/g, () => '')
+            .substring(0, 36);
+        return `${prefix}_${slug || 'item'}_${index}`;
+    }
+
     // Standard Onboarding Blueprint
     const ONBOARDING_BLUEPRINT = [
         { visible: true, id: "CF_01", parentId: "", level: 0, order: 1, checked: true, title: "1. Cloudflare Infrastructure", notes: "Master DNS and edge routing" },
@@ -1134,6 +1224,131 @@
     ];
 
     // =========================================================================
+    // AUTO MEDIA CONVERSION ENGINE (from FEATURE-SPEC-FOR-GEMINI.md)
+    // =========================================================================
+    function isYouTubeURL(url) {
+        if (!url || typeof url !== 'string') return false;
+        const lower = url.toLowerCase();
+        return lower.includes('youtube.com') || lower.includes('youtu.be');
+    }
+
+    function isImageURL(url) {
+        if (!url || typeof url !== 'string') return false;
+        const trimmed = url.trim();
+        if (isYouTubeURL(trimmed)) return false;
+        if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://')) return false;
+
+        const imageExtensions = /\.(jpg|jpeg|png|gif|bmp|webp|svg)(\?[^\s]*)?$/i;
+        if (imageExtensions.test(trimmed)) return true;
+
+        const googleStoragePattern     = /https:\/\/storage\.googleapis\.com\//i;
+        const googleDrivePattern       = /https:\/\/drive\.google\.com\/(?:uc\?|thumbnail\?|file\/d\/)/i;
+        const googleUserContentPattern = /https:\/\/lh[0-9]+\.googleusercontent\.com\//i;
+
+        return googleStoragePattern.test(trimmed) ||
+               googleDrivePattern.test(trimmed) ||
+               googleUserContentPattern.test(trimmed);
+    }
+
+    function parseYouTubeEmbed(url) {
+        if (/^https?:\/\/(?:www\.)?youtu(?:be\.com|\.be)\/?$/i.test(url)) {
+            return null;
+        }
+
+        let videoId = null;
+        let vMatch = url.match(/[?&]v=([a-zA-Z0-9_-]+)/);
+        if (vMatch) videoId = vMatch[1];
+        if (!videoId) {
+            let sMatch = url.match(/youtube\.com\/shorts\/([a-zA-Z0-9_-]+)/);
+            if (sMatch) videoId = sMatch[1];
+        }
+        if (!videoId) {
+            let beMatch = url.match(/youtu\.be\/([a-zA-Z0-9_-]+)/);
+            if (beMatch) videoId = beMatch[1];
+        }
+
+        let playlistId = null;
+        let listMatch = url.match(/[?&]list=([a-zA-Z0-9_-]+)/);
+        if (listMatch) playlistId = listMatch[1];
+
+        let startTime = null;
+        let tMatch = url.match(/[?&]t=([0-9hms]+)/);
+        if (tMatch) {
+            const tVal = tMatch[1];
+            if (/^\d+$/.test(tVal)) {
+                startTime = tVal;
+            } else {
+                let totalSeconds = 0;
+                const hMatch = tVal.match(/(\d+)h/);
+                const mMatch = tVal.match(/(\d+)m/);
+                const sMatch = tVal.match(/(\d+)s/);
+                if (hMatch) totalSeconds += parseInt(hMatch[1], 10) * 3600;
+                if (mMatch) totalSeconds += parseInt(mMatch[1], 10) * 60;
+                if (sMatch) totalSeconds += parseInt(sMatch[1], 10);
+                if (totalSeconds > 0) startTime = totalSeconds.toString();
+            }
+        }
+
+        if (videoId || playlistId) {
+            const params = [];
+            if (playlistId) params.push('list=' + encodeURIComponent(playlistId));
+            if (startTime) params.push('start=' + encodeURIComponent(startTime));
+            const query = params.length > 0 ? ('?' + params.join('&')) : '';
+
+            if (videoId) {
+                return 'https://www.youtube.com/embed/' + videoId + query;
+            } else if (playlistId) {
+                return 'https://www.youtube.com/embed/videoseries' + query;
+            }
+        }
+        return null;
+    }
+
+    function convertURLsToMedia(text) {
+        if (!text) return '';
+        let result = String(text);
+
+        // 1. Unwrap <a> tags that wrap media URLs
+        const anchorRegex = /<a\s+[^>]*href=["']([^"']+)["'][^>]*>(.*?)<\/a>/gi;
+        result = result.replace(anchorRegex, (match, href) => {
+            if (isYouTubeURL(href) || isImageURL(href)) {
+                return href;
+            }
+            return match;
+        });
+
+        // 2. Master URL Regex with punctuation trimming
+        const urlRegex = /(href="|src="|href='|src=')((?:https?:\/\/)[^"']+)("|')|(https?:\/\/(?:[^\s<&]|&(?!nbsp;))+(?:[^\s<&.,?!:;]|\/))(\r\n|\n)?/g;
+
+        result = result.replace(urlRegex, (match, attrPrefix, urlInAttr, quote, plainUrl, followingNewline) => {
+            if (attrPrefix) return match;
+            if (!plainUrl) return match;
+
+            let url = plainUrl.replace(/<\/?[aui]>|&nbsp;/gi, () => '');
+            const newlineSuffix = followingNewline || '';
+
+            // YouTube Conversion
+            if (isYouTubeURL(url)) {
+                const embedUrl = parseYouTubeEmbed(url);
+                if (embedUrl) {
+                    return `<div class="media-video-container"><iframe class="media-video-frame" src="${embedUrl}" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe></div>` + newlineSuffix;
+                }
+                return `<a href="${url}" target="_blank" class="note-link" onclick="event.stopPropagation();">${url}</a>` + newlineSuffix;
+            }
+
+            // Image Conversion
+            if (isImageURL(url)) {
+                return `<div class="media-image-container"><img class="media-image-content" src="${url}" alt="Task Image" loading="lazy" onclick="event.stopPropagation(); window.open('${url}', '_blank');" title="Click to view full image in new tab" /></div>` + newlineSuffix;
+            }
+
+            // Standard Hyperlink
+            return `<a href="${url}" target="_blank" class="note-link" onclick="event.stopPropagation();">${url}</a>` + newlineSuffix;
+        });
+
+        return result.replace(/\r\n|\r|\n/g, () => '<br>');
+    }
+
+    // =========================================================================
     // HIGH-VELOCITY EDGE THEME ENGINE
     // =========================================================================
     async function fetchAndApplyLiveTheme() {
@@ -1154,53 +1369,13 @@
                 tokens = data.tokens;
                 if (data.active_admin_theme_name) activeThemeName = data.active_admin_theme_name;
                 else if (data.active_theme_name) activeThemeName = data.active_theme_name;
-            } else if (Array.isArray(data.styles)) {
-                const sRows = data.styles;
-                const adminRow = sRows.find(r => String(r[1] || r[0] || '').trim().toUpperCase() === "ACTIVE_ADMIN_THEME_NAME");
-                const generalRow = sRows.find(r => String(r[1] || r[0] || '').trim().toUpperCase() === "ACTIVE_THEME_NAME" || String(r[1] || r[0] || '').trim().toUpperCase() === "ACTIVE_PUBLIC_THEME_NAME");
-
-                if (adminRow && (adminRow[2] || adminRow[1])) {
-                    activeThemeName = String(adminRow[2] || adminRow[1]).trim().toUpperCase();
-                } else if (generalRow && (generalRow[2] || generalRow[1])) {
-                    activeThemeName = String(generalRow[2] || generalRow[1]).trim().toUpperCase();
-                }
-
-                let activeColIdx = -1;
-                for (let r = 0; r < Math.min(sRows.length, 8); r++) {
-                    const row = sRows[r];
-                    for (let c = 2; c < row.length; c++) {
-                        if (String(row[c] || '').trim().toUpperCase() === activeThemeName) {
-                            activeColIdx = c;
-                            break;
-                        }
-                    }
-                    if (activeColIdx !== -1) break;
-                }
-
-                if (activeColIdx === -1) activeColIdx = 2;
-
-                for (let r = 0; r < sRows.length; r++) {
-                    const k = String(sRows[r][1] || sRows[r][0] || '').trim().toUpperCase();
-                    if (!k || k === "SETTING NAME" || k.startsWith("<--") || k.startsWith("<~~")) continue;
-                    const val = sRows[r][activeColIdx];
-                    if (val !== undefined && val !== null && String(val).trim() !== "") {
-                        tokens[k] = String(val).trim();
-                    }
-                }
             }
 
-            const queryTheme = urlParams.get('theme') || urlParams.get('active_theme');
-            if (queryTheme) {
-                activeThemeName = queryTheme.replace(/_/g, () => ' ').trim().toUpperCase();
-            }
-
-            // Map Sheet Tokens
             const mainBg        = tokens["MAIN_BG_COLOR"] || "#011";
             const cardBg        = tokens["CARD_BODY_BG_COLOR_1"] || tokens["CARD_BODY_BG_COLOR"] || "#011";
             const cardTitleBg1  = tokens["CARD_TITLE_BG_COLOR_1"] || "#033";
             const cardTitleBg2  = tokens["CARD_TITLE_BG_COLOR_2"] || "#044";
             const cardTitleTxt1 = tokens["CARD_TITLE_TEXT_COLOR_1"] || tokens["MAIN_TITLE_TEXT_COLOR_1"] || "#0FF";
-            const cardTitleTxt2 = tokens["CARD_TITLE_TEXT_COLOR_2"] || "#FFF";
             const borderClr     = tokens["MAIN_BORDER_COLOR"] || tokens["CARD_BORDER_COLOR_1"] || "#0FF";
             const cardBorder1   = tokens["CARD_BORDER_COLOR_1"] || borderClr;
             const cardBorder2   = tokens["CARD_BORDER_COLOR_2"] || tokens["ACCENT_COLOR_2"] || "#F80";
@@ -1274,7 +1449,6 @@
             liveStyleEl.textContent = generatedCss;
 
             localStorage.setItem('automybiz_punch_theme_css', generatedCss);
-            localStorage.setItem('automybiz_punch_theme_name', activeThemeName);
 
         } catch (err) {
             console.warn('[AutoMyBiz Theme Handshake]:', err);
@@ -1282,7 +1456,7 @@
     }
 
     // =========================================================================
-    // APP INITIALIZATION & YAML LOCAL STORAGE PERSISTENCE
+    // APP INITIALIZATION & ROBUST YAML STORAGE
     // =========================================================================
     async function initApp() {
         document.getElementById('clientBadge').innerText = CLIENT_NAME;
@@ -1290,10 +1464,10 @@
         // Apply theme immediately
         fetchAndApplyLiveTheme();
 
-        // Load section collapse preferences
-        const savedSections = localStorage.getItem('epw_punch_sections_' + ACTIVE_GSHEET_ID);
-        if (savedSections) {
-            try { SECTION_STATES = JSON.parse(savedSections); } catch(e) {}
+        // Load Persistent UI State (100% stable across reloads)
+        const savedUiState = localStorage.getItem('automybiz_punch_ui_state');
+        if (savedUiState) {
+            try { UI_STATE = Object.assign(UI_STATE, JSON.parse(savedUiState)); } catch(e) {}
         }
 
         // PRIMARY SOURCE OF TRUTH: Direct YAML LocalStorage
@@ -1316,8 +1490,8 @@
             } catch(e) {}
         }
 
-        // Final Fallback: Attempt Google Sheet seed or Onboarding Blueprint
-        await fetchLiveGSheetData();
+        // Seed Onboarding Blueprint
+        seedOnboardingBlueprint();
     }
 
     // Save state directly to YAML and backup JSON in localStorage
@@ -1325,91 +1499,15 @@
         const fullYaml = formatTasksSliceAsYaml(TASKS_DATA);
         localStorage.setItem('automybiz_punch_list_yaml', fullYaml);
         localStorage.setItem('punchlist_backup_' + ACTIVE_GSHEET_ID, JSON.stringify(TASKS_DATA));
-    }
-
-    async function fetchLiveGSheetData() {
-        if (!ACTIVE_GSHEET_ID) {
-            seedOnboardingBlueprint();
-            return;
-        }
-
-        const gvizUrl = GOOGLE_DOCS_DOMAIN + '/spreadsheets/d/' + ACTIVE_GSHEET_ID + '/gviz/tq?sheet=Sheet1&headers=1&tqx=out:json&t=' + Date.now();
-
-        try {
-            const res = await fetch(gvizUrl);
-            if (!res.ok) {
-                seedOnboardingBlueprint();
-                return;
-            }
-
-            const text = await res.text();
-            const startIdx = text.indexOf('{');
-            const endIdx = text.lastIndexOf('}');
-            if (startIdx === -1 || endIdx === -1) {
-                seedOnboardingBlueprint();
-                return;
-            }
-
-            const json = JSON.parse(text.substring(startIdx, endIdx + 1));
-            const rows = json.table?.rows || [];
-
-            if (!rows.length) {
-                seedOnboardingBlueprint();
-                return;
-            }
-
-            const parsed = [];
-            rows.forEach((r, idx) => {
-                const c = r.c || [];
-                const isVis = c[0] ? (c[0].v === true || String(c[0].v).toUpperCase() === 'TRUE') : true;
-                const taskId = c[1]?.v ? String(c[1].v).trim() : 'TASK_' + (idx + 1);
-                const parentId = c[2]?.v ? String(c[2].v).trim() : '';
-                const level = c[3]?.v !== undefined ? parseInt(c[3].v, 10) : 1;
-                const order = c[4]?.v !== undefined ? parseInt(c[4].v, 10) : idx + 1;
-                const isChecked = c[5] ? (c[5].v === true || String(c[5].v).toUpperCase() === 'TRUE') : false;
-                const title = c[6]?.v ? String(c[6].v).trim() : '';
-                const notes = c[7]?.v ? String(c[7].v).trim() : '';
-
-                if (title && isVis) {
-                    parsed.push({
-                        visible: isVis,
-                        id: taskId,
-                        parentId: parentId,
-                        level: isNaN(level) ? 1 : level,
-                        order: order,
-                        checked: isChecked,
-                        title: title,
-                        notes: notes,
-                        collapsed: false,
-                        notesOpen: Boolean(notes && notes.trim())
-                    });
-                }
-            });
-
-            if (parsed.length > 0) {
-                TASKS_DATA = parsed;
-                saveState();
-                renderAll();
-            } else {
-                seedOnboardingBlueprint();
-            }
-
-        } catch(e) {
-            seedOnboardingBlueprint();
-        }
+        localStorage.setItem('automybiz_punch_ui_state', JSON.stringify(UI_STATE));
     }
 
     function seedOnboardingBlueprint() {
         TASKS_DATA = JSON.parse(JSON.stringify(ONBOARDING_BLUEPRINT));
-        TASKS_DATA.forEach(t => {
-            t.collapsed = false;
-            t.notesOpen = Boolean(t.notes && t.notes.trim());
-        });
         saveState();
         renderAll();
     }
 
-    // Identify Subtree Range (Parent + All Contiguous Descendants)
     function getSubtreeRange(parentIdx) {
         const parent = TASKS_DATA[parentIdx];
         if (!parent) return { start: parentIdx, count: 1 };
@@ -1438,7 +1536,7 @@
     }
 
     // =========================================================================
-    // RENDER ACCORDIONS & HIERARCHICAL TASK ROWS WITH TREE STYLE CONTROLS
+    // RENDER ACCORDIONS & HIERARCHICAL TASK ROWS
     // =========================================================================
     function renderAll() {
         const deckContainer = document.getElementById('deckContainer');
@@ -1458,7 +1556,7 @@
                 sections.push(currentSection);
             } else {
                 if (!currentSection) {
-                    currentSection = { header: { title: "Tasks", id: "SEC_DEFAULT", level: 0 }, tasks: [], headerIndex: -1 };
+                    currentSection = { header: { title: "Tasks", id: "sec_default_tasks", level: 0 }, tasks: [], headerIndex: -1 };
                     sections.push(currentSection);
                 }
                 currentSection.tasks.push({ item: task, originalIndex: index });
@@ -1466,8 +1564,11 @@
         });
 
         sections.forEach((sec, sIdx) => {
-            const secId = sec.header.id || 'SEC_' + sIdx;
-            const isCollapsed = Boolean(SECTION_STATES[secId]);
+            // Stable deterministic Section ID
+            const secId = sec.header.id || generateSlugId('sec', sec.header.title, sIdx);
+            sec.header.id = secId;
+
+            const isCollapsed = Boolean(UI_STATE.sections[secId]);
 
             const totalTasks = sec.tasks.length;
             const completedTasks = sec.tasks.filter(t => t.item.checked).length;
@@ -1531,6 +1632,15 @@
                 const realIdx = tWrap.originalIndex;
                 const isNested = t.level > 1;
 
+                // Stable deterministic Task ID
+                const taskId = t.id || generateSlugId('task', t.title, realIdx);
+                t.id = taskId;
+
+                const isBranchCollapsed = Boolean(UI_STATE.branches[taskId]);
+                const isNotesOpen = UI_STATE.notesOpen.hasOwnProperty(taskId) 
+                    ? Boolean(UI_STATE.notesOpen[taskId]) 
+                    : Boolean(t.notes && t.notes.trim());
+
                 // Check if hidden inside collapsed branch
                 if (hiddenBelowLevel !== null) {
                     if (t.level > hiddenBelowLevel) {
@@ -1544,7 +1654,7 @@
                 const hasChildren = range.count > 1;
                 const childCount = range.count - 1;
 
-                if (t.collapsed && hasChildren) {
+                if (isBranchCollapsed && hasChildren) {
                     hiddenBelowLevel = t.level;
                 }
 
@@ -1552,8 +1662,9 @@
 
                 const row = document.createElement('div');
                 row.className = 'task-row ' + (isNested ? 'is-nested ' : '') + (t.checked ? 'is-checked' : '');
-                row.draggable = false; // Defensively start as non-draggable to protect text selection
+                row.draggable = false;
                 row.dataset.index = realIdx;
+                row.dataset.taskId = taskId;
                 row.style.paddingLeft = dynamicPadding + 'px';
 
                 row.addEventListener('dragstart', handleTaskDragStart);
@@ -1562,20 +1673,21 @@
                 row.addEventListener('drop', handleTaskDrop);
                 row.addEventListener('dragend', handleTaskDragEnd);
 
-                const isBranchCollapsed = Boolean(t.collapsed && hasChildren);
-                const isLeafNotesClosed = Boolean(!hasChildren && !t.notesOpen);
-
                 const leftArrowClass = hasChildren 
                     ? ('tree-arrow-btn left-arrow ' + (isBranchCollapsed ? 'is-collapsed' : ''))
-                    : ('tree-arrow-btn left-arrow is-leaf-arrow ' + (isLeafNotesClosed ? 'is-collapsed' : ''));
+                    : ('tree-arrow-btn left-arrow is-leaf-arrow ' + (!isNotesOpen ? 'is-collapsed' : ''));
 
                 const rightArrowClass = hasChildren 
                     ? ('tree-arrow-btn right-arrow ' + (isBranchCollapsed ? 'is-collapsed' : ''))
-                    : ('tree-arrow-btn right-arrow is-leaf-arrow ' + (isLeafNotesClosed ? 'is-collapsed' : ''));
+                    : ('tree-arrow-btn right-arrow is-leaf-arrow ' + (!isNotesOpen ? 'is-collapsed' : ''));
 
                 const arrowTitle = hasChildren 
                     ? (isBranchCollapsed ? `Expand branch (${childCount} subtasks)` : `Collapse branch (${childCount} subtasks)`)
-                    : (isLeafNotesClosed ? 'Expand multi-line notes' : 'Collapse multi-line notes');
+                    : (!isNotesOpen ? 'Expand notes' : 'Collapse notes');
+
+                const renderedNotesHtml = t.notes && t.notes.trim() 
+                    ? convertURLsToMedia(t.notes) 
+                    : '<span class="notes-placeholder">+ Add note or paste media link...</span>';
 
                 row.innerHTML = `
                     <span class="drag-handle task-drag-handle" title="Drag to reorder • Drag right/left to indent/unnest">⋮⋮</span>
@@ -1592,17 +1704,34 @@
                     <div class="task-body">
                         <input type="text" class="task-title-input" value="${escapeHtml(t.title)}" onchange="updateTaskTitle(${realIdx}, this.value)" />
                         
-                        <!-- Multi-line Task Notes Textarea (Protected text selection) -->
-                        <textarea class="task-notes-textarea auto-expand-textarea ${(!hasChildren && !t.notesOpen) ? 'is-hidden-notes' : ''}" 
-                                  placeholder="Add notes / description (multi-line)..." 
-                                  oninput="autoExpandTextarea(this); updateTaskNotes(${realIdx}, this.value);">${escapeHtml(t.notes || '')}</textarea>
+                        <!-- Notion-Style Dual-Mode Task Notes Block -->
+                        <div class="task-notes-block ${!isNotesOpen ? 'is-hidden-notes' : ''}" id="notes_block_${taskId}">
+                            <!-- View Mode (Click anywhere to edit) -->
+                            <div class="task-notes-view" id="notes_view_${taskId}" onclick="startEditNotes('${taskId}', ${realIdx})">
+                                ${renderedNotesHtml}
+                            </div>
+                            
+                            <!-- Edit Mode (Auto-focused on click) -->
+                            <div class="task-notes-editor" id="notes_editor_${taskId}" style="display: none;">
+                                <textarea class="task-notes-textarea auto-expand-textarea" 
+                                          id="notes_textarea_${taskId}"
+                                          placeholder="Add notes, paste images or YouTube URLs (multi-line)..." 
+                                          oninput="autoExpandTextarea(this);"
+                                          onkeydown="handleNoteKeydown(event, '${taskId}', ${realIdx}, this)"
+                                          onblur="finishEditNotes('${taskId}', ${realIdx}, this)">${escapeHtml(t.notes || '')}</textarea>
+                                <div class="notes-edit-footer">
+                                    <span>Press <strong>Ctrl+Enter</strong> to save • <strong>Esc</strong> to cancel</span>
+                                    <button type="button" class="btn-action btn-sm" onmousedown="finishEditNotes('${taskId}', ${realIdx}, document.getElementById('notes_textarea_${taskId}'))">✓ Done</button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     <div class="task-right-cluster">
                         <div class="task-actions">
                             <button type="button" class="btn-icon" title="Outdent (Shift Left)" onclick="changeSubtreeLevel(${realIdx}, -1)">⇤</button>
                             <button type="button" class="btn-icon" title="Indent (Nest Right)" onclick="changeSubtreeLevel(${realIdx}, 1)">⇥</button>
-                            <!-- Grayscale Branch Copy Button -->
+                            <!-- Grayscale AI Studio Style Copy Icon -->
                             <button type="button" class="btn-icon copy-btn" title="Copy task &amp; branch as YAML" onclick="copyTaskBranch(${realIdx})">${COPY_SVG_ICON}</button>
                             <!-- Paste Subtasks Directly into Branch -->
                             <button type="button" class="btn-icon paste-btn" title="Paste YAML subtasks into this branch" onclick="openYamlModal('branch', ${realIdx})">${PASTE_SUBTASKS_SVG_ICON}</button>
@@ -1619,7 +1748,7 @@
                     </div>
                 `;
 
-                // CRITICAL FIX: Restrict HTML5 Drag exclusively to the drag handle
+                // Protected drag handle: row is only draggable when clicking the handle
                 const dragHandle = row.querySelector('.task-drag-handle');
                 if (dragHandle) {
                     dragHandle.addEventListener('mouseenter', () => { row.draggable = true; });
@@ -1629,7 +1758,7 @@
                     dragHandle.addEventListener('mousedown', () => { row.draggable = true; });
                 }
 
-                // Explicitly stop propagation on text inputs so native drag-selection works 100%
+                // Protect text selection in all inputs and textareas
                 row.querySelectorAll('input, textarea').forEach(inputEl => {
                     inputEl.addEventListener('mousedown', (e) => {
                         row.draggable = false;
@@ -1656,17 +1785,17 @@
             deckContainer.appendChild(deck);
         });
 
-        document.querySelectorAll('textarea.auto-expand-textarea:not(.is-hidden-notes)').forEach(autoExpandTextarea);
         updateProgress();
     }
 
+    // Toggle Section Accordion
     function toggleSection(secId) {
-        SECTION_STATES[secId] = !SECTION_STATES[secId];
-        localStorage.setItem('epw_punch_sections_' + ACTIVE_GSHEET_ID, JSON.stringify(SECTION_STATES));
-        
+        UI_STATE.sections[secId] = !UI_STATE.sections[secId];
+        saveState();
+
         const deck = document.getElementById('deck_' + secId);
         if (deck) {
-            deck.classList.toggle('is-collapsed', SECTION_STATES[secId]);
+            deck.classList.toggle('is-collapsed', UI_STATE.sections[secId]);
         }
     }
 
@@ -1677,28 +1806,84 @@
 
         decks.forEach(d => {
             const secId = d.id.replace('deck_', () => '');
-            SECTION_STATES[secId] = anyOpen;
+            UI_STATE.sections[secId] = anyOpen;
             d.classList.toggle('is-collapsed', anyOpen);
         });
 
-        localStorage.setItem('epw_punch_sections_' + ACTIVE_GSHEET_ID, JSON.stringify(SECTION_STATES));
+        saveState();
         if (btn) btn.innerText = anyOpen ? '▼ Expand All' : '☰ Collapse All';
     }
 
-    // Toggle Branch Children or Leaf Multi-Line Notes
+    // Toggle Branch Children or Leaf Notes
     function handleArrowClick(realIdx) {
         const task = TASKS_DATA[realIdx];
         if (!task) return;
 
         const range = getSubtreeRange(realIdx);
         if (range.count > 1) {
-            task.collapsed = !task.collapsed;
+            UI_STATE.branches[task.id] = !UI_STATE.branches[task.id];
         } else {
-            task.notesOpen = !task.notesOpen;
+            UI_STATE.notesOpen[task.id] = !UI_STATE.notesOpen[task.id];
         }
 
         saveState();
         renderAll();
+    }
+
+    // =========================================================================
+    // INLINE NOTION-STYLE EDIT / VIEW TASK NOTES CONTROLLER
+    // =========================================================================
+    function startEditNotes(taskId, realIdx) {
+        const viewEl = document.getElementById('notes_view_' + taskId);
+        const editorEl = document.getElementById('notes_editor_' + taskId);
+        const textarea = document.getElementById('notes_textarea_' + taskId);
+
+        if (!viewEl || !editorEl || !textarea) return;
+
+        viewEl.style.display = 'none';
+        editorEl.style.display = 'flex';
+        textarea.dataset.originalValue = textarea.value;
+
+        autoExpandTextarea(textarea);
+        textarea.focus();
+    }
+
+    function finishEditNotes(taskId, realIdx, textarea) {
+        if (!textarea) return;
+        const newVal = textarea.value.trim();
+        const task = TASKS_DATA[realIdx];
+
+        if (task) {
+            task.notes = newVal;
+            saveState();
+        }
+
+        const viewEl = document.getElementById('notes_view_' + taskId);
+        const editorEl = document.getElementById('notes_editor_' + taskId);
+
+        if (viewEl && editorEl) {
+            viewEl.innerHTML = newVal 
+                ? convertURLsToMedia(newVal) 
+                : '<span class="notes-placeholder">+ Add note or paste media link...</span>';
+            editorEl.style.display = 'none';
+            viewEl.style.display = 'block';
+        }
+    }
+
+    function handleNoteKeydown(e, taskId, realIdx, textarea) {
+        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+            e.preventDefault();
+            textarea.blur();
+        } else if (e.key === 'Escape') {
+            e.preventDefault();
+            textarea.value = textarea.dataset.originalValue || '';
+            const viewEl = document.getElementById('notes_view_' + taskId);
+            const editorEl = document.getElementById('notes_editor_' + taskId);
+            if (viewEl && editorEl) {
+                editorEl.style.display = 'none';
+                viewEl.style.display = 'block';
+            }
+        }
     }
 
     function toggleTask(index) {
@@ -1748,13 +1933,6 @@
         }
     }
 
-    function updateTaskNotes(index, val) {
-        if (TASKS_DATA[index]) {
-            TASKS_DATA[index].notes = val.trim();
-            saveState();
-        }
-    }
-
     function updateSectionTitle(index, val) {
         if (TASKS_DATA[index]) {
             TASKS_DATA[index].title = val.trim();
@@ -1769,15 +1947,13 @@
 
             const newTask = {
                 visible: true,
-                id: 'TASK_' + Date.now().toString().slice(-6),
+                id: generateSlugId('task', title, TASKS_DATA.length + 1),
                 parentId: '',
                 level: 1,
                 order: TASKS_DATA.length + 1,
                 checked: false,
                 title: title,
-                notes: '',
-                collapsed: false,
-                notesOpen: false
+                notes: ''
             };
 
             let insertAt = TASKS_DATA.length;
@@ -1804,7 +1980,7 @@
         if (title && title.trim()) {
             TASKS_DATA.push({
                 visible: true,
-                id: 'SEC_' + Date.now().toString().slice(-6),
+                id: generateSlugId('sec', title, TASKS_DATA.length + 1),
                 parentId: '',
                 level: 0,
                 order: TASKS_DATA.length + 1,
@@ -1821,7 +1997,7 @@
     function autoExpandTextarea(el) {
         if (!el) return;
         el.style.height = 'auto';
-        el.style.height = Math.max(48, el.scrollHeight + 2) + 'px';
+        el.style.height = Math.max(60, el.scrollHeight + 2) + 'px';
     }
 
     // =========================================================================
@@ -2083,8 +2259,6 @@
     // =========================================================================
     // YAML PARSER & SERIALIZER ENGINE (Pure JavaScript)
     // =========================================================================
-
-    // Serialize any slice of tasks into clean, indented YAML
     function formatTasksSliceAsYaml(tasks) {
         if (!tasks || !tasks.length) return '';
         const baseLevel = tasks[0].level || 0;
@@ -2123,7 +2297,6 @@
         return lines.join('\n').trim();
     }
 
-    // Flexible YAML-to-Task Parser supporting standard outlines and AI prompts
     function parseYamlToTasks(yamlText) {
         if (!yamlText || !yamlText.trim()) return [];
         const lines = yamlText.split(/\r?\n/);
@@ -2138,11 +2311,8 @@
             const rawLine = lines[i];
             const trimmed = rawLine.trim();
 
-            if (!trimmed || trimmed.startsWith('#')) {
-                continue;
-            }
+            if (!trimmed || trimmed.startsWith('#')) continue;
 
-            // Inside multi-line notes block (notes: |)
             if (inNotesBlock) {
                 const indentMatch = rawLine.match(/^(\s*)/);
                 const lineIndent = indentMatch ? indentMatch[1].length : 0;
@@ -2161,17 +2331,17 @@
                 }
             }
 
-            // Section header: section: "..."
             const sectionMatch = trimmed.match(/^section:\s*["']?(.*?)["']?$/i);
             if (sectionMatch) {
+                const sTitle = sectionMatch[1].trim();
                 currentSection = {
                     visible: true,
-                    id: 'SEC_' + Date.now().toString().slice(-6) + '_' + result.length,
+                    id: generateSlugId('sec', sTitle, result.length),
                     parentId: '',
                     level: 0,
                     order: result.length + 1,
                     checked: false,
-                    title: sectionMatch[1].trim(),
+                    title: sTitle,
                     notes: ''
                 };
                 result.push(currentSection);
@@ -2179,14 +2349,12 @@
                 continue;
             }
 
-            // Section description
             const descMatch = trimmed.match(/^description:\s*["']?(.*?)["']?$/i);
             if (descMatch && currentSection && !currentTask) {
                 currentSection.notes = descMatch[1].trim();
                 continue;
             }
 
-            // Task Notes inline or block initiator
             const noteMatch = trimmed.match(/^notes:\s*(?:["']?(.*?)["']?)$/i);
             if (noteMatch && currentTask) {
                 const noteVal = noteMatch[1].trim();
@@ -2201,7 +2369,6 @@
                 continue;
             }
 
-            // Task line: - [ ] Title or - [x] Title or - Title
             const taskMatch = rawLine.match(/^(\s*)-\s*(?:\[([ xX])\]\s*)?(.*?)$/);
             if (taskMatch) {
                 const indentSpaces = taskMatch[1].length;
@@ -2211,7 +2378,7 @@
                 if (result.length === 0 || !currentSection) {
                     currentSection = {
                         visible: true,
-                        id: 'SEC_DEFAULT',
+                        id: 'sec_project_setup_0',
                         parentId: '',
                         level: 0,
                         order: 1,
@@ -2222,20 +2389,17 @@
                     result.push(currentSection);
                 }
 
-                // Indentation: 2 spaces = +1 level
                 const relativeLevel = Math.max(1, Math.round(indentSpaces / 2) + 1);
 
                 currentTask = {
                     visible: true,
-                    id: 'TASK_' + Date.now().toString().slice(-6) + '_' + result.length,
+                    id: generateSlugId('task', title, result.length),
                     parentId: '',
                     level: relativeLevel,
                     order: result.length + 1,
                     checked: isChecked,
                     title: title || 'Untitled Task',
-                    notes: '',
-                    collapsed: false,
-                    notesOpen: false
+                    notes: ''
                 };
                 result.push(currentTask);
                 continue;
@@ -2250,7 +2414,7 @@
     }
 
     // =========================================================================
-    // YAML MODAL OVERLAY LOGIC (Full List, Section, or Branch Insertion)
+    // YAML MODAL OVERLAY LOGIC
     // =========================================================================
     function openYamlModal(mode, targetIndex = null) {
         MODAL_CONTEXT = { mode, targetIndex };
@@ -2266,13 +2430,13 @@
         } else if (mode === 'section') {
             title.innerHTML = '📥 Paste Tasks into Section';
             subtitle.innerText = 'Paste YAML tasks to insert into this milestone.';
-            textarea.value = `- [ ] New Task\n  notes: Task note\n  - [ ] Nested Subtask`;
+            textarea.value = `- [ ] New Task\n  notes: Task note with image or YouTube\n  - [ ] Nested Subtask`;
         } else if (mode === 'branch') {
             const parent = TASKS_DATA[targetIndex];
             const pTitle = parent ? parent.title : 'Task';
             title.innerHTML = `📥 Paste YAML Subtasks under: <span style="color:#fff;">${escapeHtml(pTitle)}</span>`;
-            subtitle.innerText = 'Paste nested YAML tasks. They will automatically indent under this branch.';
-            textarea.value = `- [ ] Subtask 1\n  notes: Specific note\n  - [ ] Child Subtask 1.1`;
+            subtitle.innerText = 'Paste nested YAML tasks. They will automatically nest under this branch.';
+            textarea.value = `- [ ] Subtask 1\n  notes: https://www.youtube.com/watch?v=dQw4w9WgXcQ\n  - [ ] Child Subtask 1.1`;
         }
 
         modal.classList.add('open');
@@ -2352,7 +2516,7 @@
                 const insertAt = range.start + range.count;
 
                 TASKS_DATA.splice(insertAt, 0, ...tasksOnly);
-                parent.collapsed = false; // Expand parent so new tasks are immediately visible
+                UI_STATE.branches[parent.id] = false; // Expand parent so new tasks are visible
 
                 saveState();
                 renderAll();
@@ -2385,7 +2549,7 @@
         });
     }
 
-    // 1-Click TSV Exporter (Strict Rule 5 Function Callback Replacement)
+    // 1-Click TSV Exporter
     function copyTSVToClipboard() {
         const headers = ['VISIBLE ( Admin Form )', 'TASK_ID', 'PARENT_ID', 'LEVEL', 'ORDER', 'CHECKED', 'TASK_TITLE', 'TASK_NOTES'];
         const lines = [headers.join('\t')];
