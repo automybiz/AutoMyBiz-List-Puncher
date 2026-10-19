@@ -8,7 +8,7 @@
     <title>AutoMyBiz - Client Onboarding Punch List</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
 
     <script>
     /* Universal Dark Reader Kill Switch (Rule 9) */
@@ -65,6 +65,7 @@
             --text-secondary: #9AB;
             --text-muted: #79A;
             --font-family: 'Inter', -apple-system, sans-serif;
+            --font-mono: 'Fira Code', monospace, monospace;
             --indent-step: 26px;
 
             --completed-opacity: 0.42;
@@ -142,7 +143,7 @@
             color: var(--accent-cyan);
         }
 
-        /* Combined Globals ID & Health Status Pill System */
+        /* Combined Storage Pill System */
         .header-pill-wrap {
             position: relative;
             display: inline-flex;
@@ -193,18 +194,11 @@
             animation: pulseWarning 2.5s infinite;
         }
 
-        .status-pill.status-error {
-            background: rgba(239, 68, 68, 0.15);
-            color: #ef4444;
-            border-color: #ef4444;
-        }
-
         @keyframes pulseWarning {
             0%, 100% { box-shadow: 0 0 4px rgba(250, 160, 0, 0.3); }
             50% { box-shadow: 0 0 12px rgba(250, 160, 0, 0.6); }
         }
 
-        /* Popover Tooltip for Status Pill */
         .status-tooltip-popover {
             visibility: hidden;
             width: max-content;
@@ -248,7 +242,7 @@
         }
 
         .tooltip-code-box {
-            font-family: monospace;
+            font-family: var(--font-mono);
             font-size: 11px;
             background: rgba(0, 0, 0, 0.4);
             border: 1px solid rgba(0, 229, 255, 0.25);
@@ -258,13 +252,6 @@
             word-break: break-all;
             color: #fff;
             user-select: all;
-        }
-
-        .tooltip-footer-note {
-            color: var(--text-muted);
-            font-size: 10.5px;
-            display: block;
-            margin-top: 6px;
         }
 
         .header-actions {
@@ -337,82 +324,6 @@
             background: linear-gradient(90deg, var(--accent-cyan), var(--accent-green));
             width: 0%;
             transition: width 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-        }
-
-        /* ==========================================================================
-           Clean Slate / Empty Onboarding Welcome Card
-           ========================================================================== */
-        .welcome-card {
-            background: var(--card-bg);
-            border: 1.5px solid var(--border-color);
-            border-radius: 12px;
-            padding: 34px 28px;
-            margin: 20px 0;
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.7);
-        }
-
-        .welcome-header {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            margin-bottom: 12px;
-        }
-
-        .welcome-header h2 {
-            font-size: 1.45rem;
-            font-weight: 800;
-            color: #fff;
-        }
-
-        .welcome-header h2 span {
-            color: var(--accent-cyan);
-        }
-
-        .welcome-intro {
-            color: var(--text-secondary);
-            font-size: 0.95rem;
-            line-height: 1.6;
-            margin-bottom: 24px;
-        }
-
-        .welcome-steps-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-            gap: 16px;
-            margin-bottom: 28px;
-        }
-
-        .welcome-step-box {
-            background: rgba(255, 255, 255, 0.03);
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            padding: 18px 16px;
-            border-left: 3px solid var(--accent-cyan);
-        }
-
-        .welcome-step-title {
-            font-size: 0.95rem;
-            font-weight: 700;
-            color: #fff;
-            margin-bottom: 6px;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-
-        .welcome-step-desc {
-            font-size: 0.85rem;
-            color: var(--text-muted);
-            line-height: 1.5;
-        }
-
-        .welcome-actions {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            flex-wrap: wrap;
-            border-top: 1px solid var(--border-color);
-            padding-top: 20px;
         }
 
         /* ==========================================================================
@@ -649,6 +560,7 @@
             border: 1px solid transparent;
             transition: background 0.15s ease, border-color 0.15s ease, padding-left 0.2s ease, opacity 0.2s ease;
             position: relative;
+            user-select: text;
         }
 
         .task-row:hover {
@@ -656,7 +568,7 @@
             border-color: rgba(255, 255, 255, 0.08);
         }
 
-        /* 1. OPACITY FADING INSTEAD OF STRIKE-THROUGH */
+        /* OPACITY FADING INSTEAD OF STRIKE-THROUGH */
         .task-row.is-checked {
             opacity: var(--completed-opacity);
         }
@@ -691,22 +603,24 @@
             border-radius: 0 8px 8px 0;
         }
 
-        /* Tree Style Tab Arrow Buttons (Left & Right) */
+        /* 16x16 Double Chevron Button */
         .tree-arrow-btn {
             background: transparent;
             border: none;
             color: var(--accent-cyan);
             cursor: pointer;
-            padding: 2px 4px;
+            padding: 2px;
             border-radius: 4px;
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            transition: transform 0.2s ease, color 0.15s ease, background 0.15s ease;
+            transition: color 0.15s ease, background 0.15s ease;
             line-height: 1;
             flex-shrink: 0;
             user-select: none;
             margin-top: 2px;
+            width: 22px;
+            height: 22px;
         }
 
         .tree-arrow-btn:hover {
@@ -716,10 +630,11 @@
 
         .tree-arrow-btn svg {
             display: block;
+            width: 16px;
+            height: 16px;
             transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
         }
 
-        /* Rotate arrow down when open, right when collapsed */
         .tree-arrow-btn.is-collapsed svg {
             transform: rotate(-90deg);
             color: var(--text-muted);
@@ -751,6 +666,7 @@
             display: flex;
             flex-direction: column;
             gap: 4px;
+            cursor: text;
         }
 
         .task-title-input {
@@ -763,13 +679,14 @@
             outline: none;
             padding: 1px 0;
             transition: color 0.15s ease;
+            cursor: text;
         }
 
         .task-title-input:focus {
             border-bottom: 1px dashed var(--accent-cyan);
         }
 
-        /* Multi-line Notes Textarea */
+        /* Multi-line Task Notes Textarea */
         .task-notes-textarea {
             width: 100%;
             background: rgba(0, 0, 0, 0.25);
@@ -783,6 +700,8 @@
             line-height: 1.45;
             resize: vertical;
             min-height: 48px;
+            cursor: text;
+            user-select: text;
             transition: border-color 0.2s, background 0.2s, color 0.2s;
         }
 
@@ -835,8 +754,7 @@
             background: transparent;
             border: none;
             color: var(--text-muted);
-            font-size: 13px;
-            padding: 3px 6px;
+            padding: 4px;
             border-radius: 4px;
             cursor: pointer;
             transition: all 0.15s ease;
@@ -851,7 +769,8 @@
             color: #fff;
         }
 
-        .btn-icon.copy-btn:hover {
+        .btn-icon.copy-btn:hover,
+        .btn-icon.paste-btn:hover {
             background: rgba(0, 229, 255, 0.2);
             color: var(--accent-cyan);
         }
@@ -864,10 +783,13 @@
         .quick-add-wrap {
             padding: 10px 16px 14px;
             border-top: 1px dashed var(--border-color);
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
 
         .quick-add-input {
-            width: 100%;
+            flex: 1;
             background: rgba(0, 0, 0, 0.25);
             border: 1px solid var(--border-color);
             border-radius: 6px;
@@ -881,6 +803,140 @@
 
         .quick-add-input:focus {
             border-color: var(--accent-cyan);
+        }
+
+        /* ==========================================================================
+           YAML Overlay Modal Architecture
+           ========================================================================== */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 10000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            background: rgba(3, 7, 18, 0.85);
+            backdrop-filter: blur(8px);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s ease;
+        }
+
+        .modal-overlay.open {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .modal-card {
+            background: var(--card-bg);
+            border: 1.5px solid var(--border-color);
+            border-radius: 12px;
+            width: 100%;
+            max-width: 820px;
+            height: 82vh;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 24px 60px rgba(0, 0, 0, 0.85);
+            overflow: hidden;
+            transform: scale(0.96);
+            transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .modal-overlay.open .modal-card {
+            transform: scale(1);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 14px 20px;
+            background: var(--card-header-bg);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .modal-title-wrap {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .modal-title {
+            font-size: 1.1rem;
+            font-weight: 800;
+            color: var(--accent-cyan);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .modal-subtitle {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        .modal-close-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            font-size: 1.2rem;
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 4px;
+            transition: color 0.15s ease, background 0.15s ease;
+            line-height: 1;
+        }
+
+        .modal-close-btn:hover {
+            color: #fff;
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .modal-body {
+            flex: 1;
+            padding: 16px 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            overflow: hidden;
+            background: #011;
+        }
+
+        .modal-textarea {
+            flex: 1;
+            width: 100%;
+            background: rgba(0, 0, 0, 0.45);
+            border: 1px solid rgba(0, 229, 255, 0.2);
+            border-radius: 6px;
+            color: #fff;
+            font-family: var(--font-mono);
+            font-size: 0.84rem;
+            line-height: 1.5;
+            padding: 12px 14px;
+            outline: none;
+            resize: none;
+            white-space: pre;
+            tab-size: 2;
+        }
+
+        .modal-textarea:focus {
+            border-color: var(--accent-cyan);
+            box-shadow: 0 0 0 1px var(--accent-cyan);
+        }
+
+        .modal-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 20px;
+            background: var(--card-header-bg);
+            border-top: 1px solid var(--border-color);
+        }
+
+        .modal-hint {
+            font-size: 0.75rem;
+            color: var(--text-muted);
         }
 
         .toast {
@@ -898,7 +954,7 @@
             transform: translateY(100px);
             opacity: 0;
             transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-            z-index: 9999;
+            z-index: 11000;
         }
 
         .toast.show {
@@ -919,20 +975,20 @@
                     ⚡ AutoMyBiz <span class="cyan">// Punch List</span>
                 </div>
                 
-                <!-- Combined Globals ID & Sheet Health Status Pill -->
+                <!-- Storage Pill -->
                 <div class="header-pill-wrap">
-                    <button id="sheetHealthPill" class="status-pill status-probing" onclick="copySheetId()" title="Click to copy Sheet ID">
-                        <span id="pillIcon">📋</span>
-                        <span id="pillText">Connecting to Sheet...</span>
+                    <button id="sheetHealthPill" class="status-pill status-healthy" onclick="openYamlModal('full')" title="Click to view &amp; edit YAML">
+                        <span id="pillIcon">💾</span>
+                        <span id="pillText">YAML Local Storage</span>
                     </button>
                     <div class="status-tooltip-popover">
                         <div class="tooltip-hdr">
-                            <span>📋</span>
-                            <span>Google Sheet Connection</span>
+                            <span>💾</span>
+                            <span>Direct YAML Storage Engine</span>
                         </div>
-                        <div id="tooltipStatusNotice">Probing Google Sheet connection...</div>
-                        <div class="tooltip-code-box" id="tooltipSheetId">Loading...</div>
-                        <span class="tooltip-footer-note" id="tooltipFooterNote">Click pill to copy full Sheet ID</span>
+                        <div id="tooltipStatusNotice">Saved in browser localStorage (YAML format).</div>
+                        <div class="tooltip-code-box">Key: automybiz_punch_list_yaml</div>
+                        <span class="tooltip-footer-note">Click pill to open the Full YAML Modal Editor</span>
                     </div>
                 </div>
 
@@ -940,13 +996,13 @@
             </div>
 
             <div class="header-actions">
-                <button type="button" class="btn-action" onclick="forceSyncFromSheet()" title="Query Google Sheet directly">
-                    🔄 Re-Sync
-                </button>
                 <button type="button" class="btn-action" onclick="toggleAllSections()" id="btnToggleAll" title="Expand or collapse all cards">
                     ☰ Collapse All
                 </button>
-                <button type="button" class="btn-action" onclick="copyAllAsYamlToClipboard()" title="Copy entire punch list as human-readable YAML for Notepad++">
+                <button type="button" class="btn-action" onclick="openYamlModal('full')" title="Open Full YAML Editor Overlay">
+                    📝 YAML Editor
+                </button>
+                <button type="button" class="btn-action" onclick="copyAllAsYamlToClipboard()" title="Copy entire punch list as human-readable YAML">
                     📋 Copy YAML
                 </button>
                 <button type="button" class="btn-action" onclick="copyTSVToClipboard()" title="Copy table as TSV ready for Google Sheets">
@@ -974,6 +1030,29 @@
 
 </div>
 
+<!-- YAML Modal Overlay -->
+<div id="yamlModal" class="modal-overlay">
+    <div class="modal-card">
+        <div class="modal-header">
+            <div class="modal-title-wrap">
+                <div class="modal-title" id="modalTitle">📋 YAML Editor</div>
+                <div class="modal-subtitle" id="modalSubtitle">Paste YAML from AI Studio or Notepad++</div>
+            </div>
+            <button type="button" class="modal-close-btn" onclick="closeYamlModal()">✕</button>
+        </div>
+        <div class="modal-body">
+            <textarea id="modalYamlTextarea" class="modal-textarea" spellcheck="false" placeholder="Paste your YAML here..."></textarea>
+        </div>
+        <div class="modal-footer">
+            <span class="modal-hint">Supports nested tasks with 2-space indentation and notes.</span>
+            <div style="display: flex; gap: 8px;">
+                <button type="button" class="btn-action" onclick="closeYamlModal()">Cancel</button>
+                <button type="button" class="btn-action btn-primary" onclick="applyYamlModalChanges()">✓ Apply YAML</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Toast Popup Notification -->
 <div id="toast" class="toast">Action completed!</div>
 
@@ -995,6 +1074,7 @@
     let SECTION_STATES = {};
 
     // Task Drag-to-Indent & Subtree Tracking
+    let IS_DRAGGING_TASK = false;
     let DRAG_START_INDEX = null;
     let DRAG_SUBTREE_COUNT = 1;
     let DRAG_START_X = 0;
@@ -1006,8 +1086,25 @@
     let IS_DRAGGING_SECTION = false;
     let DRAGGED_SECTION_INDEX = null;
 
-    const CHEVRON_SVG = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-        <polyline points="6 9 12 15 18 9"></polyline>
+    // YAML Modal Context
+    let MODAL_CONTEXT = { mode: 'full', targetIndex: null };
+
+    // 16x16 Double Chevron Icon
+    const DOUBLE_CHEVRON_SVG = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="7 6 12 11 17 6"></polyline>
+        <polyline points="7 13 12 18 17 13"></polyline>
+    </svg>`;
+
+    // Monochrome Two-Overlapping-Squares Copy Icon (AI Studio style)
+    const COPY_SVG_ICON = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+    </svg>`;
+
+    // Paste Subtasks Icon
+    const PASTE_SUBTASKS_SVG_ICON = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
+        <rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect>
     </svg>`;
 
     // Standard Onboarding Blueprint
@@ -1185,50 +1282,7 @@
     }
 
     // =========================================================================
-    // SHEET HEALTH STATUS & COMBINED PILL UI
-    // =========================================================================
-    function updateSheetPillUI(state, text, notice, isWarning) {
-        const pill = document.getElementById('sheetHealthPill');
-        const pillIcon = document.getElementById('pillIcon');
-        const pillText = document.getElementById('pillText');
-        const tooltipNotice = document.getElementById('tooltipStatusNotice');
-        const tooltipId = document.getElementById('tooltipSheetId');
-        const tooltipFooter = document.getElementById('tooltipFooterNote');
-
-        if (!pill) return;
-
-        pill.className = 'status-pill status-' + state;
-        if (pillText) pillText.innerText = text;
-
-        if (tooltipId) tooltipId.innerText = ACTIVE_GSHEET_ID || '(None provided)';
-        if (tooltipNotice) {
-            tooltipNotice.innerHTML = notice;
-            tooltipNotice.style.color = isWarning ? 'var(--accent-yellow)' : 'var(--text-secondary)';
-        }
-        if (tooltipFooter) {
-            tooltipFooter.innerHTML = 'Click pill to copy Sheet ID • <a href="' + GOOGLE_DOCS_DOMAIN + '/spreadsheets/d/' + ACTIVE_GSHEET_ID + '" target="_blank" style="color:var(--accent-cyan); text-decoration:underline;">Open Google Sheet ↗</a>';
-        }
-
-        if (state === 'healthy') {
-            if (pillIcon) pillIcon.innerText = '📋';
-        } else if (state === 'warning') {
-            if (pillIcon) pillIcon.innerText = '⚠️';
-        } else if (state === 'error') {
-            if (pillIcon) pillIcon.innerText = '❌';
-        } else {
-            if (pillIcon) pillIcon.innerText = '⌛';
-        }
-    }
-
-    function copySheetId() {
-        if (!ACTIVE_GSHEET_ID) return;
-        navigator.clipboard.writeText(ACTIVE_GSHEET_ID).then(() => {
-            showToast('📋 Copied Sheet ID to clipboard!');
-        });
-    }
-
-    // =========================================================================
-    // APP INITIALIZATION & SOURCE-OF-TRUTH RESOLVER
+    // APP INITIALIZATION & YAML LOCAL STORAGE PERSISTENCE
     // =========================================================================
     async function initApp() {
         document.getElementById('clientBadge').innerText = CLIENT_NAME;
@@ -1242,27 +1296,49 @@
             try { SECTION_STATES = JSON.parse(savedSections); } catch(e) {}
         }
 
-        // Primary Source of Truth: Fetch from Google Sheet
-        await fetchLiveGSheetData();
-    }
-
-    async function fetchLiveGSheetData(isManualSync = false) {
-        if (!ACTIVE_GSHEET_ID) {
-            updateSheetPillUI('warning', 'No Sheet ID', 'No gsheet_punch_list_id found in URL parameters.', true);
-            renderEmptyWelcomeState();
+        // PRIMARY SOURCE OF TRUTH: Direct YAML LocalStorage
+        const savedYaml = localStorage.getItem('automybiz_punch_list_yaml');
+        if (savedYaml && savedYaml.trim()) {
+            TASKS_DATA = parseYamlToTasks(savedYaml);
+            renderAll();
+            showToast('Loaded tasks from YAML storage');
             return;
         }
 
-        const shortId = ACTIVE_GSHEET_ID.length > 12 ? (ACTIVE_GSHEET_ID.substring(0, 10) + '...') : ACTIVE_GSHEET_ID;
-        updateSheetPillUI('probing', 'Probing: ' + shortId, 'Querying Google Sheet for active tasks...', false);
+        // Fallback: Check JSON local backup
+        const localBackup = localStorage.getItem('punchlist_backup_' + ACTIVE_GSHEET_ID);
+        if (localBackup) {
+            try {
+                TASKS_DATA = JSON.parse(localBackup);
+                saveState();
+                renderAll();
+                return;
+            } catch(e) {}
+        }
+
+        // Final Fallback: Attempt Google Sheet seed or Onboarding Blueprint
+        await fetchLiveGSheetData();
+    }
+
+    // Save state directly to YAML and backup JSON in localStorage
+    function saveState() {
+        const fullYaml = formatTasksSliceAsYaml(TASKS_DATA);
+        localStorage.setItem('automybiz_punch_list_yaml', fullYaml);
+        localStorage.setItem('punchlist_backup_' + ACTIVE_GSHEET_ID, JSON.stringify(TASKS_DATA));
+    }
+
+    async function fetchLiveGSheetData() {
+        if (!ACTIVE_GSHEET_ID) {
+            seedOnboardingBlueprint();
+            return;
+        }
 
         const gvizUrl = GOOGLE_DOCS_DOMAIN + '/spreadsheets/d/' + ACTIVE_GSHEET_ID + '/gviz/tq?sheet=Sheet1&headers=1&tqx=out:json&t=' + Date.now();
 
         try {
             const res = await fetch(gvizUrl);
-            
             if (!res.ok) {
-                handleConnectionFailure(isManualSync, 'Google Sheet access is restricted (401/403). Set General access to "Anyone with the link can view".');
+                seedOnboardingBlueprint();
                 return;
             }
 
@@ -1270,7 +1346,7 @@
             const startIdx = text.indexOf('{');
             const endIdx = text.lastIndexOf('}');
             if (startIdx === -1 || endIdx === -1) {
-                handleConnectionFailure(isManualSync, 'Received unparseable response from Google Sheets.');
+                seedOnboardingBlueprint();
                 return;
             }
 
@@ -1278,9 +1354,7 @@
             const rows = json.table?.rows || [];
 
             if (!rows.length) {
-                TASKS_DATA = [];
-                updateSheetPillUI('healthy', 'Sheet: ' + shortId + ' ⚡ Empty', '✓ Live Google Sheet connected successfully. Sheet contains 0 tasks.', false);
-                renderEmptyWelcomeState();
+                seedOnboardingBlueprint();
                 return;
             }
 
@@ -1314,93 +1388,15 @@
 
             if (parsed.length > 0) {
                 TASKS_DATA = parsed;
-                localStorage.setItem('punchlist_backup_' + ACTIVE_GSHEET_ID, JSON.stringify(TASKS_DATA));
-                updateSheetPillUI('healthy', 'Sheet: ' + shortId + ' ⚡ Synced', '✓ 200 OK Live Google Sheet Connected. Loaded ' + parsed.length + ' tasks.', false);
+                saveState();
                 renderAll();
-                showToast('Synced with live Google Sheet!');
             } else {
-                TASKS_DATA = [];
-                updateSheetPillUI('healthy', 'Sheet: ' + shortId + ' ⚡ Empty', '✓ Live Google Sheet connected. No visible tasks found.', false);
-                renderEmptyWelcomeState();
+                seedOnboardingBlueprint();
             }
 
         } catch(e) {
-            handleConnectionFailure(isManualSync, 'Google Sheet query was blocked (CORS / Restricted). Please click Share > Anyone with the link can view.');
+            seedOnboardingBlueprint();
         }
-    }
-
-    function handleConnectionFailure(isManualSync, errorDetails) {
-        const shortId = ACTIVE_GSHEET_ID.length > 12 ? (ACTIVE_GSHEET_ID.substring(0, 10) + '...') : ACTIVE_GSHEET_ID;
-        
-        const localBackup = localStorage.getItem('punchlist_backup_' + ACTIVE_GSHEET_ID);
-        if (localBackup) {
-            try {
-                TASKS_DATA = JSON.parse(localBackup);
-                updateSheetPillUI('warning', 'Sheet: Offline Backup', '⚠️ ' + errorDetails + '<br><br>Showing local cached backup.', true);
-                renderAll();
-                if (isManualSync) alert('Cannot reach live Google Sheet. Showing local offline backup.\n\nMake sure the sheet is shared as "Anyone with the link can view".');
-                return;
-            } catch(e) {}
-        }
-
-        TASKS_DATA = [];
-        updateSheetPillUI('error', 'Sheet: Connection Notice', '⚠️ ' + errorDetails, true);
-        renderEmptyWelcomeState();
-        if (isManualSync) alert('Failed to connect to Google Sheet:\n' + errorDetails);
-    }
-
-    function forceSyncFromSheet() {
-        showToast('Querying Google Sheet directly...');
-        fetchLiveGSheetData(true);
-    }
-
-    function renderEmptyWelcomeState() {
-        const deckContainer = document.getElementById('deckContainer');
-        deckContainer.innerHTML = `
-            <div class="welcome-card">
-                <div class="welcome-header">
-                    <span style="font-size:2rem; line-height:1;">👋</span>
-                    <h2>Welcome to <span>AutoMyBiz Punch List</span></h2>
-                </div>
-                <p class="welcome-intro">
-                    This onboarding and task-management engine functions like Google Keep and modern outliner tools.
-                    Organize your high-level project milestones, nest multi-step subtasks, and track your progress in real time.
-                </p>
-
-                <div class="welcome-steps-grid">
-                    <div class="welcome-step-box">
-                        <div class="welcome-step-title">🎯 1. Main Goals in Headers</div>
-                        <div class="welcome-step-desc">Enter your primary milestones into the accordion card titles (e.g. <em>1. Cloudflare Setup</em>, <em>2. Stripe Gateway</em>).</div>
-                    </div>
-                    <div class="welcome-step-box">
-                        <div class="welcome-step-title">📋 2. Action Items in Body</div>
-                        <div class="welcome-step-desc">Add actionable checklist items required to reach each goal. Completed items strike through instantly.</div>
-                    </div>
-                    <div class="welcome-step-box">
-                        <div class="welcome-step-title">↳ 3. Drag-to-Indent Subtasks</div>
-                        <div class="welcome-step-desc">Drag any task to the right to nest it as a subtask under the item directly above it (up to 1 level deeper).</div>
-                    </div>
-                    <div class="welcome-step-box">
-                        <div class="welcome-step-title">⚡ 4. Live Google Sheet Sync</div>
-                        <div class="welcome-step-desc">Your tasks automatically link to your client's Google Sheet, or can be pasted in 1 click using <strong>📋 Copy TSV</strong>.</div>
-                    </div>
-                </div>
-
-                <div class="welcome-actions">
-                    <button type="button" class="btn-action btn-primary" onclick="addNewSection()">
-                        + Create First Section
-                    </button>
-                    <button type="button" class="btn-action" onclick="seedOnboardingBlueprint()" title="Pre-populate with the AutoMyBiz Onboarding Blueprint">
-                        📋 Load Onboarding Blueprint
-                    </button>
-                    <button type="button" class="btn-action" onclick="forceSyncFromSheet()">
-                        🔄 Re-Sync with Google Sheet
-                    </button>
-                </div>
-            </div>
-        `;
-
-        updateProgress();
     }
 
     function seedOnboardingBlueprint() {
@@ -1409,9 +1405,8 @@
             t.collapsed = false;
             t.notesOpen = Boolean(t.notes && t.notes.trim());
         });
-        localStorage.setItem('punchlist_backup_' + ACTIVE_GSHEET_ID, JSON.stringify(TASKS_DATA));
+        saveState();
         renderAll();
-        showToast('Loaded standard AutoMyBiz blueprint!');
     }
 
     // Identify Subtree Range (Parent + All Contiguous Descendants)
@@ -1450,7 +1445,7 @@
         deckContainer.innerHTML = '';
 
         if (!TASKS_DATA.length) {
-            renderEmptyWelcomeState();
+            seedOnboardingBlueprint();
             return;
         }
 
@@ -1536,10 +1531,10 @@
                 const realIdx = tWrap.originalIndex;
                 const isNested = t.level > 1;
 
-                // Check if this task is hidden inside a collapsed parent branch
+                // Check if hidden inside collapsed branch
                 if (hiddenBelowLevel !== null) {
                     if (t.level > hiddenBelowLevel) {
-                        return; // Hidden inside collapsed ancestor!
+                        return;
                     } else {
                         hiddenBelowLevel = null;
                     }
@@ -1557,7 +1552,7 @@
 
                 const row = document.createElement('div');
                 row.className = 'task-row ' + (isNested ? 'is-nested ' : '') + (t.checked ? 'is-checked' : '');
-                row.draggable = true;
+                row.draggable = false; // Defensively start as non-draggable to protect text selection
                 row.dataset.index = realIdx;
                 row.style.paddingLeft = dynamicPadding + 'px';
 
@@ -1567,7 +1562,6 @@
                 row.addEventListener('drop', handleTaskDrop);
                 row.addEventListener('dragend', handleTaskDragEnd);
 
-                // Left Arrow: Directly to the right of the grab handle
                 const isBranchCollapsed = Boolean(t.collapsed && hasChildren);
                 const isLeafNotesClosed = Boolean(!hasChildren && !t.notesOpen);
 
@@ -1588,7 +1582,7 @@
                     
                     <!-- Left Arrow: Directly right of grab handle -->
                     <button type="button" class="${leftArrowClass}" title="${arrowTitle}" onclick="handleArrowClick(${realIdx})">
-                        ${CHEVRON_SVG}
+                        ${DOUBLE_CHEVRON_SVG}
                     </button>
 
                     <div class="task-checkbox-wrap">
@@ -1598,7 +1592,7 @@
                     <div class="task-body">
                         <input type="text" class="task-title-input" value="${escapeHtml(t.title)}" onchange="updateTaskTitle(${realIdx}, this.value)" />
                         
-                        <!-- Multi-line Task Notes Textarea -->
+                        <!-- Multi-line Task Notes Textarea (Protected text selection) -->
                         <textarea class="task-notes-textarea auto-expand-textarea ${(!hasChildren && !t.notesOpen) ? 'is-hidden-notes' : ''}" 
                                   placeholder="Add notes / description (multi-line)..." 
                                   oninput="autoExpandTextarea(this); updateTaskNotes(${realIdx}, this.value);">${escapeHtml(t.notes || '')}</textarea>
@@ -1608,8 +1602,10 @@
                         <div class="task-actions">
                             <button type="button" class="btn-icon" title="Outdent (Shift Left)" onclick="changeSubtreeLevel(${realIdx}, -1)">⇤</button>
                             <button type="button" class="btn-icon" title="Indent (Nest Right)" onclick="changeSubtreeLevel(${realIdx}, 1)">⇥</button>
-                            <!-- Subtree Branch Copy Button: Left of X Delete -->
-                            <button type="button" class="btn-icon copy-btn" title="Copy task &amp; branch as YAML" onclick="copyTaskBranch(${realIdx})">📋</button>
+                            <!-- Grayscale Branch Copy Button -->
+                            <button type="button" class="btn-icon copy-btn" title="Copy task &amp; branch as YAML" onclick="copyTaskBranch(${realIdx})">${COPY_SVG_ICON}</button>
+                            <!-- Paste Subtasks Directly into Branch -->
+                            <button type="button" class="btn-icon paste-btn" title="Paste YAML subtasks into this branch" onclick="openYamlModal('branch', ${realIdx})">${PASTE_SUBTASKS_SVG_ICON}</button>
                             <button type="button" class="btn-icon delete-btn" title="Delete task and branch" onclick="deleteSubtree(${realIdx})">✕</button>
                         </div>
 
@@ -1618,10 +1614,29 @@
 
                         <!-- Right Arrow: Rightmost Element -->
                         <button type="button" class="${rightArrowClass}" title="${arrowTitle}" onclick="handleArrowClick(${realIdx})">
-                            ${CHEVRON_SVG}
+                            ${DOUBLE_CHEVRON_SVG}
                         </button>
                     </div>
                 `;
+
+                // CRITICAL FIX: Restrict HTML5 Drag exclusively to the drag handle
+                const dragHandle = row.querySelector('.task-drag-handle');
+                if (dragHandle) {
+                    dragHandle.addEventListener('mouseenter', () => { row.draggable = true; });
+                    dragHandle.addEventListener('mouseleave', () => {
+                        if (!IS_DRAGGING_TASK) row.draggable = false;
+                    });
+                    dragHandle.addEventListener('mousedown', () => { row.draggable = true; });
+                }
+
+                // Explicitly stop propagation on text inputs so native drag-selection works 100%
+                row.querySelectorAll('input, textarea').forEach(inputEl => {
+                    inputEl.addEventListener('mousedown', (e) => {
+                        row.draggable = false;
+                        e.stopPropagation();
+                    });
+                });
+
                 list.appendChild(row);
             });
 
@@ -1631,6 +1646,9 @@
             quickAdd.className = 'quick-add-wrap';
             quickAdd.innerHTML = `
                 <input type="text" class="quick-add-input" placeholder="+ Add a task to this section (Press Enter)..." onkeydown="handleQuickAdd(event, ${sIdx})" />
+                <button type="button" class="btn-action" style="padding: 7px 10px; font-size: 0.8rem;" onclick="openYamlModal('section', ${sIdx})" title="Paste YAML tasks into this section">
+                    📥 Paste YAML
+                </button>
             `;
             secBody.appendChild(quickAdd);
 
@@ -1638,9 +1656,7 @@
             deckContainer.appendChild(deck);
         });
 
-        // Auto-expand any open textareas
         document.querySelectorAll('textarea.auto-expand-textarea:not(.is-hidden-notes)').forEach(autoExpandTextarea);
-
         updateProgress();
     }
 
@@ -1676,21 +1692,19 @@
 
         const range = getSubtreeRange(realIdx);
         if (range.count > 1) {
-            // Parent branch: toggle folding of all descendants
             task.collapsed = !task.collapsed;
         } else {
-            // Leaf task: toggle open/close of multi-line notes
             task.notesOpen = !task.notesOpen;
         }
 
-        localStorage.setItem('punchlist_backup_' + ACTIVE_GSHEET_ID, JSON.stringify(TASKS_DATA));
+        saveState();
         renderAll();
     }
 
     function toggleTask(index) {
         if (!TASKS_DATA[index]) return;
         TASKS_DATA[index].checked = !TASKS_DATA[index].checked;
-        localStorage.setItem('punchlist_backup_' + ACTIVE_GSHEET_ID, JSON.stringify(TASKS_DATA));
+        saveState();
         renderAll();
     }
 
@@ -1714,7 +1728,7 @@
             TASKS_DATA[i].level = Math.max(1, (TASKS_DATA[i].level || 1) + delta);
         }
 
-        localStorage.setItem('punchlist_backup_' + ACTIVE_GSHEET_ID, JSON.stringify(TASKS_DATA));
+        saveState();
         renderAll();
     }
 
@@ -1722,7 +1736,7 @@
         if (!TASKS_DATA[parentIdx]) return;
         const range = getSubtreeRange(parentIdx);
         TASKS_DATA.splice(range.start, range.count);
-        localStorage.setItem('punchlist_backup_' + ACTIVE_GSHEET_ID, JSON.stringify(TASKS_DATA));
+        saveState();
         renderAll();
         showToast(range.count > 1 ? ('Deleted task and ' + (range.count - 1) + ' subtask(s)') : 'Task removed');
     }
@@ -1730,21 +1744,21 @@
     function updateTaskTitle(index, val) {
         if (TASKS_DATA[index]) {
             TASKS_DATA[index].title = val.trim();
-            localStorage.setItem('punchlist_backup_' + ACTIVE_GSHEET_ID, JSON.stringify(TASKS_DATA));
+            saveState();
         }
     }
 
     function updateTaskNotes(index, val) {
         if (TASKS_DATA[index]) {
             TASKS_DATA[index].notes = val.trim();
-            localStorage.setItem('punchlist_backup_' + ACTIVE_GSHEET_ID, JSON.stringify(TASKS_DATA));
+            saveState();
         }
     }
 
     function updateSectionTitle(index, val) {
         if (TASKS_DATA[index]) {
             TASKS_DATA[index].title = val.trim();
-            localStorage.setItem('punchlist_backup_' + ACTIVE_GSHEET_ID, JSON.stringify(TASKS_DATA));
+            saveState();
         }
     }
 
@@ -1779,7 +1793,7 @@
             }
 
             TASKS_DATA.splice(insertAt, 0, newTask);
-            localStorage.setItem('punchlist_backup_' + ACTIVE_GSHEET_ID, JSON.stringify(TASKS_DATA));
+            saveState();
             renderAll();
             showToast('Added task: ' + title);
         }
@@ -1798,13 +1812,12 @@
                 title: title.trim(),
                 notes: ''
             });
-            localStorage.setItem('punchlist_backup_' + ACTIVE_GSHEET_ID, JSON.stringify(TASKS_DATA));
+            saveState();
             renderAll();
             showToast('Created section: ' + title);
         }
     }
 
-    // Auto-Expand Textarea Helper
     function autoExpandTextarea(el) {
         if (!el) return;
         el.style.height = 'auto';
@@ -1908,7 +1921,7 @@
 
         TASKS_DATA.splice(insertAt, 0, ...movingSectionTasks);
 
-        localStorage.setItem('punchlist_backup_' + ACTIVE_GSHEET_ID, JSON.stringify(TASKS_DATA));
+        saveState();
         renderAll();
         showToast('Section reordered!');
     }
@@ -1923,6 +1936,7 @@
     function handleTaskDragStart(e) {
         if (IS_DRAGGING_SECTION) return;
 
+        IS_DRAGGING_TASK = true;
         DRAG_START_INDEX = parseInt(this.dataset.index, 10);
         DRAG_START_X = e.clientX;
         const range = getSubtreeRange(DRAG_START_INDEX);
@@ -2040,15 +2054,17 @@
 
         TASKS_DATA.splice(insertAt, 0, ...subtree);
 
-        localStorage.setItem('punchlist_backup_' + ACTIVE_GSHEET_ID, JSON.stringify(TASKS_DATA));
+        saveState();
         renderAll();
         showToast('Task & subtasks moved');
     }
 
     function handleTaskDragEnd() {
+        IS_DRAGGING_TASK = false;
         removeDropIndicator();
         document.querySelectorAll('.task-row').forEach(row => {
             row.classList.remove('is-dragging', 'is-subtree-child');
+            row.draggable = false;
         });
         DRAG_START_INDEX = null;
         DRAG_CURRENT_HOVER_INDEX = null;
@@ -2065,10 +2081,10 @@
     }
 
     // =========================================================================
-    // YAML & TSV CLIPBOARD EXPORT ENGINE
+    // YAML PARSER & SERIALIZER ENGINE (Pure JavaScript)
     // =========================================================================
 
-    // Format any slice of tasks into clean, human-readable YAML for Notepad++
+    // Serialize any slice of tasks into clean, indented YAML
     function formatTasksSliceAsYaml(tasks) {
         if (!tasks || !tasks.length) return '';
         const baseLevel = tasks[0].level || 0;
@@ -2092,7 +2108,7 @@
                 lines.push(indent + '- ' + checkMark + ' ' + (t.title || 'Untitled'));
 
                 if (t.notes && t.notes.trim()) {
-                    const noteLines = t.notes.trim().split('\n');
+                    const noteLines = t.notes.trim().split(/\r?\n/);
                     if (noteLines.length === 1) {
                         lines.push(indent + '  notes: "' + noteLines[0].replace(/"/g, () => '\\"') + '"');
                     } else {
@@ -2105,6 +2121,245 @@
             }
         });
         return lines.join('\n').trim();
+    }
+
+    // Flexible YAML-to-Task Parser supporting standard outlines and AI prompts
+    function parseYamlToTasks(yamlText) {
+        if (!yamlText || !yamlText.trim()) return [];
+        const lines = yamlText.split(/\r?\n/);
+        const result = [];
+        let currentSection = null;
+        let currentTask = null;
+        let inNotesBlock = false;
+        let notesIndent = 0;
+        let noteLines = [];
+
+        for (let i = 0; i < lines.length; i++) {
+            const rawLine = lines[i];
+            const trimmed = rawLine.trim();
+
+            if (!trimmed || trimmed.startsWith('#')) {
+                continue;
+            }
+
+            // Inside multi-line notes block (notes: |)
+            if (inNotesBlock) {
+                const indentMatch = rawLine.match(/^(\s*)/);
+                const lineIndent = indentMatch ? indentMatch[1].length : 0;
+                if (lineIndent >= notesIndent && trimmed !== '') {
+                    noteLines.push(rawLine.substring(notesIndent));
+                    continue;
+                } else if (trimmed === '') {
+                    noteLines.push('');
+                    continue;
+                } else {
+                    if (currentTask) {
+                        currentTask.notes = noteLines.join('\n').trim();
+                    }
+                    inNotesBlock = false;
+                    noteLines = [];
+                }
+            }
+
+            // Section header: section: "..."
+            const sectionMatch = trimmed.match(/^section:\s*["']?(.*?)["']?$/i);
+            if (sectionMatch) {
+                currentSection = {
+                    visible: true,
+                    id: 'SEC_' + Date.now().toString().slice(-6) + '_' + result.length,
+                    parentId: '',
+                    level: 0,
+                    order: result.length + 1,
+                    checked: false,
+                    title: sectionMatch[1].trim(),
+                    notes: ''
+                };
+                result.push(currentSection);
+                currentTask = null;
+                continue;
+            }
+
+            // Section description
+            const descMatch = trimmed.match(/^description:\s*["']?(.*?)["']?$/i);
+            if (descMatch && currentSection && !currentTask) {
+                currentSection.notes = descMatch[1].trim();
+                continue;
+            }
+
+            // Task Notes inline or block initiator
+            const noteMatch = trimmed.match(/^notes:\s*(?:["']?(.*?)["']?)$/i);
+            if (noteMatch && currentTask) {
+                const noteVal = noteMatch[1].trim();
+                if (noteVal === '|' || noteVal === '>') {
+                    inNotesBlock = true;
+                    const indentMatch = rawLine.match(/^(\s*)/);
+                    notesIndent = (indentMatch ? indentMatch[1].length : 0) + 2;
+                    noteLines = [];
+                } else {
+                    currentTask.notes = noteVal;
+                }
+                continue;
+            }
+
+            // Task line: - [ ] Title or - [x] Title or - Title
+            const taskMatch = rawLine.match(/^(\s*)-\s*(?:\[([ xX])\]\s*)?(.*?)$/);
+            if (taskMatch) {
+                const indentSpaces = taskMatch[1].length;
+                const isChecked = taskMatch[2] ? (taskMatch[2].toLowerCase() === 'x') : false;
+                let title = taskMatch[3].trim();
+
+                if (result.length === 0 || !currentSection) {
+                    currentSection = {
+                        visible: true,
+                        id: 'SEC_DEFAULT',
+                        parentId: '',
+                        level: 0,
+                        order: 1,
+                        checked: false,
+                        title: '1. Project Setup',
+                        notes: ''
+                    };
+                    result.push(currentSection);
+                }
+
+                // Indentation: 2 spaces = +1 level
+                const relativeLevel = Math.max(1, Math.round(indentSpaces / 2) + 1);
+
+                currentTask = {
+                    visible: true,
+                    id: 'TASK_' + Date.now().toString().slice(-6) + '_' + result.length,
+                    parentId: '',
+                    level: relativeLevel,
+                    order: result.length + 1,
+                    checked: isChecked,
+                    title: title || 'Untitled Task',
+                    notes: '',
+                    collapsed: false,
+                    notesOpen: false
+                };
+                result.push(currentTask);
+                continue;
+            }
+        }
+
+        if (inNotesBlock && currentTask && noteLines.length > 0) {
+            currentTask.notes = noteLines.join('\n').trim();
+        }
+
+        return result;
+    }
+
+    // =========================================================================
+    // YAML MODAL OVERLAY LOGIC (Full List, Section, or Branch Insertion)
+    // =========================================================================
+    function openYamlModal(mode, targetIndex = null) {
+        MODAL_CONTEXT = { mode, targetIndex };
+        const modal = document.getElementById('yamlModal');
+        const title = document.getElementById('modalTitle');
+        const subtitle = document.getElementById('modalSubtitle');
+        const textarea = document.getElementById('modalYamlTextarea');
+
+        if (mode === 'full') {
+            title.innerHTML = '📋 Full Punch List YAML Editor';
+            subtitle.innerText = 'Edit, copy, or paste your entire punch list directly.';
+            textarea.value = formatTasksSliceAsYaml(TASKS_DATA);
+        } else if (mode === 'section') {
+            title.innerHTML = '📥 Paste Tasks into Section';
+            subtitle.innerText = 'Paste YAML tasks to insert into this milestone.';
+            textarea.value = `- [ ] New Task\n  notes: Task note\n  - [ ] Nested Subtask`;
+        } else if (mode === 'branch') {
+            const parent = TASKS_DATA[targetIndex];
+            const pTitle = parent ? parent.title : 'Task';
+            title.innerHTML = `📥 Paste YAML Subtasks under: <span style="color:#fff;">${escapeHtml(pTitle)}</span>`;
+            subtitle.innerText = 'Paste nested YAML tasks. They will automatically indent under this branch.';
+            textarea.value = `- [ ] Subtask 1\n  notes: Specific note\n  - [ ] Child Subtask 1.1`;
+        }
+
+        modal.classList.add('open');
+        setTimeout(() => {
+            textarea.focus();
+            textarea.select();
+        }, 50);
+    }
+
+    function closeYamlModal() {
+        const modal = document.getElementById('yamlModal');
+        modal.classList.remove('open');
+        MODAL_CONTEXT = { mode: 'full', targetIndex: null };
+    }
+
+    function applyYamlModalChanges() {
+        const textarea = document.getElementById('modalYamlTextarea');
+        const yamlText = textarea.value.trim();
+
+        if (!yamlText) {
+            alert('Please paste or enter YAML content.');
+            return;
+        }
+
+        const { mode, targetIndex } = MODAL_CONTEXT;
+
+        if (mode === 'full') {
+            const parsed = parseYamlToTasks(yamlText);
+            if (parsed.length > 0) {
+                TASKS_DATA = parsed;
+                saveState();
+                renderAll();
+                showToast('Applied Full YAML Punch List!');
+                closeYamlModal();
+            } else {
+                alert('Could not parse any tasks from the YAML provided.');
+            }
+        } else if (mode === 'section') {
+            const parsed = parseYamlToTasks(yamlText);
+            const tasksOnly = parsed.filter(t => t.level > 0);
+
+            if (tasksOnly.length > 0) {
+                let insertAt = TASKS_DATA.length;
+                let currentSec = 0;
+                for (let i = 0; i < TASKS_DATA.length; i++) {
+                    if (TASKS_DATA[i].level === 0) {
+                        if (currentSec === targetIndex + 1) {
+                            insertAt = i;
+                            break;
+                        }
+                        currentSec++;
+                    }
+                }
+                TASKS_DATA.splice(insertAt, 0, ...tasksOnly);
+                saveState();
+                renderAll();
+                showToast(`Inserted ${tasksOnly.length} tasks into section!`);
+                closeYamlModal();
+            }
+        } else if (mode === 'branch') {
+            const parent = TASKS_DATA[targetIndex];
+            if (!parent) return;
+
+            const parsed = parseYamlToTasks(yamlText);
+            const tasksOnly = parsed.filter(t => t.level > 0);
+
+            if (tasksOnly.length > 0) {
+                const parentLevel = parent.level || 1;
+                const baseParsedLevel = tasksOnly[0].level || 1;
+                const levelOffset = (parentLevel + 1) - baseParsedLevel;
+
+                tasksOnly.forEach(t => {
+                    t.level = Math.max(parentLevel + 1, t.level + levelOffset);
+                });
+
+                const range = getSubtreeRange(targetIndex);
+                const insertAt = range.start + range.count;
+
+                TASKS_DATA.splice(insertAt, 0, ...tasksOnly);
+                parent.collapsed = false; // Expand parent so new tasks are immediately visible
+
+                saveState();
+                renderAll();
+                showToast(`Inserted ${tasksOnly.length} subtask(s) under "${parent.title}"!`);
+                closeYamlModal();
+            }
+        }
     }
 
     // 1-Click Subtree Branch Copy as YAML
@@ -2173,6 +2428,12 @@
             .replace(/"/g, () => '&quot;')
             .replace(/'/g, () => '&#039;');
     }
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            closeYamlModal();
+        }
+    });
 
     document.addEventListener('DOMContentLoaded', initApp);
 </script>
