@@ -66,7 +66,7 @@
             --text-muted: #79A;
             --font-family: 'Inter', -apple-system, sans-serif;
             --font-mono: 'Fira Code', monospace, monospace;
-            --indent-step: 26px;
+            --indent-step: 22px;
 
             --completed-opacity: 0.42;
 
@@ -411,7 +411,7 @@
 
         .section-header {
             background: var(--card-header-bg);
-            padding: 14px 20px;
+            padding: 12px 16px;
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -419,6 +419,7 @@
             cursor: pointer;
             user-select: none;
             transition: background 0.2s ease, color 0.2s ease;
+            gap: 10px;
         }
 
         .section-header:hover {
@@ -432,7 +433,7 @@
         .section-title-wrap {
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 8px;
             flex: 1;
             min-width: 0;
         }
@@ -458,7 +459,7 @@
         }
 
         .section-title {
-            font-size: 1.05rem;
+            font-size: 1.02rem;
             font-weight: 700;
             color: var(--accent-cyan);
             border: none;
@@ -476,8 +477,35 @@
         .section-meta-right {
             display: flex;
             align-items: center;
-            gap: 12px;
+            gap: 8px;
             flex-shrink: 0;
+        }
+
+        /* Section Header Action Buttons */
+        .section-header-actions {
+            display: flex;
+            align-items: center;
+            gap: 3px;
+        }
+
+        .sec-action-btn {
+            color: var(--text-muted);
+            padding: 4px;
+            border-radius: 4px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.15s ease;
+        }
+
+        .sec-action-btn:hover {
+            background: rgba(0, 229, 255, 0.15);
+            color: var(--accent-cyan);
+        }
+
+        .sec-action-btn.delete-btn:hover {
+            background: rgba(239, 68, 68, 0.2);
+            color: var(--accent-red);
         }
 
         .section-counter-badge {
@@ -520,23 +548,23 @@
         }
 
         .task-list {
-            padding: 10px 16px;
+            padding: 6px 10px;
             display: flex;
             flex-direction: column;
             gap: 6px;
             position: relative;
         }
 
-        /* Task Row Layout */
+        /* Task Row Layout — Two-Tier Architecture */
         .task-row {
             display: flex;
-            align-items: flex-start;
-            gap: 8px;
-            padding: 8px 12px;
+            flex-direction: column;
+            gap: 4px;
+            padding: 6px 8px;
             border-radius: 8px;
             background: rgba(255, 255, 255, 0.02);
             border: 1px solid transparent;
-            transition: background 0.15s ease, border-color 0.15s ease, padding-left 0.2s ease, opacity 0.2s ease;
+            transition: background 0.15s ease, border-color 0.15s ease, opacity 0.2s ease;
             position: relative;
             user-select: text;
         }
@@ -580,13 +608,21 @@
             border-radius: 0 8px 8px 0;
         }
 
+        /* Tier 1: Task Main Line (Title + Controls) */
+        .task-main-line {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            width: 100%;
+        }
+
         /* 16x16 Double Chevron Button */
         .tree-arrow-btn {
             background: transparent;
             border: none;
             color: var(--accent-cyan);
             cursor: pointer;
-            padding: 2px;
+            padding: 1px;
             border-radius: 4px;
             display: inline-flex;
             align-items: center;
@@ -595,7 +631,6 @@
             line-height: 1;
             flex-shrink: 0;
             user-select: none;
-            margin-top: 3px;
             width: 22px;
             height: 22px;
         }
@@ -626,7 +661,9 @@
         }
 
         .task-checkbox-wrap {
-            padding-top: 4px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
             flex-shrink: 0;
         }
 
@@ -637,36 +674,66 @@
             accent-color: var(--accent-green);
         }
 
-        .task-body {
-            flex: 1;
-            min-width: 0;
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-            cursor: text;
-        }
-
         .task-title-input {
-            width: 100%;
+            flex: 1;
             background: transparent;
             border: none;
             color: var(--text-primary);
             font-size: 0.92rem;
             font-family: inherit;
             outline: none;
-            padding: 1px 0;
+            padding: 2px 0;
             transition: color 0.15s ease;
             cursor: text;
+            min-width: 0;
         }
 
         .task-title-input:focus {
             border-bottom: 1px dashed var(--accent-cyan);
         }
 
-        /* Notion-Style Task Notes Architecture */
+        .task-right-cluster {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex-shrink: 0;
+        }
+
+        .task-actions {
+            display: flex;
+            align-items: center;
+            gap: 2px;
+            opacity: 0;
+            transition: opacity 0.15s ease;
+            flex-shrink: 0;
+        }
+
+        .task-row:hover .task-actions {
+            opacity: 1;
+        }
+
+        /* Pill Badge without Parentheses */
+        .branch-count-badge {
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: var(--accent-cyan);
+            background: rgba(0, 229, 255, 0.12);
+            border: 1px solid rgba(0, 229, 255, 0.3);
+            border-radius: 10px;
+            padding: 1px 6px;
+            min-width: 18px;
+            text-align: center;
+            line-height: 1.2;
+            user-select: none;
+            letter-spacing: 0.3px;
+        }
+
+        /* Tier 2: Task Notes Block (Full Width, Zero Squeeze!) */
         .task-notes-block {
             width: 100%;
             margin-top: 2px;
+            padding-left: 56px; /* Aligns neatly under the task title */
+            box-sizing: border-box;
         }
 
         .task-notes-block.is-hidden-notes {
@@ -677,7 +744,7 @@
             font-size: 0.82rem;
             color: var(--text-secondary);
             line-height: 1.5;
-            padding: 6px 10px;
+            padding: 8px 12px;
             border-radius: 6px;
             background: rgba(0, 0, 0, 0.22);
             border: 1px solid rgba(0, 229, 255, 0.12);
@@ -685,6 +752,8 @@
             transition: all 0.15s ease;
             min-height: 28px;
             word-break: break-word;
+            width: 100%;
+            box-sizing: border-box;
         }
 
         .task-notes-view:hover {
@@ -706,7 +775,7 @@
         .task-notes-editor {
             display: flex;
             flex-direction: column;
-            gap: 4px;
+            gap: 6px;
             width: 100%;
         }
 
@@ -714,17 +783,18 @@
             width: 100%;
             background: rgba(0, 0, 0, 0.45);
             border: 1px solid var(--accent-cyan);
-            border-radius: 4px;
+            border-radius: 6px;
             color: #fff;
             font-size: 0.82rem;
             font-family: inherit;
             outline: none;
-            padding: 8px 10px;
+            padding: 8px 12px;
             line-height: 1.45;
             resize: vertical;
             min-height: 60px;
             cursor: text;
             user-select: text;
+            box-sizing: border-box;
         }
 
         .notes-edit-footer {
@@ -740,7 +810,7 @@
         .media-video-container {
             position: relative;
             width: 100%;
-            max-width: 520px;
+            max-width: 680px;
             aspect-ratio: 16 / 9;
             margin: 8px 0;
             border-radius: 8px;
@@ -789,40 +859,6 @@
             color: #fff;
         }
 
-        .task-right-cluster {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            flex-shrink: 0;
-            margin-top: 3px;
-        }
-
-        .task-actions {
-            display: flex;
-            align-items: center;
-            gap: 2px;
-            opacity: 0;
-            transition: opacity 0.15s ease;
-            flex-shrink: 0;
-        }
-
-        .task-row:hover .task-actions {
-            opacity: 1;
-        }
-
-        .branch-count-badge {
-            font-size: 0.8rem;
-            font-weight: 700;
-            color: var(--accent-cyan);
-            background: rgba(0, 255, 255, 0.1);
-            border: 1px solid rgba(0, 255, 255, 0.25);
-            border-radius: 10px;
-            padding: 1px 7px;
-            line-height: 1.2;
-            user-select: none;
-            letter-spacing: 0.3px;
-        }
-
         .btn-icon {
             background: transparent;
             border: none;
@@ -853,29 +889,32 @@
             color: var(--accent-red);
         }
 
-        .quick-add-wrap {
-            padding: 10px 16px 14px;
-            border-top: 1px dashed var(--border-color);
+        /* Compact Bottom-Left Floating Add Task Button */
+        .section-footer-bar {
+            padding: 4px 12px 10px 12px;
             display: flex;
             align-items: center;
-            gap: 8px;
         }
 
-        .quick-add-input {
-            flex: 1;
-            background: rgba(0, 0, 0, 0.25);
-            border: 1px solid var(--border-color);
-            border-radius: 6px;
-            color: var(--text-primary);
-            padding: 8px 12px;
-            font-size: 0.88rem;
+        .btn-ghost-add {
+            background: transparent;
+            border: 1px dashed rgba(0, 229, 255, 0.25);
+            color: var(--text-muted);
+            border-radius: 4px;
+            padding: 4px 10px;
+            font-size: 0.78rem;
             font-family: inherit;
-            outline: none;
-            transition: border-color 0.2s;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            transition: all 0.15s ease;
         }
 
-        .quick-add-input:focus {
+        .btn-ghost-add:hover {
             border-color: var(--accent-cyan);
+            color: var(--accent-cyan);
+            background: rgba(0, 229, 255, 0.05);
         }
 
         /* YAML Modal Overlay */
@@ -1185,6 +1224,12 @@
     const PASTE_SUBTASKS_SVG_ICON = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
         <rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect>
+    </svg>`;
+
+    // Plus Add Icon
+    const PLUS_ADD_SVG_ICON = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="12" y1="5" x2="12" y2="19"></line>
+        <line x1="5" y1="12" x2="19" y2="12"></line>
     </svg>`;
 
     // Deterministic slug generator for stable persistence across page refreshes
@@ -1584,11 +1629,11 @@
             deck.addEventListener('dragleave', handleSectionDragLeave);
             deck.addEventListener('drop', handleSectionDrop);
 
-            // Accordion Section Header
+            // Accordion Section Header with Complete Action Cluster
             const secHdr = document.createElement('div');
             secHdr.className = 'section-header';
             secHdr.onclick = (e) => {
-                if (e.target.classList.contains('section-title') || e.target.classList.contains('drag-handle')) return;
+                if (e.target.classList.contains('section-title') || e.target.closest('.section-header-actions') || e.target.classList.contains('drag-handle')) return;
                 toggleSection(secId);
             };
 
@@ -1603,6 +1648,25 @@
                            onclick="event.stopPropagation();" />
                 </div>
                 <div class="section-meta-right">
+                    <!-- Section Actions: Add Task, Copy YAML, Paste YAML, Delete Section -->
+                    <div class="section-header-actions" onclick="event.stopPropagation();">
+                        <button type="button" class="btn-icon sec-action-btn" title="Add task to this section" onclick="quickAddTaskToSection(${sIdx})">
+                            ${PLUS_ADD_SVG_ICON}
+                        </button>
+                        <button type="button" class="btn-icon sec-action-btn" title="Copy section as YAML" onclick="copySectionAsYaml(${sIdx})">
+                            ${COPY_SVG_ICON}
+                        </button>
+                        <button type="button" class="btn-icon sec-action-btn" title="Paste YAML tasks into this section" onclick="openYamlModal('section', ${sIdx})">
+                            ${PASTE_SUBTASKS_SVG_ICON}
+                        </button>
+                        <button type="button" class="btn-icon sec-action-btn delete-btn" title="Delete section and all its tasks" onclick="deleteSection(${sIdx})">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                <line x1="18" y1="6" x2="6" y2="18"></line>
+                                <line x1="6" y1="6" x2="18" y2="18"></line>
+                            </svg>
+                        </button>
+                    </div>
+
                     <span class="section-counter-badge ${allDone ? 'all-done' : ''}">
                         ${completedTasks} / ${totalTasks} Completed
                     </span>
@@ -1658,7 +1722,8 @@
                     hiddenBelowLevel = t.level;
                 }
 
-                const dynamicPadding = Math.max(8, (t.level - 1) * 26 + 8);
+                // Tightened left padding: Level 1 starts flush left, subnodes indent 22px relatively
+                const dynamicPadding = Math.max(4, (t.level - 1) * 22 + 4);
 
                 const row = document.createElement('div');
                 row.className = 'task-row ' + (isNested ? 'is-nested ' : '') + (t.checked ? 'is-checked' : '');
@@ -1690,61 +1755,62 @@
                     : '<span class="notes-placeholder">+ Add note or paste media link...</span>';
 
                 row.innerHTML = `
-                    <span class="drag-handle task-drag-handle" title="Drag to reorder • Drag right/left to indent/unnest">⋮⋮</span>
-                    
-                    <!-- Left Arrow: Directly right of grab handle -->
-                    <button type="button" class="${leftArrowClass}" title="${arrowTitle}" onclick="handleArrowClick(${realIdx})">
-                        ${DOUBLE_CHEVRON_SVG}
-                    </button>
-
-                    <div class="task-checkbox-wrap">
-                        <input type="checkbox" class="task-checkbox" ${t.checked ? 'checked' : ''} onchange="toggleTask(${realIdx})" />
-                    </div>
-
-                    <div class="task-body">
-                        <input type="text" class="task-title-input" value="${escapeHtml(t.title)}" onchange="updateTaskTitle(${realIdx}, this.value)" />
+                    <!-- Tier 1: Task Main Line (Title & All Actions) -->
+                    <div class="task-main-line">
+                        <span class="drag-handle task-drag-handle" title="Drag to reorder • Drag right/left to indent/unnest">⋮⋮</span>
                         
-                        <!-- Notion-Style Dual-Mode Task Notes Block -->
-                        <div class="task-notes-block ${!isNotesOpen ? 'is-hidden-notes' : ''}" id="notes_block_${taskId}">
-                            <!-- View Mode (Click anywhere to edit) -->
-                            <div class="task-notes-view" id="notes_view_${taskId}" onclick="startEditNotes('${taskId}', ${realIdx})">
-                                ${renderedNotesHtml}
-                            </div>
-                            
-                            <!-- Edit Mode (Auto-focused on click) -->
-                            <div class="task-notes-editor" id="notes_editor_${taskId}" style="display: none;">
-                                <textarea class="task-notes-textarea auto-expand-textarea" 
-                                          id="notes_textarea_${taskId}"
-                                          placeholder="Add notes, paste images or YouTube URLs (multi-line)..." 
-                                          oninput="autoExpandTextarea(this);"
-                                          onkeydown="handleNoteKeydown(event, '${taskId}', ${realIdx}, this)"
-                                          onblur="finishEditNotes('${taskId}', ${realIdx}, this)">${escapeHtml(t.notes || '')}</textarea>
-                                <div class="notes-edit-footer">
-                                    <span>Press <strong>Ctrl+Enter</strong> to save • <strong>Esc</strong> to cancel</span>
-                                    <button type="button" class="btn-action btn-sm" onmousedown="finishEditNotes('${taskId}', ${realIdx}, document.getElementById('notes_textarea_${taskId}'))">✓ Done</button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="task-right-cluster">
-                        <div class="task-actions">
-                            <button type="button" class="btn-icon" title="Outdent (Shift Left)" onclick="changeSubtreeLevel(${realIdx}, -1)">⇤</button>
-                            <button type="button" class="btn-icon" title="Indent (Nest Right)" onclick="changeSubtreeLevel(${realIdx}, 1)">⇥</button>
-                            <!-- Grayscale AI Studio Style Copy Icon -->
-                            <button type="button" class="btn-icon copy-btn" title="Copy task &amp; branch as YAML" onclick="copyTaskBranch(${realIdx})">${COPY_SVG_ICON}</button>
-                            <!-- Paste Subtasks Directly into Branch -->
-                            <button type="button" class="btn-icon paste-btn" title="Paste YAML subtasks into this branch" onclick="openYamlModal('branch', ${realIdx})">${PASTE_SUBTASKS_SVG_ICON}</button>
-                            <button type="button" class="btn-icon delete-btn" title="Delete task and branch" onclick="deleteSubtree(${realIdx})">✕</button>
-                        </div>
-
-                        <!-- Tree Style Tab Collapsed Count Badge in Parenthesis -->
-                        ${isBranchCollapsed ? `<span class="branch-count-badge" title="${childCount} subtasks collapsed">(${childCount})</span>` : ''}
-
-                        <!-- Right Arrow: Rightmost Element -->
-                        <button type="button" class="${rightArrowClass}" title="${arrowTitle}" onclick="handleArrowClick(${realIdx})">
+                        <!-- Left Arrow: Directly right of grab handle -->
+                        <button type="button" class="${leftArrowClass}" title="${arrowTitle}" onclick="handleArrowClick(${realIdx})">
                             ${DOUBLE_CHEVRON_SVG}
                         </button>
+
+                        <div class="task-checkbox-wrap">
+                            <input type="checkbox" class="task-checkbox" ${t.checked ? 'checked' : ''} onchange="toggleTask(${realIdx})" />
+                        </div>
+
+                        <input type="text" class="task-title-input" value="${escapeHtml(t.title)}" onchange="updateTaskTitle(${realIdx}, this.value)" />
+
+                        <div class="task-right-cluster">
+                            <div class="task-actions">
+                                <button type="button" class="btn-icon" title="Outdent (Shift Left)" onclick="changeSubtreeLevel(${realIdx}, -1)">⇤</button>
+                                <button type="button" class="btn-icon" title="Indent (Nest Right)" onclick="changeSubtreeLevel(${realIdx}, 1)">⇥</button>
+                                <!-- Grayscale AI Studio Style Copy Icon -->
+                                <button type="button" class="btn-icon copy-btn" title="Copy task &amp; branch as YAML" onclick="copyTaskBranch(${realIdx})">${COPY_SVG_ICON}</button>
+                                <!-- Paste Subtasks Directly into Branch -->
+                                <button type="button" class="btn-icon paste-btn" title="Paste YAML subtasks into this branch" onclick="openYamlModal('branch', ${realIdx})">${PASTE_SUBTASKS_SVG_ICON}</button>
+                                <button type="button" class="btn-icon delete-btn" title="Delete task and branch" onclick="deleteSubtree(${realIdx})">✕</button>
+                            </div>
+
+                            <!-- Pill Count without Parentheses -->
+                            ${isBranchCollapsed ? `<span class="branch-count-badge" title="${childCount} subtasks collapsed">${childCount}</span>` : ''}
+
+                            <!-- Right Arrow: Rightmost Element -->
+                            <button type="button" class="${rightArrowClass}" title="${arrowTitle}" onclick="handleArrowClick(${realIdx})">
+                                ${DOUBLE_CHEVRON_SVG}
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Tier 2: Task Notes Block (Full Width, Zero Right Squeeze!) -->
+                    <div class="task-notes-block ${!isNotesOpen ? 'is-hidden-notes' : ''}" id="notes_block_${taskId}">
+                        <!-- View Mode (Click anywhere to edit) -->
+                        <div class="task-notes-view" id="notes_view_${taskId}" onclick="startEditNotes('${taskId}', ${realIdx})">
+                            ${renderedNotesHtml}
+                        </div>
+                        
+                        <!-- Edit Mode (Auto-focused on click) -->
+                        <div class="task-notes-editor" id="notes_editor_${taskId}" style="display: none;">
+                            <textarea class="task-notes-textarea auto-expand-textarea" 
+                                      id="notes_textarea_${taskId}"
+                                      placeholder="Add notes, paste images or YouTube URLs (multi-line)..." 
+                                      oninput="autoExpandTextarea(this);"
+                                      onkeydown="handleNoteKeydown(event, '${taskId}', ${realIdx}, this)"
+                                      onblur="finishEditNotes('${taskId}', ${realIdx}, this)">${escapeHtml(t.notes || '')}</textarea>
+                            <div class="notes-edit-footer">
+                                <span>Press <strong>Ctrl+Enter</strong> to save • <strong>Esc</strong> to cancel</span>
+                                <button type="button" class="btn-action btn-sm" onmousedown="finishEditNotes('${taskId}', ${realIdx}, document.getElementById('notes_textarea_${taskId}'))">✓ Done</button>
+                            </div>
+                        </div>
                     </div>
                 `;
 
@@ -1771,15 +1837,16 @@
 
             secBody.appendChild(list);
 
-            const quickAdd = document.createElement('div');
-            quickAdd.className = 'quick-add-wrap';
-            quickAdd.innerHTML = `
-                <input type="text" class="quick-add-input" placeholder="+ Add a task to this section (Press Enter)..." onkeydown="handleQuickAdd(event, ${sIdx})" />
-                <button type="button" class="btn-action" style="padding: 7px 10px; font-size: 0.8rem;" onclick="openYamlModal('section', ${sIdx})" title="Paste YAML tasks into this section">
-                    📥 Paste YAML
+            // Replaced bulky quick-add input with sleek bottom-left ghost button
+            const footerBar = document.createElement('div');
+            footerBar.className = 'section-footer-bar';
+            footerBar.innerHTML = `
+                <button type="button" class="btn-ghost-add" onclick="quickAddTaskToSection(${sIdx})" title="Add task to this section">
+                    ${PLUS_ADD_SVG_ICON}
+                    <span>Add Task</span>
                 </button>
             `;
-            secBody.appendChild(quickAdd);
+            secBody.appendChild(footerBar);
 
             deck.appendChild(secBody);
             deckContainer.appendChild(deck);
@@ -1830,9 +1897,7 @@
         renderAll();
     }
 
-    // =========================================================================
-    // INLINE NOTION-STYLE EDIT / VIEW TASK NOTES CONTROLLER
-    // =========================================================================
+    // Inline Task Notes Controller
     function startEditNotes(taskId, realIdx) {
         const viewEl = document.getElementById('notes_view_' + taskId);
         const editorEl = document.getElementById('notes_editor_' + taskId);
@@ -1940,39 +2005,74 @@
         }
     }
 
-    function handleQuickAdd(e, sectionIndex) {
-        if (e.key === 'Enter' && e.target.value.trim()) {
-            const title = e.target.value.trim();
-            e.target.value = '';
+    function quickAddTaskToSection(sectionIndex) {
+        const newTask = {
+            visible: true,
+            id: generateSlugId('task', 'New Task', TASKS_DATA.length + 1),
+            parentId: '',
+            level: 1,
+            order: TASKS_DATA.length + 1,
+            checked: false,
+            title: '',
+            notes: ''
+        };
 
-            const newTask = {
-                visible: true,
-                id: generateSlugId('task', title, TASKS_DATA.length + 1),
-                parentId: '',
-                level: 1,
-                order: TASKS_DATA.length + 1,
-                checked: false,
-                title: title,
-                notes: ''
-            };
-
-            let insertAt = TASKS_DATA.length;
-            let currentSec = 0;
-            for (let i = 0; i < TASKS_DATA.length; i++) {
-                if (TASKS_DATA[i].level === 0) {
-                    if (currentSec === sectionIndex + 1) {
-                        insertAt = i;
-                        break;
-                    }
-                    currentSec++;
+        let insertAt = TASKS_DATA.length;
+        let currentSec = 0;
+        for (let i = 0; i < TASKS_DATA.length; i++) {
+            if (TASKS_DATA[i].level === 0) {
+                if (currentSec === sectionIndex + 1) {
+                    insertAt = i;
+                    break;
                 }
+                currentSec++;
             }
-
-            TASKS_DATA.splice(insertAt, 0, newTask);
-            saveState();
-            renderAll();
-            showToast('Added task: ' + title);
         }
+
+        TASKS_DATA.splice(insertAt, 0, newTask);
+        saveState();
+        renderAll();
+
+        setTimeout(() => {
+            const newRow = document.querySelector(`.task-row[data-index="${insertAt}"] .task-title-input`);
+            if (newRow) {
+                newRow.focus();
+                newRow.placeholder = "Enter task title...";
+            }
+        }, 50);
+    }
+
+    function copySectionAsYaml(sectionIndex) {
+        const sectionHeaderIndices = [];
+        TASKS_DATA.forEach((t, i) => {
+            if (t.level === 0) sectionHeaderIndices.push(i);
+        });
+
+        const headerIdx = sectionHeaderIndices[sectionIndex];
+        const range = getSectionRange(headerIdx);
+        const sectionSlice = TASKS_DATA.slice(range.start, range.start + range.count);
+        const yamlStr = formatTasksSliceAsYaml(sectionSlice);
+
+        navigator.clipboard.writeText(yamlStr).then(() => {
+            showToast(`📋 Copied section "${TASKS_DATA[headerIdx].title}" as YAML!`);
+        });
+    }
+
+    function deleteSection(sectionIndex) {
+        const sectionHeaderIndices = [];
+        TASKS_DATA.forEach((t, i) => {
+            if (t.level === 0) sectionHeaderIndices.push(i);
+        });
+
+        const headerIdx = sectionHeaderIndices[sectionIndex];
+        const secTitle = TASKS_DATA[headerIdx].title;
+        if (!confirm(`Are you sure you want to delete section "${secTitle}" and all its tasks?`)) return;
+
+        const range = getSectionRange(headerIdx);
+        TASKS_DATA.splice(range.start, range.count);
+        saveState();
+        renderAll();
+        showToast(`Deleted section "${secTitle}"`);
     }
 
     function addNewSection() {
@@ -2164,7 +2264,7 @@
         }
 
         const deltaX = e.clientX - DRAG_START_X;
-        const levelShift = Math.round(deltaX / 26);
+        const levelShift = Math.round(deltaX / 22);
         const parentItem = TASKS_DATA[DRAG_START_INDEX];
         const baseLevel = parentItem ? parentItem.level : 1;
 
@@ -2180,7 +2280,7 @@
         line.className = 'drop-indicator-line';
         line.id = 'activeDropIndicator';
 
-        const lineIndent = Math.max(8, (proposedLevel - 1) * 26 + 8);
+        const lineIndent = Math.max(4, (proposedLevel - 1) * 22 + 4);
         line.style.marginLeft = lineIndent + 'px';
 
         if (position === 'before') {
