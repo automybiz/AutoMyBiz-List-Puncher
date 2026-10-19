@@ -1,10 +1,13 @@
 /**
- * AutoMyBiz List Puncher - Master Stylesheet (v1.01)
+ * List Puncher - Master Stylesheet (v1.02)
  * File: index.css
  * 
  * AutoMyBiz Core Engineering Standards:
  * - Two-tier task row architecture with full-width task notes & media embeds
  * - Stable top-right local storage badge layout
+ * - Milestone description banner at top of accordion body with media embeds
+ * - Dynamic auto-numbering badge styles (#1, #2, #3)
+ * - Header toggle controls for Auto-Number, Completed-at-Bottom & Filter Toggles
  * - High-contrast completed item opacity fading with instant hover restoration
  * - Responsive 16:9 YouTube containers and constrained auto-images
  */
@@ -218,7 +221,7 @@ body {
 .header-actions {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
     flex-wrap: wrap;
 }
 
@@ -226,23 +229,32 @@ body {
     background: var(--card-header-bg);
     border: 1px solid var(--border-color);
     color: var(--text-primary);
-    padding: 7px 14px;
+    padding: 6px 12px;
     border-radius: 6px;
-    font-size: 0.85rem;
+    font-size: 0.82rem;
     font-weight: 600;
     font-family: inherit;
     cursor: pointer;
     transition: all 0.2s ease;
     display: inline-flex;
     align-items: center;
-    gap: 6px;
+    gap: 5px;
     user-select: none;
+    white-space: nowrap;
 }
 
 .btn-action:hover {
     border-color: var(--accent-cyan);
     color: #fff;
     transform: translateY(-1px);
+}
+
+.btn-action.btn-toggle.active {
+    background: var(--card-header-hover);
+    border-color: var(--accent-cyan);
+    color: #fff;
+    box-shadow: 0 0 10px rgba(0, 229, 255, 0.35);
+    font-weight: 700;
 }
 
 .btn-primary {
@@ -311,7 +323,7 @@ body {
     border-radius: 12px;
     margin-bottom: 16px;
     overflow: hidden;
-    transition: border-color 0.2s ease, box-shadow 0.2s ease, opacity 0.25s ease;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease, opacity 0.25s ease, transform 0.25s ease;
     position: relative;
 }
 
@@ -392,7 +404,7 @@ body {
 }
 
 /* ==========================================================================
-   Section Header & Action Icons
+   Section Header, Dynamic Numbers & Action Icons
    ========================================================================== */
 .section-header {
     background: var(--card-header-bg);
@@ -421,6 +433,21 @@ body {
     gap: 8px;
     flex: 1;
     min-width: 0;
+}
+
+/* Auto-Numbering Milestone Badge (#1, #2, #3) */
+.section-number-badge {
+    font-size: 0.78rem;
+    font-weight: 800;
+    color: #011;
+    background: var(--accent-cyan);
+    padding: 2px 7px;
+    border-radius: 5px;
+    line-height: 1.2;
+    flex-shrink: 0;
+    user-select: none;
+    letter-spacing: -0.3px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.4);
 }
 
 .drag-handle {
@@ -533,6 +560,58 @@ body {
 
 .section-deck.is-collapsed .section-body {
     display: none;
+}
+
+/* ==========================================================================
+   Milestone Overview / Description Banner (At Top of Accordion Body)
+   ========================================================================== */
+.section-description-block {
+    margin: 10px 14px 6px 14px;
+    padding: 8px 12px;
+    background: rgba(0, 0, 0, 0.25);
+    border-radius: 6px;
+    border-left: 3px solid var(--accent-cyan);
+    font-size: 0.84rem;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    box-sizing: border-box;
+    word-break: break-word;
+}
+
+.section-description-block:hover {
+    background: rgba(0, 0, 0, 0.4);
+    border-left-color: #fff;
+    color: #fff;
+}
+
+.section-description-placeholder {
+    color: var(--text-muted);
+    font-style: italic;
+    font-size: 0.8rem;
+}
+
+.section-description-editor {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 10px 14px 6px 14px;
+}
+
+.section-description-textarea {
+    width: 100%;
+    background: rgba(0, 0, 0, 0.45);
+    border: 1px solid var(--accent-cyan);
+    border-radius: 6px;
+    color: #fff;
+    font-family: inherit;
+    font-size: 0.84rem;
+    line-height: 1.5;
+    padding: 8px 12px;
+    outline: none;
+    resize: vertical;
+    min-height: 60px;
 }
 
 .task-list {
@@ -1075,7 +1154,8 @@ body.is-viewer-mode .section-title {
     cursor: default !important;
 }
 
-body.is-viewer-mode .task-notes-view {
+body.is-viewer-mode .task-notes-view,
+body.is-viewer-mode .section-description-view {
     cursor: default !important;
 }
 

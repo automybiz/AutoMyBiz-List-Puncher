@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="robots" content="noindex, nofollow">
     <meta name="darkreader-lock">
-    <title>AutoMyBiz List Puncher - Client Onboarding &amp; Task Engine</title>
+    <title>List Puncher - Client Onboarding and Task Engine</title>
     
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -78,14 +78,30 @@
         <div class="header-top">
             <div class="brand-title-wrap">
                 <div class="brand-title">
-                    ⚡ AutoMyBiz List Puncher <span class="cyan">// Client Onboarding</span>
+                    ⚡ List Puncher <span class="cyan">// Client Onboarding</span>
                 </div>
                 <span class="client-badge" id="clientBadge">Client Workspace</span>
             </div>
 
+            <!-- Granular Action & Filter Controls -->
             <div class="header-actions">
-                <button type="button" class="btn-action" onclick="toggleAllSections()" id="btnToggleAll" title="Expand or collapse all cards">
+                <button type="button" class="btn-action" onclick="copyAiPromptToClipboard()" title="Copy tailored prompt to drop into any existing AI conversation">
+                    🤖 Copy AI Prompt
+                </button>
+                <button type="button" class="btn-action" onclick="toggleAllSections()" id="btnToggleAll" title="Expand or collapse all milestones">
                     ☰ Collapse All
+                </button>
+                <button type="button" class="btn-action" onclick="toggleCompletedSections()" title="Collapse or expand 100% completed milestones">
+                    ✓ Completed
+                </button>
+                <button type="button" class="btn-action" onclick="toggleToDoSections()" title="Collapse or expand active to-do milestones">
+                    ⏳ To-Do
+                </button>
+                <button type="button" class="btn-action btn-toggle" id="btnCompletedBottom" onclick="toggleCompletedAtBottom()" title="Toggle auto-moving completed milestones to the bottom">
+                    ⬇️ Bottom: OFF
+                </button>
+                <button type="button" class="btn-action btn-toggle" id="btnAutoNumber" onclick="toggleAutoNumber()" title="Toggle dynamic #1, #2, #3 milestone numbering">
+                    🔢 Auto-Number: ON
                 </button>
                 <button type="button" class="btn-action" onclick="openYamlModal('full')" title="Open Full YAML Editor Overlay">
                     📝 YAML Editor
@@ -93,7 +109,7 @@
                 <button type="button" class="btn-action" onclick="copyAllAsYamlToClipboard()" title="Copy entire punch list as human-readable YAML">
                     📋 Copy YAML
                 </button>
-                <button type="button" class="btn-action btn-primary" onclick="addNewSection()" title="Add new section card">
+                <button type="button" class="btn-action btn-primary" onclick="addNewSection()" title="Add new milestone card">
                     + New Section
                 </button>
             </div>
@@ -165,6 +181,7 @@
 
 <script>
     // Global Constants avoiding protocol slashes inside template literals (Rule 9)
+    const GHL_API_BASE = 'https://services.leadconnectorhq.com';
     const SETTINGS_GATEWAY_DOMAIN = 'https://ghl-custom-workflow-settings.automybiz.workers.dev';
     const DEFAULT_GLOBALS_ID = '1u_mZhsYM3J7in_8clshqbRYzHuCC83i15OMz2i3aAHQ';
 
@@ -173,7 +190,9 @@
     const ACTIVE_GLOBALS_ID = urlParams.get('gsheet_globals_id') || DEFAULT_GLOBALS_ID;
     const CLIENT_NAME = urlParams.get('location_name') || urlParams.get('client_name') || 'Euro Parts West';
 
-    // HighLevel Logged-in User Permission Variables
+    // HighLevel Self-Healing & Permission Contexts
+    const LOCATION_ID   = urlParams.get('location_id') || '';
+    const API_TOKEN     = urlParams.get('token') || urlParams.get('automybiz_api_token') || '';
     const USER_NAME     = urlParams.get('user_name') || '';
     const USER_EMAIL    = urlParams.get('user_email') || '';
     const USER_ROLE     = (urlParams.get('user_role') || '').toLowerCase();
@@ -184,7 +203,9 @@
     let UI_STATE = {
         sections: {},
         branches: {},
-        notesOpen: {}
+        notesOpen: {},
+        autoNumber: true,
+        completedAtBottom: false
     };
 
     // Drag-and-drop state
@@ -251,30 +272,68 @@
         return false;
     }
 
+    // Self-Healing HighLevel Custom Value Provisioner
+    async function checkAndProvisionGHL() {
+        if (!LOCATION_ID || !API_TOKEN) return;
+        const cleanToken = API_TOKEN.trim();
+        if (!cleanToken.startsWith('pit-')) return;
+
+        const headers = {
+            'Authorization': 'Bearer ' + cleanToken,
+            'Version': '2021-07-28',
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+        };
+
+        try {
+            const checkUrl = `${GHL_API_BASE}/locations/${LOCATION_ID}/customValues`;
+            const res = await fetch(checkUrl, { headers });
+            if (!res.ok) return;
+
+            const data = await res.json();
+            const values = data.customValues || [];
+            const exists = values.some(v => (v.name || '').toLowerCase() === 'list_puncher_editors');
+
+            if (!exists) {
+                const createUrl = `${GHL_API_BASE}/locations/${LOCATION_ID}/customValues`;
+                const postRes = await fetch(createUrl, {
+                    method: 'POST',
+                    headers: headers,
+                    body: JSON.stringify({ name: 'list_puncher_editors', value: '' })
+                });
+                if (postRes.ok) {
+                    showToast('⚡ Auto-provisioned "list_puncher_editors" custom value in HighLevel!');
+                }
+            }
+        } catch(e) {
+            console.warn('[GHL Auto-Provisioner]:', e);
+        }
+    }
+
     // Standard Onboarding Blueprint
     const ONBOARDING_BLUEPRINT = [
-        { visible: true, id: "cf_01", parentId: "", level: 0, order: 1, checked: true, title: "1. Cloudflare Infrastructure", notes: "Master DNS and edge routing" },
-        { visible: true, id: "cf_02", parentId: "cf_01", level: 1, order: 2, checked: true, title: "Create account with admin@ email", notes: "Isolates domain security from public sales" },
-        { visible: true, id: "cf_03", parentId: "cf_01", level: 2, order: 3, checked: true, title: "Invite automybiz@gmail.com as Administrator", notes: "Enables agency management under single login" },
-        { visible: true, id: "cf_04", parentId: "cf_01", level: 1, order: 4, checked: true, title: "Deploy Sveltia CMS OAuth Authenticator Worker", notes: "Handles secure GitHub OAuth proxying" },
+        { visible: true, id: "cf_01", parentId: "", level: 0, order: 1, checked: true, title: "Cloudflare Infrastructure", notes: "Master DNS and edge routing configuration for production domain." },
+        { visible: true, id: "cf_02", parentId: "cf_01", level: 1, order: 2, checked: true, title: "Create account with admin@ email", notes: "Isolates domain security from public sales channels." },
+        { visible: true, id: "cf_03", parentId: "cf_01", level: 2, order: 3, checked: true, title: "Invite automybiz@gmail.com as Administrator", notes: "Enables agency management under single login credentials." },
+        { visible: true, id: "cf_04", parentId: "cf_01", level: 1, order: 4, checked: true, title: "Deploy Sveltia CMS OAuth Authenticator Worker", notes: "Handles secure GitHub OAuth proxying without third-party auth." },
 
-        { visible: true, id: "gh_01", parentId: "", level: 0, order: 5, checked: true, title: "2. GitHub Repository & Sveltia CMS", notes: "Codebase and CMS backend" },
-        { visible: true, id: "gh_02", parentId: "gh_01", level: 1, order: 6, checked: true, title: "Client creates GitHub account (EPWAdmin)", notes: "Gives client ownership credentials" },
-        { visible: true, id: "gh_03", parentId: "gh_01", level: 2, order: 7, checked: true, title: "Add client as repository collaborator", notes: "Allows client to commit changes via Sveltia" },
-        { visible: true, id: "gh_04", parentId: "gh_01", level: 2, order: 8, checked: true, title: "Test 1-click 'Sign In with GitHub' at /admin/", notes: "Verify login opens Sveltia dashboard" },
+        { visible: true, id: "gh_01", parentId: "", level: 0, order: 5, checked: true, title: "GitHub Repository & Sveltia CMS", notes: "Headless content management and Git repository access." },
+        { visible: true, id: "gh_02", parentId: "gh_01", level: 1, order: 6, checked: true, title: "Client creates GitHub account (EPWAdmin)", notes: "Gives client direct ownership credentials." },
+        { visible: true, id: "gh_03", parentId: "gh_01", level: 2, order: 7, checked: true, title: "Add client as repository collaborator", notes: "Allows client to commit changes via Sveltia CMS dashboard." },
+        { visible: true, id: "gh_04", parentId: "gh_01", level: 2, order: 8, checked: true, title: "Test 1-click 'Sign In with GitHub' at /admin/", notes: "Verify login opens Sveltia dashboard smoothly." },
 
-        { visible: true, id: "st_01", parentId: "", level: 0, order: 9, checked: false, title: "3. Stripe Payment Gateway", notes: "Direct on-site payments" },
-        { visible: true, id: "st_02", parentId: "st_01", level: 1, order: 10, checked: false, title: "Client creates & verifies Stripe merchant account", notes: "Connects bank for direct payouts" },
-        { visible: true, id: "st_03", parentId: "st_01", level: 1, order: 11, checked: false, title: "Generate Stripe Payment Links / Buy Buttons", notes: "Checkout links for high-ticket parts" },
+        { visible: true, id: "st_01", parentId: "", level: 0, order: 9, checked: false, title: "Stripe Payment Gateway", notes: "Direct on-site merchant payments and bank routing." },
+        { visible: true, id: "st_02", parentId: "st_01", level: 1, order: 10, checked: false, title: "Client creates & verifies Stripe merchant account", notes: "Connects bank for direct automated payouts." },
+        { visible: true, id: "st_03", parentId: "st_01", level: 1, order: 11, checked: false, title: "Generate Stripe Payment Links / Buy Buttons", notes: "Checkout links for high-ticket catalog items." },
 
-        { visible: true, id: "sb_01", parentId: "", level: 0, order: 12, checked: false, title: "4. Supabase Member Portal & Google Auth", notes: "Customer authentication engine" },
-        { visible: true, id: "sb_02", parentId: "sb_01", level: 1, order: 13, checked: false, title: "Client signs up at supabase.com (via GitHub)", notes: "Creates client-owned 2-project free org" },
-        { visible: true, id: "sb_03", parentId: "sb_01", level: 2, order: 14, checked: false, title: "Invite automybiz@gmail.com to Organization", notes: "Enables agency collaboration" },
-        { visible: true, id: "sb_04", parentId: "sb_01", level: 2, order: 15, checked: false, title: "Configure Google OAuth Provider", notes: "Enables 1-click customer login" },
+        { visible: true, id: "sb_01", parentId: "", level: 0, order: 12, checked: false, title: "Supabase Member Portal & Google Auth", notes: "Customer authentication engine and database sync." },
+        { visible: true, id: "sb_02", parentId: "sb_01", level: 1, order: 13, checked: false, title: "Client signs up at supabase.com (via GitHub)", notes: "Creates client-owned 2-project free organization." },
+        { visible: true, id: "sb_03", parentId: "sb_01", level: 2, order: 14, checked: false, title: "Invite automybiz@gmail.com to Organization", notes: "Enables agency collaboration." },
+        { visible: true, id: "sb_04", parentId: "sb_01", level: 2, order: 15, checked: false, title: "Configure Google OAuth Provider", notes: "Enables 1-click customer login on web portal." },
 
-        { visible: true, id: "ghl_01", parentId: "", level: 0, order: 16, checked: true, title: "5. AutoMyBiz & GoHighLevel Integration", notes: "CRM and workflow automations" },
-        { visible: true, id: "ghl_02", parentId: "ghl_01", level: 1, order: 17, checked: true, title: "Add Custom Menu Link: Products & Variants", notes: "Embeds Sveltia CMS iframe in sidebar" },
-        { visible: true, id: "ghl_03", parentId: "ghl_01", level: 1, order: 18, checked: false, title: "Generate Private Integration Token (PIT)", notes: "Required for live contact custom fields" }
+        { visible: true, id: "ghl_01", parentId: "", level: 0, order: 16, checked: true, title: "AutoMyBiz & GoHighLevel Integration", notes: "CRM automation and workflow webhooks." },
+        { visible: true, id: "ghl_02", parentId: "ghl_01", level: 1, order: 17, checked: true, title: "Add Custom Menu Link: Products & Variants", notes: "Embeds Sveltia CMS iframe in HighLevel sidebar menu." },
+        { visible: true, id: "ghl_03", parentId: "ghl_01", level: 1, order: 18, checked: false, title: "Generate Private Integration Token (PIT)", notes: "Required for live contact custom fields lookups." }
     ];
 
     // =========================================================================
@@ -511,23 +570,29 @@
         // Initialize modal backdrops
         initModals();
 
-        // Load Persistent UI State (Sections, Branches, Notes)
+        // Load Persistent UI State (Sections, Branches, Notes, Toggles)
         const savedUiState = localStorage.getItem('automybiz_punch_ui_state');
         if (savedUiState) {
-            try { UI_STATE = Object.assign(UI_STATE, JSON.parse(savedUiState)); } catch(e) {}
+            try { 
+                UI_STATE = Object.assign(UI_STATE, JSON.parse(savedUiState)); 
+            } catch(e) {}
         }
 
-        // PRIMARY SOURCE OF TRUTH: Direct YAML LocalStorage under new key
+        // Synchronize header button toggle states
+        updateHeaderToggleButtonsUI();
+
+        // PRIMARY SOURCE OF TRUTH: Direct YAML LocalStorage
         const savedYaml = localStorage.getItem('list_puncher_yaml');
         if (savedYaml && savedYaml.trim()) {
             TASKS_DATA = parseYamlToTasks(savedYaml);
             renderAll();
             showToast('Loaded tasks from YAML storage');
-            return;
+        } else {
+            seedOnboardingBlueprint();
         }
 
-        // Seed Onboarding Blueprint
-        seedOnboardingBlueprint();
+        // HighLevel Self-Healing Provisioner
+        checkAndProvisionGHL();
     }
 
     function saveState() {
@@ -582,7 +647,7 @@
         }
 
         let currentSection = null;
-        const sections = [];
+        let sections = [];
 
         TASKS_DATA.forEach((task, index) => {
             if (task.level === 0) {
@@ -597,12 +662,30 @@
             }
         });
 
+        // Auto-Move Completed to Bottom Engine (Google Keep style toggle)
+        if (UI_STATE.completedAtBottom) {
+            const activeSections = [];
+            const completedSections = [];
+
+            sections.forEach(sec => {
+                const total = sec.tasks.length;
+                const completed = sec.tasks.filter(t => t.item.checked).length;
+                const allDone = total > 0 && completed === total;
+                if (allDone) {
+                    completedSections.push(sec);
+                } else {
+                    activeSections.push(sec);
+                }
+            });
+
+            sections = [...activeSections, ...completedSections];
+        }
+
         sections.forEach((sec, sIdx) => {
             const secId = sec.header.id || generateSlugId('sec', sec.header.title, sIdx);
             sec.header.id = secId;
 
             const isCollapsed = Boolean(UI_STATE.sections[secId]);
-
             const totalTasks = sec.tasks.length;
             const completedTasks = sec.tasks.filter(t => t.item.checked).length;
             const allDone = totalTasks > 0 && completedTasks === totalTasks;
@@ -617,7 +700,12 @@
             deck.addEventListener('dragleave', handleSectionDragLeave);
             deck.addEventListener('drop', handleSectionDrop);
 
-            // Accordion Section Header with Action Cluster
+            // Dynamic Milestone Number Badge (#1, #2, #3)
+            const autoNumberBadgeHtml = UI_STATE.autoNumber 
+                ? `<span class="section-number-badge">#${sIdx + 1}</span>` 
+                : '';
+
+            // Accordion Section Header
             const secHdr = document.createElement('div');
             secHdr.className = 'section-header';
             secHdr.onclick = (e) => {
@@ -631,6 +719,7 @@
                           draggable="true" 
                           title="Drag to reorder section card" 
                           data-section-index="${sIdx}">⋮⋮</span>
+                    ${autoNumberBadgeHtml}
                     <input type="text" class="section-title" value="${escapeHtml(sec.header.title)}" 
                            onchange="updateSectionTitle(${sec.headerIndex}, this.value)" 
                            onclick="event.stopPropagation();" />
@@ -638,16 +727,16 @@
                 <div class="section-meta-right">
                     <!-- Section Actions: Add Task, Copy YAML, Paste YAML, Delete Section -->
                     <div class="section-header-actions" onclick="event.stopPropagation();">
-                        <button type="button" class="btn-icon sec-action-btn" title="Add task to this section" onclick="quickAddTaskToSection(${sIdx})">
+                        <button type="button" class="btn-icon sec-action-btn" title="Add task to this milestone" onclick="quickAddTaskToSection(${sIdx})">
                             ${PLUS_ADD_SVG_ICON}
                         </button>
-                        <button type="button" class="btn-icon sec-action-btn" title="Copy section as YAML" onclick="copySectionAsYaml(${sIdx})">
+                        <button type="button" class="btn-icon sec-action-btn" title="Copy milestone as YAML" onclick="copySectionAsYaml(${sIdx})">
                             ${COPY_SVG_ICON}
                         </button>
-                        <button type="button" class="btn-icon sec-action-btn" title="Paste YAML tasks into this section" onclick="openYamlModal('section', ${sIdx})">
+                        <button type="button" class="btn-icon sec-action-btn" title="Paste YAML tasks into this milestone" onclick="openYamlModal('section', ${sIdx})">
                             ${PASTE_SUBTASKS_SVG_ICON}
                         </button>
-                        <button type="button" class="btn-icon sec-action-btn delete-btn" title="Delete section and all its tasks" onclick="confirmDeleteSection(${sIdx})">
+                        <button type="button" class="btn-icon sec-action-btn delete-btn" title="Delete milestone and all its tasks" onclick="confirmDeleteSection(${sIdx})">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                                 <line x1="18" y1="6" x2="6" y2="18"></line>
                                 <line x1="6" y1="6" x2="18" y2="18"></line>
@@ -671,6 +760,33 @@
             // Collapsible Section Body
             const secBody = document.createElement('div');
             secBody.className = 'section-body';
+
+            // Milestone Description / Overview Banner at the Top
+            const secDescHtml = sec.header.notes && sec.header.notes.trim()
+                ? convertURLsToMedia(sec.header.notes)
+                : '<span class="section-description-placeholder">+ Add milestone description, objectives, YouTube videos, or architecture diagrams...</span>';
+
+            const descBlock = document.createElement('div');
+            descBlock.className = 'section-description-block';
+            descBlock.id = `sec_desc_block_${secId}`;
+            descBlock.innerHTML = `
+                <div class="section-description-view" id="sec_desc_view_${secId}" onclick="startEditSectionDescription('${secId}', ${sec.headerIndex})">
+                    ${secDescHtml}
+                </div>
+                <div class="section-description-editor" id="sec_desc_editor_${secId}" style="display: none;">
+                    <textarea class="section-description-textarea auto-expand-textarea" 
+                              id="sec_desc_textarea_${secId}" 
+                              placeholder="Add milestone description, overview, images or YouTube links..."
+                              oninput="autoExpandTextarea(this);"
+                              onkeydown="handleSectionDescKeydown(event, '${secId}', ${sec.headerIndex}, this)"
+                              onblur="finishEditSectionDescription('${secId}', ${sec.headerIndex}, this)">${escapeHtml(sec.header.notes || '')}</textarea>
+                    <div class="notes-edit-footer">
+                        <span>Press <strong>Ctrl+Enter</strong> to save • <strong>Esc</strong> to cancel</span>
+                        <button type="button" class="btn-action btn-sm" onmousedown="finishEditSectionDescription('${secId}', ${sec.headerIndex}, document.getElementById('sec_desc_textarea_${secId}'))">✓ Done</button>
+                    </div>
+                </div>
+            `;
+            secBody.appendChild(descBlock);
 
             const list = document.createElement('div');
             list.className = 'task-list';
@@ -707,7 +823,7 @@
                     hiddenBelowLevel = t.level;
                 }
 
-                // Tight relative indent: Level 1 flush at 4px, subnodes indent 22px relatively
+                // Relative indentation: Level 1 flush at 4px, subnodes indent 22px relatively
                 const dynamicPadding = Math.max(4, (t.level - 1) * 22 + 4);
 
                 const row = document.createElement('div');
@@ -780,12 +896,9 @@
 
                     <!-- Tier 2: Task Notes Block (Full Width, Zero Right Squeeze!) -->
                     <div class="task-notes-block ${!isNotesOpen ? 'is-hidden-notes' : ''}" id="notes_block_${taskId}">
-                        <!-- View Mode (Click anywhere to edit) -->
                         <div class="task-notes-view" id="notes_view_${taskId}" onclick="startEditNotes('${taskId}', ${realIdx})">
                             ${renderedNotesHtml}
                         </div>
-                        
-                        <!-- Edit Mode (Auto-focused on click) -->
                         <div class="task-notes-editor" id="notes_editor_${taskId}" style="display: none;">
                             <textarea class="task-notes-textarea auto-expand-textarea" 
                                       id="notes_textarea_${taskId}"
@@ -856,6 +969,61 @@
         if (btn) btn.innerText = anyOpen ? '▼ Expand All' : '☰ Collapse All';
     }
 
+    // Granular Filters: Completed vs To-Do
+    function toggleCompletedSections() {
+        const decks = document.querySelectorAll('.section-deck.all-tasks-completed');
+        if (!decks.length) return;
+        const anyOpen = Array.from(decks).some(d => !d.classList.contains('is-collapsed'));
+
+        decks.forEach(d => {
+            const secId = d.id.replace('deck_', () => '');
+            UI_STATE.sections[secId] = anyOpen;
+            d.classList.toggle('is-collapsed', anyOpen);
+        });
+        saveState();
+    }
+
+    function toggleToDoSections() {
+        const decks = document.querySelectorAll('.section-deck:not(.all-tasks-completed)');
+        if (!decks.length) return;
+        const anyOpen = Array.from(decks).some(d => !d.classList.contains('is-collapsed'));
+
+        decks.forEach(d => {
+            const secId = d.id.replace('deck_', () => '');
+            UI_STATE.sections[secId] = anyOpen;
+            d.classList.toggle('is-collapsed', anyOpen);
+        });
+        saveState();
+    }
+
+    function toggleCompletedAtBottom() {
+        UI_STATE.completedAtBottom = !UI_STATE.completedAtBottom;
+        saveState();
+        updateHeaderToggleButtonsUI();
+        renderAll();
+    }
+
+    function toggleAutoNumber() {
+        UI_STATE.autoNumber = !UI_STATE.autoNumber;
+        saveState();
+        updateHeaderToggleButtonsUI();
+        renderAll();
+    }
+
+    function updateHeaderToggleButtonsUI() {
+        const btnBottom = document.getElementById('btnCompletedBottom');
+        if (btnBottom) {
+            btnBottom.classList.toggle('active', Boolean(UI_STATE.completedAtBottom));
+            btnBottom.innerText = `⬇️ Bottom: ${UI_STATE.completedAtBottom ? 'ON' : 'OFF'}`;
+        }
+
+        const btnAutoNum = document.getElementById('btnAutoNumber');
+        if (btnAutoNum) {
+            btnAutoNum.classList.toggle('active', Boolean(UI_STATE.autoNumber));
+            btnAutoNum.innerText = `🔢 Auto-Number: ${UI_STATE.autoNumber ? 'ON' : 'OFF'}`;
+        }
+    }
+
     // Toggle Branch Children or Leaf Notes
     function handleArrowClick(realIdx) {
         const task = TASKS_DATA[realIdx];
@@ -870,6 +1038,60 @@
 
         saveState();
         renderAll();
+    }
+
+    // Section Description Controller
+    function startEditSectionDescription(secId, headerIdx) {
+        const viewEl = document.getElementById(`sec_desc_view_${secId}`);
+        const editorEl = document.getElementById(`sec_desc_editor_${secId}`);
+        const textarea = document.getElementById(`sec_desc_textarea_${secId}`);
+
+        if (!viewEl || !editorEl || !textarea) return;
+
+        viewEl.style.display = 'none';
+        editorEl.style.display = 'flex';
+        textarea.dataset.originalValue = textarea.value;
+
+        autoExpandTextarea(textarea);
+        textarea.focus();
+    }
+
+    function finishEditSectionDescription(secId, headerIdx, textarea) {
+        if (!textarea) return;
+        const newVal = textarea.value.trim();
+        const sec = TASKS_DATA[headerIdx];
+
+        if (sec) {
+            sec.notes = newVal;
+            saveState();
+        }
+
+        const viewEl = document.getElementById(`sec_desc_view_${secId}`);
+        const editorEl = document.getElementById(`sec_desc_editor_${secId}`);
+
+        if (viewEl && editorEl) {
+            viewEl.innerHTML = newVal 
+                ? convertURLsToMedia(newVal) 
+                : '<span class="section-description-placeholder">+ Add milestone description, objectives, YouTube videos, or architecture diagrams...</span>';
+            editorEl.style.display = 'none';
+            viewEl.style.display = 'block';
+        }
+    }
+
+    function handleSectionDescKeydown(e, secId, headerIdx, textarea) {
+        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+            e.preventDefault();
+            textarea.blur();
+        } else if (e.key === 'Escape') {
+            e.preventDefault();
+            textarea.value = textarea.dataset.originalValue || '';
+            const viewEl = document.getElementById(`sec_desc_view_${secId}`);
+            const editorEl = document.getElementById(`sec_desc_editor_${secId}`);
+            if (viewEl && editorEl) {
+                editorEl.style.display = 'none';
+                viewEl.style.display = 'block';
+            }
+        }
     }
 
     // Inline Task Notes Controller
@@ -1069,21 +1291,22 @@
     }
 
     function addNewSection() {
-        const title = prompt('Enter New Section Title:', '1. Project Setup');
+        const title = prompt('Enter New Milestone Title:', 'Milestone Name');
         if (title && title.trim()) {
+            const cleanTitle = title.replace(/^\d+\.\s*/, () => '').trim();
             TASKS_DATA.push({
                 visible: true,
-                id: generateSlugId('sec', title, TASKS_DATA.length + 1),
+                id: generateSlugId('sec', cleanTitle, TASKS_DATA.length + 1),
                 parentId: '',
                 level: 0,
                 order: TASKS_DATA.length + 1,
                 checked: false,
-                title: title.trim(),
+                title: cleanTitle,
                 notes: ''
             });
             saveState();
             renderAll();
-            showToast('Created section: ' + title);
+            showToast('Created section: ' + cleanTitle);
         }
     }
 
@@ -1428,7 +1651,13 @@
                 lines.push('# ==========================================');
                 lines.push('section: "' + t.title.replace(/"/g, () => '\\"') + '"');
                 if (t.notes && t.notes.trim()) {
-                    lines.push('description: "' + t.notes.replace(/"/g, () => '\\"') + '"');
+                    const descLines = t.notes.trim().split(/\r?\n/);
+                    if (descLines.length === 1) {
+                        lines.push('description: "' + descLines[0].replace(/"/g, () => '\\"') + '"');
+                    } else {
+                        lines.push('description: |');
+                        descLines.forEach(dl => lines.push('  ' + dl));
+                    }
                 }
                 lines.push('tasks:');
             } else {
@@ -1453,11 +1682,10 @@
         return lines.join('\n').trim();
     }
 
-    // Intelligent YAML Parser with Leading Tab Normalization & Shallowest Indent Calibration
+    // YAML Parser with Tab Normalization, Smart Clean Section Titles & Level 1 Calibration
     function parseYamlToTasks(yamlText) {
         if (!yamlText || !yamlText.trim()) return [];
 
-        // 1. Convert all literal tabs to double spaces
         let sanitized = yamlText.replace(/\t/g, () => '  ');
         const lines = sanitized.split(/\r?\n/);
         const result = [];
@@ -1465,8 +1693,11 @@
         let currentSection = null;
         let currentTask = null;
         let inNotesBlock = false;
+        let inDescBlock = false;
         let notesIndent = 0;
+        let descIndent = 0;
         let noteLines = [];
+        let descLines = [];
 
         // Pre-scan: determine shallowest task indent per section
         let sectionBaseIndents = [];
@@ -1495,6 +1726,24 @@
 
             if (!trimmed || trimmed.startsWith('#')) continue;
 
+            if (inDescBlock) {
+                const indentMatch = rawLine.match(/^(\s*)/);
+                const lineIndent = indentMatch ? indentMatch[1].length : 0;
+                if (lineIndent >= descIndent && trimmed !== '') {
+                    descLines.push(rawLine.substring(descIndent));
+                    continue;
+                } else if (trimmed === '') {
+                    descLines.push('');
+                    continue;
+                } else {
+                    if (currentSection) {
+                        currentSection.notes = descLines.join('\n').trim();
+                    }
+                    inDescBlock = false;
+                    descLines = [];
+                }
+            }
+
             if (inNotesBlock) {
                 const indentMatch = rawLine.match(/^(\s*)/);
                 const lineIndent = indentMatch ? indentMatch[1].length : 0;
@@ -1515,15 +1764,18 @@
 
             const sectionMatch = trimmed.match(/^section:\s*["']?(.*?)["']?$/i);
             if (sectionMatch) {
-                const sTitle = sectionMatch[1].trim();
+                // Automatically strip leading numbers from imported titles
+                const rawTitle = sectionMatch[1].trim();
+                const cleanTitle = rawTitle.replace(/^\d+\.\s*/, () => '').trim();
+
                 currentSection = {
                     visible: true,
-                    id: generateSlugId('sec', sTitle, result.length),
+                    id: generateSlugId('sec', cleanTitle, result.length),
                     parentId: '',
                     level: 0,
                     order: result.length + 1,
                     checked: false,
-                    title: sTitle,
+                    title: cleanTitle,
                     notes: ''
                 };
                 result.push(currentSection);
@@ -1534,9 +1786,17 @@
                 continue;
             }
 
-            const descMatch = trimmed.match(/^description:\s*["']?(.*?)["']?$/i);
+            const descMatch = trimmed.match(/^description:\s*(?:["']?(.*?)["']?)$/i);
             if (descMatch && currentSection && !currentTask) {
-                currentSection.notes = descMatch[1].trim();
+                const descVal = descMatch[1].trim();
+                if (descVal === '|' || descVal === '>') {
+                    inDescBlock = true;
+                    const indentMatch = rawLine.match(/^(\s*)/);
+                    descIndent = (indentMatch ? indentMatch[1].length : 0) + 2;
+                    descLines = [];
+                } else {
+                    currentSection.notes = descVal;
+                }
                 continue;
             }
 
@@ -1568,7 +1828,7 @@
                         level: 0,
                         order: 1,
                         checked: false,
-                        title: '1. Project Setup',
+                        title: 'Project Setup',
                         notes: ''
                     };
                     result.push(currentSection);
@@ -1591,6 +1851,10 @@
                 result.push(currentTask);
                 continue;
             }
+        }
+
+        if (inDescBlock && currentSection && descLines.length > 0) {
+            currentSection.notes = descLines.join('\n').trim();
         }
 
         if (inNotesBlock && currentTask && noteLines.length > 0) {
@@ -1743,6 +2007,38 @@
         const yamlStr = formatTasksSliceAsYaml(TASKS_DATA);
         navigator.clipboard.writeText(yamlStr).then(() => {
             showToast('📋 Copied full punch list as YAML (ready for Notepad++)!');
+        }).catch(() => {
+            showToast('Failed to copy. Please allow clipboard permissions.');
+        });
+    }
+
+    // Copy Tailored AI Prompt to Clipboard
+    function copyAiPromptToClipboard() {
+        const aiPromptText = `Convert the goals, tasks and milestones from our discussion above into List Puncher YAML format.
+
+Format rules:
+- Output raw YAML only (no markdown code blocks, no conversational preamble).
+- Use strictly 2-space indentation (no literal tabs).
+- Use clean section names WITHOUT numbers (e.g. section: "Cloudflare Infrastructure") because List Puncher automatically numbers milestones dynamically.
+- Include a full, detailed description under each section explaining the objectives, prerequisites, and context (descriptions can be as long as needed).
+- Every unfinished task must start with an empty checkbox: - [ ] Task Title
+- Every finished task must start with an empty checkbox: - [x] Task Title
+- Notes can be single-line (notes: "...") or multi-line blocks (notes: | ...).
+- Feel free to include YouTube video/tutorial links (including timestamps if needed ?t=111s) and image links inside task notes or descriptions (List Puncher auto-renders them into video players and images).
+- Nest subtasks under their parent tasks by indenting 2 additional spaces.
+- Nesting depth limit doesn't exist. Nest the tasks as deep as needed.
+
+YAML Structure:
+section: "Goal/Milestone Name"
+description: |
+  Multi-line overview of this goal/milestone...
+tasks:
+  - [ ] Task Title
+    notes: "Helpful instructions or links"
+    - [ ] Subtask Title`;
+
+        navigator.clipboard.writeText(aiPromptText).then(() => {
+            showToast('🤖 AI Prompt copied! Paste into ChatGPT, Claude, or Gemini.');
         }).catch(() => {
             showToast('Failed to copy. Please allow clipboard permissions.');
         });
