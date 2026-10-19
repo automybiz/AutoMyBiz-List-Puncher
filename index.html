@@ -5,10 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="robots" content="noindex, nofollow">
     <meta name="darkreader-lock">
-    <title>AutoMyBiz - Client Onboarding Punch List</title>
+    <title>List Puncher - Client Onboarding &amp; Task Engine</title>
+    
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
+    
+    <!-- Separated Master Stylesheet (Zero Prism Crash) -->
+    <link rel="stylesheet" href="index.css">
 
     <script>
     /* Universal Dark Reader Kill Switch (Rule 9) */
@@ -47,1036 +51,6 @@
         } catch (e) {}
     })();
     </script>
-
-    <style id="epwThemeStylesFallback">
-        :root {
-            --page-bg: #011;
-            --card-bg: #011;
-            --card-header-bg: #033;
-            --card-header-hover: #044;
-            --card-hover-bg: #022;
-            --border-color: #0FF;
-            --accent-cyan: #0FF;
-            --accent-blue: #3BF;
-            --accent-green: #0F8;
-            --accent-yellow: #FA0;
-            --accent-red: #F33;
-            --text-primary: #FFF;
-            --text-secondary: #9AB;
-            --text-muted: #79A;
-            --font-family: 'Inter', -apple-system, sans-serif;
-            --font-mono: 'Fira Code', monospace, monospace;
-            --indent-step: 22px;
-
-            --completed-opacity: 0.42;
-
-            --card-border-color-1: #0FF;
-            --card-border-color-2: #F80;
-            --card-border-speed: 30s;
-            --special-effects-color-1: #064;
-            --special-effects-color-2: #0FF;
-            --special-effects-color-3: #3BF;
-            --special-effects-color-4: #A85;
-        }
-
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
-
-        body {
-            font-family: var(--font-family);
-            background-color: var(--page-bg);
-            background-image: 
-                radial-gradient(rgba(0, 229, 255, 0.04) 1px, transparent 1px),
-                radial-gradient(rgba(0, 0, 0, 0.8) 15%, transparent 16%);
-            background-size: 24px 24px, 16px 16px;
-            color: var(--text-primary);
-            line-height: 1.5;
-            padding: 24px 16px 80px;
-            transition: background-color 0.25s ease, color 0.25s ease;
-        }
-
-        .container {
-            max-width: 980px;
-            margin: 0 auto;
-        }
-
-        /* Top Control Header Card */
-        .header-card {
-            background: var(--card-bg);
-            border: 1.5px solid var(--border-color);
-            border-radius: 12px;
-            padding: 20px 24px;
-            margin-bottom: 24px;
-            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6);
-            position: relative;
-        }
-
-        .header-top {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 12px;
-            border-bottom: 1px solid var(--border-color);
-            padding-bottom: 16px;
-        }
-
-        .brand-title-wrap {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            flex-wrap: wrap;
-        }
-
-        .brand-title {
-            font-size: 1.35rem;
-            font-weight: 800;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .brand-title span.cyan {
-            color: var(--accent-cyan);
-        }
-
-        /* Storage Pill */
-        .header-pill-wrap {
-            position: relative;
-            display: inline-flex;
-            align-items: center;
-        }
-
-        .status-pill {
-            background-color: var(--card-header-bg);
-            color: var(--accent-cyan);
-            border: 1px solid var(--border-color);
-            border-radius: 20px;
-            padding: 4px 12px;
-            font-size: 0.8rem;
-            font-family: inherit;
-            font-weight: 700;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            user-select: none;
-            line-height: 1.2;
-            text-decoration: none;
-        }
-
-        .status-pill:hover {
-            border-color: var(--accent-cyan);
-            box-shadow: 0 0 10px rgba(0, 255, 255, 0.3);
-            transform: translateY(-1px);
-        }
-
-        .status-pill.status-healthy {
-            background: rgba(16, 185, 129, 0.12);
-            color: #10b981;
-            border-color: #10b981;
-        }
-
-        .status-tooltip-popover {
-            visibility: hidden;
-            width: max-content;
-            min-width: 320px;
-            max-width: 440px;
-            background: #0d121f;
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            padding: 12px 16px;
-            position: absolute;
-            top: calc(100% + 8px);
-            left: 0;
-            z-index: 10000;
-            box-shadow: 0 12px 35px rgba(0,0,0,0.85);
-            opacity: 0;
-            transform: translateY(-4px);
-            transition: opacity 0.2s ease, transform 0.2s ease;
-            pointer-events: none;
-            font-size: 11.5px;
-            line-height: 1.5;
-            user-select: text;
-        }
-
-        .header-pill-wrap:hover .status-tooltip-popover {
-            visibility: visible;
-            opacity: 1;
-            transform: translateY(0);
-            pointer-events: auto;
-        }
-
-        .tooltip-hdr {
-            font-weight: 700;
-            color: var(--accent-cyan);
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-            padding-bottom: 4px;
-            margin-bottom: 8px;
-            font-size: 12px;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-
-        .tooltip-code-box {
-            font-family: var(--font-mono);
-            font-size: 11px;
-            background: rgba(0, 0, 0, 0.4);
-            border: 1px solid rgba(0, 229, 255, 0.25);
-            border-radius: 4px;
-            padding: 6px 8px;
-            margin: 6px 0;
-            word-break: break-all;
-            color: #fff;
-            user-select: all;
-        }
-
-        .header-actions {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            flex-wrap: wrap;
-        }
-
-        .btn-action {
-            background: var(--card-header-bg);
-            border: 1px solid var(--border-color);
-            color: var(--text-primary);
-            padding: 7px 14px;
-            border-radius: 6px;
-            font-size: 0.85rem;
-            font-weight: 600;
-            font-family: inherit;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            user-select: none;
-        }
-
-        .btn-action:hover {
-            border-color: var(--accent-cyan);
-            color: #fff;
-            transform: translateY(-1px);
-        }
-
-        .btn-primary {
-            background: var(--accent-cyan);
-            border-color: var(--accent-cyan);
-            color: #011;
-            font-weight: 800;
-        }
-
-        .btn-primary:hover {
-            background: #fff;
-            color: #011;
-        }
-
-        /* Progress Bar */
-        .progress-section {
-            margin-top: 16px;
-        }
-
-        .progress-labels {
-            display: flex;
-            justify-content: space-between;
-            font-size: 0.85rem;
-            color: var(--text-secondary);
-            margin-bottom: 8px;
-            font-weight: 600;
-        }
-
-        .progress-track {
-            width: 100%;
-            height: 8px;
-            background: rgba(0, 0, 0, 0.5);
-            border-radius: 4px;
-            overflow: hidden;
-            border: 1px solid rgba(0, 255, 255, 0.15);
-        }
-
-        .progress-fill {
-            height: 100%;
-            background: linear-gradient(90deg, var(--accent-cyan), var(--accent-green));
-            width: 0%;
-            transition: width 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-        }
-
-        /* Border Animation Architecture */
-        @property --border-angle {
-            syntax: "<angle>";
-            inherits: false;
-            initial-value: 0deg;
-        }
-
-        @keyframes rotateBorderBeam {
-            to { --border-angle: 360deg; }
-        }
-
-        @keyframes flowBeamRail {
-            0% { background-position: 0% 50%; }
-            100% { background-position: 300% 50%; }
-        }
-
-        .section-deck {
-            background: var(--card-bg);
-            border: 1.5px solid var(--border-color);
-            border-radius: 12px;
-            margin-bottom: 20px;
-            overflow: hidden;
-            transition: border-color 0.2s ease, box-shadow 0.2s ease, opacity 0.25s ease;
-            position: relative;
-        }
-
-        .section-deck:hover {
-            border-color: var(--accent-cyan);
-        }
-
-        .section-deck.all-tasks-completed {
-            opacity: var(--completed-opacity);
-        }
-
-        .section-deck.all-tasks-completed:hover {
-            opacity: 1 !important;
-        }
-
-        .section-deck.is-collapsed {
-            border-color: var(--border-color);
-        }
-
-        .section-deck.section-dragging {
-            opacity: 0.35;
-            border: 1.5px dashed var(--accent-cyan);
-        }
-
-        .card-border-animated .section-deck:not(.is-collapsed) {
-            border: 1.5px solid transparent !important;
-            animation: rotateBorderBeam var(--card-border-speed, 30s) linear infinite !important;
-            box-shadow: 0 4px 25px rgba(0,0,0,0.5);
-        }
-
-        .card-border-animated .section-deck:not(.is-collapsed) .section-header {
-            position: relative;
-            background: var(--card-header-hover) !important;
-        }
-
-        .card-border-animated .section-deck:not(.is-collapsed) .section-header::after {
-            content: "";
-            position: absolute;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            height: 1.5px;
-            z-index: 2;
-            pointer-events: none;
-        }
-
-        .card-border-animated.effect-hue-sweep .section-deck:not(.is-collapsed) {
-            background: 
-                linear-gradient(var(--card-bg), var(--card-bg)) padding-box,
-                conic-gradient(
-                    in hsl longer hue from var(--border-angle),
-                    var(--card-border-color-1) 0%,
-                    var(--card-border-color-2) 50%,
-                    var(--card-border-color-1) 100%
-                ) border-box !important;
-        }
-        .card-border-animated.effect-hue-sweep .section-deck:not(.is-collapsed) .section-header::after {
-            background: linear-gradient(
-                90deg,
-                var(--card-border-color-1) 0%,
-                #38BDF8 25%,
-                var(--card-border-color-2) 50%,
-                #A855F7 75%,
-                var(--card-border-color-1) 100%
-            );
-            background-size: 300% 100%;
-            animation: flowBeamRail var(--card-border-speed, 30s) linear infinite !important;
-        }
-
-        .section-drop-indicator {
-            height: 4px;
-            background: linear-gradient(90deg, var(--accent-cyan), var(--accent-green));
-            border-radius: 2px;
-            margin: 8px 0;
-            box-shadow: 0 0 12px var(--accent-cyan);
-            pointer-events: none;
-        }
-
-        .section-header {
-            background: var(--card-header-bg);
-            padding: 12px 16px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border-bottom: 1px solid var(--border-color);
-            cursor: pointer;
-            user-select: none;
-            transition: background 0.2s ease, color 0.2s ease;
-            gap: 10px;
-        }
-
-        .section-header:hover {
-            background: var(--card-header-hover);
-        }
-
-        .section-deck.is-collapsed .section-header {
-            border-bottom: none;
-        }
-
-        .section-title-wrap {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            flex: 1;
-            min-width: 0;
-        }
-
-        .drag-handle {
-            color: var(--text-muted);
-            cursor: grab;
-            font-size: 14px;
-            padding: 2px 4px;
-            user-select: none;
-            opacity: 0.5;
-            transition: opacity 0.2s, color 0.2s, transform 0.15s ease;
-            flex-shrink: 0;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .drag-handle:hover {
-            opacity: 1;
-            color: var(--accent-cyan);
-            transform: scale(1.15);
-        }
-
-        .section-title {
-            font-size: 1.02rem;
-            font-weight: 700;
-            color: var(--accent-cyan);
-            border: none;
-            background: transparent;
-            font-family: inherit;
-            width: 100%;
-            outline: none;
-            cursor: text;
-        }
-
-        .section-title:focus {
-            border-bottom: 1px dashed var(--accent-cyan);
-        }
-
-        .section-meta-right {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            flex-shrink: 0;
-        }
-
-        /* Section Header Action Buttons */
-        .section-header-actions {
-            display: flex;
-            align-items: center;
-            gap: 3px;
-        }
-
-        .sec-action-btn {
-            color: var(--text-muted);
-            padding: 4px;
-            border-radius: 4px;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            transition: all 0.15s ease;
-        }
-
-        .sec-action-btn:hover {
-            background: rgba(0, 229, 255, 0.15);
-            color: var(--accent-cyan);
-        }
-
-        .sec-action-btn.delete-btn:hover {
-            background: rgba(239, 68, 68, 0.2);
-            color: var(--accent-red);
-        }
-
-        .section-counter-badge {
-            font-size: 0.75rem;
-            font-weight: 700;
-            padding: 3px 8px;
-            border-radius: 12px;
-            background: rgba(255, 255, 255, 0.06);
-            color: var(--text-secondary);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            letter-spacing: 0.3px;
-        }
-
-        .section-counter-badge.all-done {
-            background: rgba(16, 185, 129, 0.15);
-            color: var(--accent-green);
-            border-color: rgba(16, 185, 129, 0.35);
-        }
-
-        .accordion-chevron {
-            font-size: 11px;
-            color: var(--accent-cyan);
-            transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-            display: inline-block;
-        }
-
-        .section-deck.is-collapsed .accordion-chevron {
-            transform: rotate(-90deg);
-            color: var(--text-muted);
-        }
-
-        .section-body {
-            transition: max-height 0.3s ease-out;
-            overflow: hidden;
-            background: var(--card-bg);
-        }
-
-        .section-deck.is-collapsed .section-body {
-            display: none;
-        }
-
-        .task-list {
-            padding: 6px 10px;
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-            position: relative;
-        }
-
-        /* Task Row Layout — Two-Tier Architecture */
-        .task-row {
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-            padding: 6px 8px;
-            border-radius: 8px;
-            background: rgba(255, 255, 255, 0.02);
-            border: 1px solid transparent;
-            transition: background 0.15s ease, border-color 0.15s ease, opacity 0.2s ease;
-            position: relative;
-            user-select: text;
-        }
-
-        .task-row:hover {
-            background: var(--card-hover-bg);
-            border-color: rgba(255, 255, 255, 0.08);
-        }
-
-        .task-row.is-checked {
-            opacity: var(--completed-opacity);
-        }
-
-        .task-row.is-checked:hover {
-            opacity: 1 !important;
-        }
-
-        .task-row.is-dragging {
-            opacity: 0.35;
-            background: rgba(0, 229, 255, 0.05);
-            border: 1px dashed var(--accent-cyan);
-        }
-
-        .task-row.is-subtree-child {
-            opacity: 0.45;
-            border-left: 2px dashed rgba(0, 229, 255, 0.5) !important;
-        }
-
-        .drop-indicator-line {
-            height: 3px;
-            background: linear-gradient(90deg, var(--accent-cyan), #3b82f6);
-            border-radius: 2px;
-            margin: 2px 0;
-            box-shadow: 0 0 10px var(--accent-cyan);
-            transition: margin-left 0.15s ease;
-            pointer-events: none;
-        }
-
-        .task-row.is-nested {
-            border-left: 2px solid rgba(0, 229, 255, 0.25);
-            border-radius: 0 8px 8px 0;
-        }
-
-        /* Tier 1: Task Main Line (Title + Controls) */
-        .task-main-line {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            width: 100%;
-        }
-
-        /* 16x16 Double Chevron Button */
-        .tree-arrow-btn {
-            background: transparent;
-            border: none;
-            color: var(--accent-cyan);
-            cursor: pointer;
-            padding: 1px;
-            border-radius: 4px;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            transition: color 0.15s ease, background 0.15s ease;
-            line-height: 1;
-            flex-shrink: 0;
-            user-select: none;
-            width: 22px;
-            height: 22px;
-        }
-
-        .tree-arrow-btn:hover {
-            background: rgba(0, 255, 255, 0.15);
-            color: #fff;
-        }
-
-        .tree-arrow-btn svg {
-            display: block;
-            width: 16px;
-            height: 16px;
-            transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-        }
-
-        .tree-arrow-btn.is-collapsed svg {
-            transform: rotate(-90deg);
-            color: var(--text-muted);
-        }
-
-        .tree-arrow-btn.is-leaf-arrow {
-            color: var(--text-muted);
-        }
-
-        .tree-arrow-btn.is-leaf-arrow:hover {
-            color: var(--accent-cyan);
-        }
-
-        .task-checkbox-wrap {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            flex-shrink: 0;
-        }
-
-        .task-checkbox {
-            width: 17px;
-            height: 17px;
-            cursor: pointer;
-            accent-color: var(--accent-green);
-        }
-
-        .task-title-input {
-            flex: 1;
-            background: transparent;
-            border: none;
-            color: var(--text-primary);
-            font-size: 0.92rem;
-            font-family: inherit;
-            outline: none;
-            padding: 2px 0;
-            transition: color 0.15s ease;
-            cursor: text;
-            min-width: 0;
-        }
-
-        .task-title-input:focus {
-            border-bottom: 1px dashed var(--accent-cyan);
-        }
-
-        .task-right-cluster {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            flex-shrink: 0;
-        }
-
-        .task-actions {
-            display: flex;
-            align-items: center;
-            gap: 2px;
-            opacity: 0;
-            transition: opacity 0.15s ease;
-            flex-shrink: 0;
-        }
-
-        .task-row:hover .task-actions {
-            opacity: 1;
-        }
-
-        /* Pill Badge without Parentheses */
-        .branch-count-badge {
-            font-size: 0.75rem;
-            font-weight: 700;
-            color: var(--accent-cyan);
-            background: rgba(0, 229, 255, 0.12);
-            border: 1px solid rgba(0, 229, 255, 0.3);
-            border-radius: 10px;
-            padding: 1px 6px;
-            min-width: 18px;
-            text-align: center;
-            line-height: 1.2;
-            user-select: none;
-            letter-spacing: 0.3px;
-        }
-
-        /* Tier 2: Task Notes Block (Full Width, Zero Squeeze!) */
-        .task-notes-block {
-            width: 100%;
-            margin-top: 2px;
-            padding-left: 56px; /* Aligns neatly under the task title */
-            box-sizing: border-box;
-        }
-
-        .task-notes-block.is-hidden-notes {
-            display: none !important;
-        }
-
-        .task-notes-view {
-            font-size: 0.82rem;
-            color: var(--text-secondary);
-            line-height: 1.5;
-            padding: 8px 12px;
-            border-radius: 6px;
-            background: rgba(0, 0, 0, 0.22);
-            border: 1px solid rgba(0, 229, 255, 0.12);
-            cursor: pointer;
-            transition: all 0.15s ease;
-            min-height: 28px;
-            word-break: break-word;
-            width: 100%;
-            box-sizing: border-box;
-        }
-
-        .task-notes-view:hover {
-            border-color: var(--accent-cyan);
-            background: rgba(0, 0, 0, 0.35);
-            color: #fff;
-        }
-
-        .notes-placeholder {
-            color: var(--text-muted);
-            font-style: italic;
-            font-size: 0.78rem;
-        }
-
-        .task-notes-view:hover .notes-placeholder {
-            color: var(--accent-cyan);
-        }
-
-        .task-notes-editor {
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-            width: 100%;
-        }
-
-        .task-notes-textarea {
-            width: 100%;
-            background: rgba(0, 0, 0, 0.45);
-            border: 1px solid var(--accent-cyan);
-            border-radius: 6px;
-            color: #fff;
-            font-size: 0.82rem;
-            font-family: inherit;
-            outline: none;
-            padding: 8px 12px;
-            line-height: 1.45;
-            resize: vertical;
-            min-height: 60px;
-            cursor: text;
-            user-select: text;
-            box-sizing: border-box;
-        }
-
-        .notes-edit-footer {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            font-size: 0.72rem;
-            color: var(--text-muted);
-            padding: 0 2px;
-        }
-
-        /* Auto Media Display Containers */
-        .media-video-container {
-            position: relative;
-            width: 100%;
-            max-width: 680px;
-            aspect-ratio: 16 / 9;
-            margin: 8px 0;
-            border-radius: 8px;
-            overflow: hidden;
-            border: 1px solid var(--border-color);
-            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
-        }
-
-        .media-video-frame {
-            position: absolute;
-            inset: 0;
-            width: 100%;
-            height: 100%;
-            border: none;
-        }
-
-        .media-image-container {
-            margin: 8px 0;
-            display: inline-block;
-            max-width: 100%;
-        }
-
-        .media-image-content {
-            max-width: 100%;
-            max-height: 380px;
-            border-radius: 6px;
-            border: 1px solid rgba(0, 229, 255, 0.25);
-            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
-            cursor: pointer;
-            transition: transform 0.15s ease, border-color 0.15s ease;
-            display: block;
-        }
-
-        .media-image-content:hover {
-            border-color: var(--accent-cyan);
-            transform: scale(1.01);
-        }
-
-        .note-link {
-            color: var(--accent-cyan);
-            text-decoration: underline;
-            word-break: break-all;
-        }
-
-        .note-link:hover {
-            color: #fff;
-        }
-
-        .btn-icon {
-            background: transparent;
-            border: none;
-            color: var(--text-muted);
-            padding: 4px;
-            border-radius: 4px;
-            cursor: pointer;
-            transition: all 0.15s ease;
-            line-height: 1;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .btn-icon:hover {
-            background: rgba(255, 255, 255, 0.1);
-            color: #fff;
-        }
-
-        .btn-icon.copy-btn:hover,
-        .btn-icon.paste-btn:hover {
-            background: rgba(0, 229, 255, 0.2);
-            color: var(--accent-cyan);
-        }
-
-        .btn-icon.delete-btn:hover {
-            background: rgba(239, 68, 68, 0.2);
-            color: var(--accent-red);
-        }
-
-        /* Compact Bottom-Left Floating Add Task Button */
-        .section-footer-bar {
-            padding: 4px 12px 10px 12px;
-            display: flex;
-            align-items: center;
-        }
-
-        .btn-ghost-add {
-            background: transparent;
-            border: 1px dashed rgba(0, 229, 255, 0.25);
-            color: var(--text-muted);
-            border-radius: 4px;
-            padding: 4px 10px;
-            font-size: 0.78rem;
-            font-family: inherit;
-            cursor: pointer;
-            display: inline-flex;
-            align-items: center;
-            gap: 5px;
-            transition: all 0.15s ease;
-        }
-
-        .btn-ghost-add:hover {
-            border-color: var(--accent-cyan);
-            color: var(--accent-cyan);
-            background: rgba(0, 229, 255, 0.05);
-        }
-
-        /* YAML Modal Overlay */
-        .modal-overlay {
-            position: fixed;
-            inset: 0;
-            z-index: 10000;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
-            background: rgba(3, 7, 18, 0.85);
-            backdrop-filter: blur(8px);
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity 0.2s ease;
-        }
-
-        .modal-overlay.open {
-            opacity: 1;
-            pointer-events: auto;
-        }
-
-        .modal-card {
-            background: var(--card-bg);
-            border: 1.5px solid var(--border-color);
-            border-radius: 12px;
-            width: 100%;
-            max-width: 820px;
-            height: 82vh;
-            display: flex;
-            flex-direction: column;
-            box-shadow: 0 24px 60px rgba(0, 0, 0, 0.85);
-            overflow: hidden;
-            transform: scale(0.96);
-            transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-        }
-
-        .modal-overlay.open .modal-card {
-            transform: scale(1);
-        }
-
-        .modal-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 14px 20px;
-            background: var(--card-header-bg);
-            border-bottom: 1px solid var(--border-color);
-        }
-
-        .modal-title-wrap {
-            display: flex;
-            flex-direction: column;
-            gap: 2px;
-        }
-
-        .modal-title {
-            font-size: 1.1rem;
-            font-weight: 800;
-            color: var(--accent-cyan);
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .modal-subtitle {
-            font-size: 0.75rem;
-            color: var(--text-muted);
-        }
-
-        .modal-close-btn {
-            background: transparent;
-            border: none;
-            color: var(--text-muted);
-            font-size: 1.2rem;
-            cursor: pointer;
-            padding: 4px 8px;
-            border-radius: 4px;
-            transition: color 0.15s ease, background 0.15s ease;
-            line-height: 1;
-        }
-
-        .modal-close-btn:hover {
-            color: #fff;
-            background: rgba(255, 255, 255, 0.1);
-        }
-
-        .modal-body {
-            flex: 1;
-            padding: 16px 20px;
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            overflow: hidden;
-            background: #011;
-        }
-
-        .modal-textarea {
-            flex: 1;
-            width: 100%;
-            background: rgba(0, 0, 0, 0.45);
-            border: 1px solid rgba(0, 229, 255, 0.2);
-            border-radius: 6px;
-            color: #fff;
-            font-family: var(--font-mono);
-            font-size: 0.84rem;
-            line-height: 1.5;
-            padding: 12px 14px;
-            outline: none;
-            resize: none;
-            white-space: pre;
-            tab-size: 2;
-        }
-
-        .modal-textarea:focus {
-            border-color: var(--accent-cyan);
-            box-shadow: 0 0 0 1px var(--accent-cyan);
-        }
-
-        .modal-footer {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 12px 20px;
-            background: var(--card-header-bg);
-            border-top: 1px solid var(--border-color);
-        }
-
-        .modal-hint {
-            font-size: 0.75rem;
-            color: var(--text-muted);
-        }
-
-        .btn-sm {
-            padding: 4px 10px !important;
-            font-size: 0.75rem !important;
-        }
-
-        .toast {
-            position: fixed;
-            bottom: 24px;
-            right: 24px;
-            background: #111827;
-            border: 1px solid var(--accent-cyan);
-            color: #fff;
-            padding: 10px 18px;
-            border-radius: 8px;
-            font-size: 0.85rem;
-            font-weight: 600;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.8);
-            transform: translateY(100px);
-            opacity: 0;
-            transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-            z-index: 11000;
-        }
-
-        .toast.show {
-            transform: translateY(0);
-            opacity: 1;
-        }
-    </style>
 </head>
 <body class="card-border-animated effect-hue-sweep">
 
@@ -1084,29 +58,28 @@
 
     <!-- Header Control Bar -->
     <div class="header-card">
+        <!-- Top-Right YAML Local Storage Pill -->
+        <div class="header-pill-wrap">
+            <button id="storageStatusPill" class="status-pill status-healthy" onclick="openYamlModal('full')" title="Click to view &amp; edit full YAML">
+                <span id="pillIcon">💾</span>
+                <span id="pillText">YAML Local Storage</span>
+            </button>
+            <div class="status-tooltip-popover">
+                <div class="tooltip-hdr">
+                    <span>💾</span>
+                    <span>Direct YAML Storage Engine</span>
+                </div>
+                <div id="tooltipStatusNotice">Saved in browser localStorage (YAML format).</div>
+                <div class="tooltip-code-box">Key: list_puncher_yaml</div>
+                <span class="tooltip-footer-note">Click pill to open the Full YAML Modal Editor</span>
+            </div>
+        </div>
+
         <div class="header-top">
             <div class="brand-title-wrap">
                 <div class="brand-title">
-                    ⚡ AutoMyBiz <span class="cyan">// Punch List</span>
+                    ⚡ List Puncher <span class="cyan">// Client Onboarding</span>
                 </div>
-                
-                <!-- Storage Pill -->
-                <div class="header-pill-wrap">
-                    <button id="sheetHealthPill" class="status-pill status-healthy" onclick="openYamlModal('full')" title="Click to view &amp; edit YAML">
-                        <span id="pillIcon">💾</span>
-                        <span id="pillText">YAML Local Storage</span>
-                    </button>
-                    <div class="status-tooltip-popover">
-                        <div class="tooltip-hdr">
-                            <span>💾</span>
-                            <span>Direct YAML Storage Engine</span>
-                        </div>
-                        <div id="tooltipStatusNotice">Saved in browser localStorage (YAML format).</div>
-                        <div class="tooltip-code-box">Key: automybiz_punch_list_yaml</div>
-                        <span class="tooltip-footer-note">Click pill to open the Full YAML Modal Editor</span>
-                    </div>
-                </div>
-
                 <span class="client-badge" id="clientBadge">Client Workspace</span>
             </div>
 
@@ -1119,9 +92,6 @@
                 </button>
                 <button type="button" class="btn-action" onclick="copyAllAsYamlToClipboard()" title="Copy entire punch list as human-readable YAML">
                     📋 Copy YAML
-                </button>
-                <button type="button" class="btn-action" onclick="copyTSVToClipboard()" title="Copy table as TSV ready for Google Sheets">
-                    📋 Copy TSV
                 </button>
                 <button type="button" class="btn-action btn-primary" onclick="addNewSection()" title="Add new section card">
                     + New Section
@@ -1159,11 +129,33 @@
             <textarea id="modalYamlTextarea" class="modal-textarea" spellcheck="false" placeholder="Paste your YAML here..."></textarea>
         </div>
         <div class="modal-footer">
-            <span class="modal-hint">Supports nested tasks with 2-space indentation and notes.</span>
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <span class="modal-hint">Tabs auto-convert to 2 spaces. Supports nested subtasks &amp; media notes.</span>
+                <button type="button" class="btn-action btn-sm" onclick="prettifyModalYaml()" title="Auto-convert tabs and standardize 2-space indentation">
+                    ✨ Prettify YAML
+                </button>
+            </div>
             <div style="display: flex; gap: 8px;">
                 <button type="button" class="btn-action" onclick="closeYamlModal()">Cancel</button>
                 <button type="button" class="btn-action btn-primary" onclick="applyYamlModalChanges()">✓ Apply YAML</button>
             </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal Overlay -->
+<div id="deleteModal" class="modal-overlay">
+    <div class="modal-card delete-modal-card">
+        <div class="modal-header delete-modal-header">
+            <div class="modal-title">✕ Confirm Deletion</div>
+            <button type="button" class="modal-close-btn" onclick="closeDeleteModal()">✕</button>
+        </div>
+        <div class="delete-modal-body" id="deleteModalBody">
+            Are you sure you want to delete this item?
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn-action" onclick="closeDeleteModal()">Cancel</button>
+            <button type="button" class="btn-action btn-delete-confirm" id="btnConfirmDelete" onclick="executeDelete()">✕ Delete</button>
         </div>
     </div>
 </div>
@@ -1173,16 +165,19 @@
 
 <script>
     // Global Constants avoiding protocol slashes inside template literals (Rule 9)
-    const GOOGLE_DOCS_DOMAIN = 'https://docs.google.com';
     const SETTINGS_GATEWAY_DOMAIN = 'https://ghl-custom-workflow-settings.automybiz.workers.dev';
     const DEFAULT_GLOBALS_ID = '1u_mZhsYM3J7in_8clshqbRYzHuCC83i15OMz2i3aAHQ';
-    const DEFAULT_PUNCH_SHEET_ID = '1AT4h2VAvjsLo96IxldO5B0c_tWVhllPWyAvFJKLqlLE';
 
     // Parse URL parameters dynamically
     const urlParams = new URLSearchParams(window.location.search);
     const ACTIVE_GLOBALS_ID = urlParams.get('gsheet_globals_id') || DEFAULT_GLOBALS_ID;
-    const ACTIVE_GSHEET_ID = urlParams.get('gsheet_punch_list_id') || DEFAULT_PUNCH_SHEET_ID;
     const CLIENT_NAME = urlParams.get('location_name') || urlParams.get('client_name') || 'Euro Parts West';
+
+    // HighLevel Logged-in User Permission Variables
+    const USER_NAME     = urlParams.get('user_name') || '';
+    const USER_EMAIL    = urlParams.get('user_email') || '';
+    const USER_ROLE     = (urlParams.get('user_role') || '').toLowerCase();
+    const EDITORS_PARAM = urlParams.get('editors') || '';
 
     // In-memory Task State & Persistent UI State
     let TASKS_DATA = [];
@@ -1192,7 +187,7 @@
         notesOpen: {}
     };
 
-    // Task Drag-to-Indent & Subtree Tracking
+    // Drag-and-drop state
     let IS_DRAGGING_TASK = false;
     let DRAG_START_INDEX = null;
     let DRAG_SUBTREE_COUNT = 1;
@@ -1201,12 +196,12 @@
     let DRAG_TARGET_POSITION = 'before';
     let DRAG_PROPOSED_LEVEL = 1;
 
-    // Section Deck Drag Reordering State
     let IS_DRAGGING_SECTION = false;
     let DRAGGED_SECTION_INDEX = null;
 
-    // YAML Modal Context
+    // Modal Contexts
     let MODAL_CONTEXT = { mode: 'full', targetIndex: null };
+    let DELETE_CONTEXT = { type: null, targetIndex: null };
 
     // 16x16 Double Chevron Icon
     const DOUBLE_CHEVRON_SVG = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -1242,30 +237,44 @@
         return `${prefix}_${slug || 'item'}_${index}`;
     }
 
+    // Permission Verification Engine
+    function checkIsEditor() {
+        if (!USER_NAME && !USER_EMAIL && !USER_ROLE && !EDITORS_PARAM) return true;
+        if (USER_ROLE === 'admin') return true;
+
+        if (EDITORS_PARAM) {
+            const allowed = EDITORS_PARAM.split(/[,+]/).map(s => s.trim().toLowerCase()).filter(Boolean);
+            const nameMatch = USER_NAME && allowed.some(a => USER_NAME.toLowerCase().includes(a));
+            const emailMatch = USER_EMAIL && allowed.includes(USER_EMAIL.toLowerCase());
+            if (nameMatch || emailMatch) return true;
+        }
+        return false;
+    }
+
     // Standard Onboarding Blueprint
     const ONBOARDING_BLUEPRINT = [
-        { visible: true, id: "CF_01", parentId: "", level: 0, order: 1, checked: true, title: "1. Cloudflare Infrastructure", notes: "Master DNS and edge routing" },
-        { visible: true, id: "CF_02", parentId: "CF_01", level: 1, order: 2, checked: true, title: "Create account with admin@ email", notes: "Isolates domain security from public sales" },
-        { visible: true, id: "CF_03", parentId: "CF_01", level: 2, order: 3, checked: true, title: "Invite automybiz@gmail.com as Administrator", notes: "Enables agency management under single login" },
-        { visible: true, id: "CF_04", parentId: "CF_01", level: 1, order: 4, checked: true, title: "Deploy Sveltia CMS OAuth Authenticator Worker", notes: "Handles secure GitHub OAuth proxying" },
+        { visible: true, id: "cf_01", parentId: "", level: 0, order: 1, checked: true, title: "1. Cloudflare Infrastructure", notes: "Master DNS and edge routing" },
+        { visible: true, id: "cf_02", parentId: "cf_01", level: 1, order: 2, checked: true, title: "Create account with admin@ email", notes: "Isolates domain security from public sales" },
+        { visible: true, id: "cf_03", parentId: "cf_01", level: 2, order: 3, checked: true, title: "Invite automybiz@gmail.com as Administrator", notes: "Enables agency management under single login" },
+        { visible: true, id: "cf_04", parentId: "cf_01", level: 1, order: 4, checked: true, title: "Deploy Sveltia CMS OAuth Authenticator Worker", notes: "Handles secure GitHub OAuth proxying" },
 
-        { visible: true, id: "GH_01", parentId: "", level: 0, order: 5, checked: true, title: "2. GitHub Repository & Sveltia CMS", notes: "Codebase and CMS backend" },
-        { visible: true, id: "GH_02", parentId: "GH_01", level: 1, order: 6, checked: true, title: "Client creates GitHub account (EPWAdmin)", notes: "Gives client ownership credentials" },
-        { visible: true, id: "GH_03", parentId: "GH_01", level: 2, order: 7, checked: true, title: "Add client as repository collaborator", notes: "Allows client to commit changes via Sveltia" },
-        { visible: true, id: "GH_04", parentId: "GH_01", level: 2, order: 8, checked: true, title: "Test 1-click 'Sign In with GitHub' at /admin/", notes: "Verify login opens Sveltia dashboard" },
+        { visible: true, id: "gh_01", parentId: "", level: 0, order: 5, checked: true, title: "2. GitHub Repository & Sveltia CMS", notes: "Codebase and CMS backend" },
+        { visible: true, id: "gh_02", parentId: "gh_01", level: 1, order: 6, checked: true, title: "Client creates GitHub account (EPWAdmin)", notes: "Gives client ownership credentials" },
+        { visible: true, id: "gh_03", parentId: "gh_01", level: 2, order: 7, checked: true, title: "Add client as repository collaborator", notes: "Allows client to commit changes via Sveltia" },
+        { visible: true, id: "gh_04", parentId: "gh_01", level: 2, order: 8, checked: true, title: "Test 1-click 'Sign In with GitHub' at /admin/", notes: "Verify login opens Sveltia dashboard" },
 
-        { visible: true, id: "ST_01", parentId: "", level: 0, order: 9, checked: false, title: "3. Stripe Payment Gateway", notes: "Direct on-site payments" },
-        { visible: true, id: "ST_02", parentId: "ST_01", level: 1, order: 10, checked: false, title: "Client creates & verifies Stripe merchant account", notes: "Connects bank for direct payouts" },
-        { visible: true, id: "ST_03", parentId: "ST_01", level: 1, order: 11, checked: false, title: "Generate Stripe Payment Links / Buy Buttons", notes: "Checkout links for high-ticket parts" },
+        { visible: true, id: "st_01", parentId: "", level: 0, order: 9, checked: false, title: "3. Stripe Payment Gateway", notes: "Direct on-site payments" },
+        { visible: true, id: "st_02", parentId: "st_01", level: 1, order: 10, checked: false, title: "Client creates & verifies Stripe merchant account", notes: "Connects bank for direct payouts" },
+        { visible: true, id: "st_03", parentId: "st_01", level: 1, order: 11, checked: false, title: "Generate Stripe Payment Links / Buy Buttons", notes: "Checkout links for high-ticket parts" },
 
-        { visible: true, id: "SB_01", parentId: "", level: 0, order: 12, checked: false, title: "4. Supabase Member Portal & Google Auth", notes: "Customer authentication engine" },
-        { visible: true, id: "SB_02", parentId: "SB_01", level: 1, order: 13, checked: false, title: "Client signs up at supabase.com (via GitHub)", notes: "Creates client-owned 2-project free org" },
-        { visible: true, id: "SB_03", parentId: "SB_01", level: 2, order: 14, checked: false, title: "Invite automybiz@gmail.com to Organization", notes: "Enables agency collaboration" },
-        { visible: true, id: "SB_04", parentId: "SB_01", level: 2, order: 15, checked: false, title: "Configure Google OAuth Provider", notes: "Enables 1-click customer login" },
+        { visible: true, id: "sb_01", parentId: "", level: 0, order: 12, checked: false, title: "4. Supabase Member Portal & Google Auth", notes: "Customer authentication engine" },
+        { visible: true, id: "sb_02", parentId: "sb_01", level: 1, order: 13, checked: false, title: "Client signs up at supabase.com (via GitHub)", notes: "Creates client-owned 2-project free org" },
+        { visible: true, id: "sb_03", parentId: "sb_01", level: 2, order: 14, checked: false, title: "Invite automybiz@gmail.com to Organization", notes: "Enables agency collaboration" },
+        { visible: true, id: "sb_04", parentId: "sb_01", level: 2, order: 15, checked: false, title: "Configure Google OAuth Provider", notes: "Enables 1-click customer login" },
 
-        { visible: true, id: "GHL_01", parentId: "", level: 0, order: 16, checked: true, title: "5. AutoMyBiz & GoHighLevel Integration", notes: "CRM and workflow automations" },
-        { visible: true, id: "GHL_02", parentId: "GHL_01", level: 1, order: 17, checked: true, title: "Add Custom Menu Link: Products & Variants", notes: "Embeds Sveltia CMS iframe in sidebar" },
-        { visible: true, id: "GHL_03", parentId: "GHL_01", level: 1, order: 18, checked: false, title: "Generate Private Integration Token (PIT)", notes: "Required for live contact custom fields" }
+        { visible: true, id: "ghl_01", parentId: "", level: 0, order: 16, checked: true, title: "5. AutoMyBiz & GoHighLevel Integration", notes: "CRM and workflow automations" },
+        { visible: true, id: "ghl_02", parentId: "ghl_01", level: 1, order: 17, checked: true, title: "Add Custom Menu Link: Products & Variants", notes: "Embeds Sveltia CMS iframe in sidebar" },
+        { visible: true, id: "ghl_03", parentId: "ghl_01", level: 1, order: 18, checked: false, title: "Generate Private Integration Token (PIT)", notes: "Required for live contact custom fields" }
     ];
 
     // =========================================================================
@@ -1296,9 +305,7 @@
     }
 
     function parseYouTubeEmbed(url) {
-        if (/^https?:\/\/(?:www\.)?youtu(?:be\.com|\.be)\/?$/i.test(url)) {
-            return null;
-        }
+        if (/^https?:\/\/(?:www\.)?youtu(?:be\.com|\.be)\/?$/i.test(url)) return null;
 
         let videoId = null;
         let vMatch = url.match(/[?&]v=([a-zA-Z0-9_-]+)/);
@@ -1353,7 +360,6 @@
         if (!text) return '';
         let result = String(text);
 
-        // 1. Unwrap <a> tags that wrap media URLs
         const anchorRegex = /<a\s+[^>]*href=["']([^"']+)["'][^>]*>(.*?)<\/a>/gi;
         result = result.replace(anchorRegex, (match, href) => {
             if (isYouTubeURL(href) || isImageURL(href)) {
@@ -1362,7 +368,6 @@
             return match;
         });
 
-        // 2. Master URL Regex with punctuation trimming
         const urlRegex = /(href="|src="|href='|src=')((?:https?:\/\/)[^"']+)("|')|(https?:\/\/(?:[^\s<&]|&(?!nbsp;))+(?:[^\s<&.,?!:;]|\/))(\r\n|\n)?/g;
 
         result = result.replace(urlRegex, (match, attrPrefix, urlInAttr, quote, plainUrl, followingNewline) => {
@@ -1372,7 +377,6 @@
             let url = plainUrl.replace(/<\/?[aui]>|&nbsp;/gi, () => '');
             const newlineSuffix = followingNewline || '';
 
-            // YouTube Conversion
             if (isYouTubeURL(url)) {
                 const embedUrl = parseYouTubeEmbed(url);
                 if (embedUrl) {
@@ -1381,12 +385,10 @@
                 return `<a href="${url}" target="_blank" class="note-link" onclick="event.stopPropagation();">${url}</a>` + newlineSuffix;
             }
 
-            // Image Conversion
             if (isImageURL(url)) {
                 return `<div class="media-image-container"><img class="media-image-content" src="${url}" alt="Task Image" loading="lazy" onclick="event.stopPropagation(); window.open('${url}', '_blank');" title="Click to view full image in new tab" /></div>` + newlineSuffix;
             }
 
-            // Standard Hyperlink
             return `<a href="${url}" target="_blank" class="note-link" onclick="event.stopPropagation();">${url}</a>` + newlineSuffix;
         });
 
@@ -1407,15 +409,7 @@
             const data = await response.json();
             if (!data || !data.success) return;
 
-            let activeThemeName = "DARK EMERALD MAROON";
-            let tokens = {};
-
-            if (data.tokens && typeof data.tokens === 'object') {
-                tokens = data.tokens;
-                if (data.active_admin_theme_name) activeThemeName = data.active_admin_theme_name;
-                else if (data.active_theme_name) activeThemeName = data.active_theme_name;
-            }
-
+            let tokens = data.tokens || {};
             const mainBg        = tokens["MAIN_BG_COLOR"] || "#011";
             const cardBg        = tokens["CARD_BODY_BG_COLOR_1"] || tokens["CARD_BODY_BG_COLOR"] || "#011";
             const cardTitleBg1  = tokens["CARD_TITLE_BG_COLOR_1"] || "#033";
@@ -1492,7 +486,6 @@
                 document.head.appendChild(liveStyleEl);
             }
             liveStyleEl.textContent = generatedCss;
-
             localStorage.setItem('automybiz_punch_theme_css', generatedCss);
 
         } catch (err) {
@@ -1501,22 +494,31 @@
     }
 
     // =========================================================================
-    // APP INITIALIZATION & ROBUST YAML STORAGE
+    // APP INITIALIZATION & YAML LOCAL STORAGE
     // =========================================================================
     async function initApp() {
         document.getElementById('clientBadge').innerText = CLIENT_NAME;
 
-        // Apply theme immediately
+        // Verify user role & permissions
+        if (!checkIsEditor()) {
+            document.body.classList.add('is-viewer-mode');
+            document.getElementById('clientBadge').innerText = `${CLIENT_NAME} (Viewer Mode)`;
+        }
+
+        // Apply theme
         fetchAndApplyLiveTheme();
 
-        // Load Persistent UI State (100% stable across reloads)
+        // Initialize modal backdrops
+        initModals();
+
+        // Load Persistent UI State (Sections, Branches, Notes)
         const savedUiState = localStorage.getItem('automybiz_punch_ui_state');
         if (savedUiState) {
             try { UI_STATE = Object.assign(UI_STATE, JSON.parse(savedUiState)); } catch(e) {}
         }
 
-        // PRIMARY SOURCE OF TRUTH: Direct YAML LocalStorage
-        const savedYaml = localStorage.getItem('automybiz_punch_list_yaml');
+        // PRIMARY SOURCE OF TRUTH: Direct YAML LocalStorage under new key
+        const savedYaml = localStorage.getItem('list_puncher_yaml');
         if (savedYaml && savedYaml.trim()) {
             TASKS_DATA = parseYamlToTasks(savedYaml);
             renderAll();
@@ -1524,26 +526,13 @@
             return;
         }
 
-        // Fallback: Check JSON local backup
-        const localBackup = localStorage.getItem('punchlist_backup_' + ACTIVE_GSHEET_ID);
-        if (localBackup) {
-            try {
-                TASKS_DATA = JSON.parse(localBackup);
-                saveState();
-                renderAll();
-                return;
-            } catch(e) {}
-        }
-
         // Seed Onboarding Blueprint
         seedOnboardingBlueprint();
     }
 
-    // Save state directly to YAML and backup JSON in localStorage
     function saveState() {
         const fullYaml = formatTasksSliceAsYaml(TASKS_DATA);
-        localStorage.setItem('automybiz_punch_list_yaml', fullYaml);
-        localStorage.setItem('punchlist_backup_' + ACTIVE_GSHEET_ID, JSON.stringify(TASKS_DATA));
+        localStorage.setItem('list_puncher_yaml', fullYaml);
         localStorage.setItem('automybiz_punch_ui_state', JSON.stringify(UI_STATE));
     }
 
@@ -1609,7 +598,6 @@
         });
 
         sections.forEach((sec, sIdx) => {
-            // Stable deterministic Section ID
             const secId = sec.header.id || generateSlugId('sec', sec.header.title, sIdx);
             sec.header.id = secId;
 
@@ -1629,7 +617,7 @@
             deck.addEventListener('dragleave', handleSectionDragLeave);
             deck.addEventListener('drop', handleSectionDrop);
 
-            // Accordion Section Header with Complete Action Cluster
+            // Accordion Section Header with Action Cluster
             const secHdr = document.createElement('div');
             secHdr.className = 'section-header';
             secHdr.onclick = (e) => {
@@ -1659,7 +647,7 @@
                         <button type="button" class="btn-icon sec-action-btn" title="Paste YAML tasks into this section" onclick="openYamlModal('section', ${sIdx})">
                             ${PASTE_SUBTASKS_SVG_ICON}
                         </button>
-                        <button type="button" class="btn-icon sec-action-btn delete-btn" title="Delete section and all its tasks" onclick="deleteSection(${sIdx})">
+                        <button type="button" class="btn-icon sec-action-btn delete-btn" title="Delete section and all its tasks" onclick="confirmDeleteSection(${sIdx})">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                                 <line x1="18" y1="6" x2="6" y2="18"></line>
                                 <line x1="6" y1="6" x2="18" y2="18"></line>
@@ -1688,7 +676,6 @@
             list.className = 'task-list';
             list.dataset.sectionIndex = sIdx;
 
-            // Fold-Tracking for Nested Tree Style Tab Branches
             let hiddenBelowLevel = null;
 
             sec.tasks.forEach(tWrap => {
@@ -1696,7 +683,6 @@
                 const realIdx = tWrap.originalIndex;
                 const isNested = t.level > 1;
 
-                // Stable deterministic Task ID
                 const taskId = t.id || generateSlugId('task', t.title, realIdx);
                 t.id = taskId;
 
@@ -1705,7 +691,6 @@
                     ? Boolean(UI_STATE.notesOpen[taskId]) 
                     : Boolean(t.notes && t.notes.trim());
 
-                // Check if hidden inside collapsed branch
                 if (hiddenBelowLevel !== null) {
                     if (t.level > hiddenBelowLevel) {
                         return;
@@ -1722,7 +707,7 @@
                     hiddenBelowLevel = t.level;
                 }
 
-                // Tightened left padding: Level 1 starts flush left, subnodes indent 22px relatively
+                // Tight relative indent: Level 1 flush at 4px, subnodes indent 22px relatively
                 const dynamicPadding = Math.max(4, (t.level - 1) * 22 + 4);
 
                 const row = document.createElement('div');
@@ -1755,7 +740,7 @@
                     : '<span class="notes-placeholder">+ Add note or paste media link...</span>';
 
                 row.innerHTML = `
-                    <!-- Tier 1: Task Main Line (Title & All Actions) -->
+                    <!-- Tier 1: Task Main Line (Title, Chevrons, Actions, Count) -->
                     <div class="task-main-line">
                         <span class="drag-handle task-drag-handle" title="Drag to reorder • Drag right/left to indent/unnest">⋮⋮</span>
                         
@@ -1774,11 +759,13 @@
                             <div class="task-actions">
                                 <button type="button" class="btn-icon" title="Outdent (Shift Left)" onclick="changeSubtreeLevel(${realIdx}, -1)">⇤</button>
                                 <button type="button" class="btn-icon" title="Indent (Nest Right)" onclick="changeSubtreeLevel(${realIdx}, 1)">⇥</button>
+                                <!-- Pre-nested Add Subtask Button: Left of Copy Button -->
+                                <button type="button" class="btn-icon add-btn" title="Add subtask under this item" onclick="addSubtaskToBranch(${realIdx})">${PLUS_ADD_SVG_ICON}</button>
                                 <!-- Grayscale AI Studio Style Copy Icon -->
                                 <button type="button" class="btn-icon copy-btn" title="Copy task &amp; branch as YAML" onclick="copyTaskBranch(${realIdx})">${COPY_SVG_ICON}</button>
                                 <!-- Paste Subtasks Directly into Branch -->
                                 <button type="button" class="btn-icon paste-btn" title="Paste YAML subtasks into this branch" onclick="openYamlModal('branch', ${realIdx})">${PASTE_SUBTASKS_SVG_ICON}</button>
-                                <button type="button" class="btn-icon delete-btn" title="Delete task and branch" onclick="deleteSubtree(${realIdx})">✕</button>
+                                <button type="button" class="btn-icon delete-btn" title="Delete task and branch" onclick="confirmDeleteTask(${realIdx})">✕</button>
                             </div>
 
                             <!-- Pill Count without Parentheses -->
@@ -1814,7 +801,7 @@
                     </div>
                 `;
 
-                // Protected drag handle: row is only draggable when clicking the handle
+                // Protected drag handle
                 const dragHandle = row.querySelector('.task-drag-handle');
                 if (dragHandle) {
                     dragHandle.addEventListener('mouseenter', () => { row.draggable = true; });
@@ -1836,18 +823,6 @@
             });
 
             secBody.appendChild(list);
-
-            // Replaced bulky quick-add input with sleek bottom-left ghost button
-            const footerBar = document.createElement('div');
-            footerBar.className = 'section-footer-bar';
-            footerBar.innerHTML = `
-                <button type="button" class="btn-ghost-add" onclick="quickAddTaskToSection(${sIdx})" title="Add task to this section">
-                    ${PLUS_ADD_SVG_ICON}
-                    <span>Add Task</span>
-                </button>
-            `;
-            secBody.appendChild(footerBar);
-
             deck.appendChild(secBody);
             deckContainer.appendChild(deck);
         });
@@ -1982,15 +957,6 @@
         renderAll();
     }
 
-    function deleteSubtree(parentIdx) {
-        if (!TASKS_DATA[parentIdx]) return;
-        const range = getSubtreeRange(parentIdx);
-        TASKS_DATA.splice(range.start, range.count);
-        saveState();
-        renderAll();
-        showToast(range.count > 1 ? ('Deleted task and ' + (range.count - 1) + ' subtask(s)') : 'Task removed');
-    }
-
     function updateTaskTitle(index, val) {
         if (TASKS_DATA[index]) {
             TASKS_DATA[index].title = val.trim();
@@ -2005,6 +971,7 @@
         }
     }
 
+    // Quick Add Task in Section with Viewport Center Scroll
     function quickAddTaskToSection(sectionIndex) {
         const newTask = {
             visible: true,
@@ -2034,12 +1001,55 @@
         renderAll();
 
         setTimeout(() => {
-            const newRow = document.querySelector(`.task-row[data-index="${insertAt}"] .task-title-input`);
+            const newRow = document.querySelector(`.task-row[data-index="${insertAt}"]`);
             if (newRow) {
-                newRow.focus();
-                newRow.placeholder = "Enter task title...";
+                newRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                const input = newRow.querySelector('.task-title-input');
+                if (input) {
+                    input.focus();
+                    input.placeholder = "Enter task title...";
+                }
             }
-        }, 50);
+        }, 60);
+    }
+
+    // Add Pre-nested Subtask under Current Branch with Viewport Center Scroll
+    function addSubtaskToBranch(parentIdx) {
+        const parent = TASKS_DATA[parentIdx];
+        if (!parent) return;
+
+        const parentLevel = parent.level || 1;
+        const range = getSubtreeRange(parentIdx);
+        const insertAt = range.start + range.count;
+
+        const newSubtask = {
+            visible: true,
+            id: generateSlugId('task', 'Subtask', TASKS_DATA.length + 1),
+            parentId: parent.id,
+            level: parentLevel + 1,
+            order: TASKS_DATA.length + 1,
+            checked: false,
+            title: '',
+            notes: ''
+        };
+
+        TASKS_DATA.splice(insertAt, 0, newSubtask);
+        UI_STATE.branches[parent.id] = false; // Expand parent branch
+
+        saveState();
+        renderAll();
+
+        setTimeout(() => {
+            const newRow = document.querySelector(`.task-row[data-index="${insertAt}"]`);
+            if (newRow) {
+                newRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                const input = newRow.querySelector('.task-title-input');
+                if (input) {
+                    input.focus();
+                    input.placeholder = "Enter subtask title...";
+                }
+            }
+        }, 60);
     }
 
     function copySectionAsYaml(sectionIndex) {
@@ -2056,23 +1066,6 @@
         navigator.clipboard.writeText(yamlStr).then(() => {
             showToast(`📋 Copied section "${TASKS_DATA[headerIdx].title}" as YAML!`);
         });
-    }
-
-    function deleteSection(sectionIndex) {
-        const sectionHeaderIndices = [];
-        TASKS_DATA.forEach((t, i) => {
-            if (t.level === 0) sectionHeaderIndices.push(i);
-        });
-
-        const headerIdx = sectionHeaderIndices[sectionIndex];
-        const secTitle = TASKS_DATA[headerIdx].title;
-        if (!confirm(`Are you sure you want to delete section "${secTitle}" and all its tasks?`)) return;
-
-        const range = getSectionRange(headerIdx);
-        TASKS_DATA.splice(range.start, range.count);
-        saveState();
-        renderAll();
-        showToast(`Deleted section "${secTitle}"`);
     }
 
     function addNewSection() {
@@ -2098,6 +1091,69 @@
         if (!el) return;
         el.style.height = 'auto';
         el.style.height = Math.max(60, el.scrollHeight + 2) + 'px';
+    }
+
+    // =========================================================================
+    // DELETE CONFIRMATION OVERLAY MODAL
+    // =========================================================================
+    function confirmDeleteTask(parentIdx) {
+        const task = TASKS_DATA[parentIdx];
+        if (!task) return;
+        const range = getSubtreeRange(parentIdx);
+        DELETE_CONTEXT = { type: 'task', targetIndex: parentIdx };
+
+        const bodyEl = document.getElementById('deleteModalBody');
+        if (range.count > 1) {
+            bodyEl.innerHTML = `Are you sure you want to delete <strong>"${escapeHtml(task.title)}"</strong> and all <strong>${range.count - 1} nested subtask(s)</strong>?`;
+        } else {
+            bodyEl.innerHTML = `Are you sure you want to delete task <strong>"${escapeHtml(task.title)}"</strong>?`;
+        }
+
+        document.getElementById('deleteModal').classList.add('open');
+    }
+
+    function confirmDeleteSection(sectionIndex) {
+        const sectionHeaderIndices = [];
+        TASKS_DATA.forEach((t, i) => {
+            if (t.level === 0) sectionHeaderIndices.push(i);
+        });
+
+        const headerIdx = sectionHeaderIndices[sectionIndex];
+        const secTitle = TASKS_DATA[headerIdx].title;
+        const range = getSectionRange(headerIdx);
+
+        DELETE_CONTEXT = { type: 'section', targetIndex: sectionIndex, headerIdx, range };
+
+        const bodyEl = document.getElementById('deleteModalBody');
+        bodyEl.innerHTML = `Are you sure you want to permanently delete section <strong>"${escapeHtml(secTitle)}"</strong> and all <strong>${range.count - 1} milestone tasks</strong>?`;
+
+        document.getElementById('deleteModal').classList.add('open');
+    }
+
+    function closeDeleteModal() {
+        document.getElementById('deleteModal').classList.remove('open');
+        DELETE_CONTEXT = { type: null, targetIndex: null };
+    }
+
+    function executeDelete() {
+        if (!DELETE_CONTEXT.type) return;
+
+        if (DELETE_CONTEXT.type === 'task') {
+            const range = getSubtreeRange(DELETE_CONTEXT.targetIndex);
+            TASKS_DATA.splice(range.start, range.count);
+            saveState();
+            renderAll();
+            showToast(range.count > 1 ? ('Deleted task and ' + (range.count - 1) + ' subtask(s)') : 'Task removed');
+        } else if (DELETE_CONTEXT.type === 'section') {
+            const { range, headerIdx } = DELETE_CONTEXT;
+            const secTitle = TASKS_DATA[headerIdx].title;
+            TASKS_DATA.splice(range.start, range.count);
+            saveState();
+            renderAll();
+            showToast(`Deleted section "${secTitle}"`);
+        }
+
+        closeDeleteModal();
     }
 
     // =========================================================================
@@ -2397,15 +1453,41 @@
         return lines.join('\n').trim();
     }
 
+    // Intelligent YAML Parser with Leading Tab Normalization & Shallowest Indent Calibration
     function parseYamlToTasks(yamlText) {
         if (!yamlText || !yamlText.trim()) return [];
-        const lines = yamlText.split(/\r?\n/);
+
+        // 1. Convert all literal tabs to double spaces
+        let sanitized = yamlText.replace(/\t/g, () => '  ');
+        const lines = sanitized.split(/\r?\n/);
         const result = [];
+
         let currentSection = null;
         let currentTask = null;
         let inNotesBlock = false;
         let notesIndent = 0;
         let noteLines = [];
+
+        // Pre-scan: determine shallowest task indent per section
+        let sectionBaseIndents = [];
+        let curMinIndent = 999;
+        lines.forEach(line => {
+            const trimmed = line.trim();
+            if (trimmed.startsWith('section:')) {
+                if (curMinIndent !== 999) sectionBaseIndents.push(curMinIndent);
+                curMinIndent = 999;
+            } else {
+                const m = line.match(/^(\s*)-\s*(?:\[[ xX]\])?/);
+                if (m) {
+                    const spaces = m[1].length;
+                    if (spaces < curMinIndent) curMinIndent = spaces;
+                }
+            }
+        });
+        if (curMinIndent !== 999) sectionBaseIndents.push(curMinIndent);
+
+        let sectionCounter = 0;
+        let activeBaseIndent = sectionBaseIndents[0] !== undefined ? sectionBaseIndents[0] : 0;
 
         for (let i = 0; i < lines.length; i++) {
             const rawLine = lines[i];
@@ -2446,6 +1528,9 @@
                 };
                 result.push(currentSection);
                 currentTask = null;
+
+                sectionCounter++;
+                activeBaseIndent = sectionBaseIndents[sectionCounter] !== undefined ? sectionBaseIndents[sectionCounter] : 0;
                 continue;
             }
 
@@ -2489,7 +1574,9 @@
                     result.push(currentSection);
                 }
 
-                const relativeLevel = Math.max(1, Math.round(indentSpaces / 2) + 1);
+                // Calibrate relative indent: shallowest task in section is ALWAYS pinned to Level 1
+                const relSpaces = Math.max(0, indentSpaces - activeBaseIndent);
+                const relativeLevel = Math.max(1, Math.round(relSpaces / 2) + 1);
 
                 currentTask = {
                     visible: true,
@@ -2514,7 +1601,7 @@
     }
 
     // =========================================================================
-    // YAML MODAL OVERLAY LOGIC
+    // YAML MODAL OVERLAY LOGIC (Full List, Section, or Branch Insertion)
     // =========================================================================
     function openYamlModal(mode, targetIndex = null) {
         MODAL_CONTEXT = { mode, targetIndex };
@@ -2530,13 +1617,13 @@
         } else if (mode === 'section') {
             title.innerHTML = '📥 Paste Tasks into Section';
             subtitle.innerText = 'Paste YAML tasks to insert into this milestone.';
-            textarea.value = `- [ ] New Task\n  notes: Task note with image or YouTube\n  - [ ] Nested Subtask`;
+            textarea.value = `  - [ ] New Task\n    notes: Task note with image or YouTube\n    - [ ] Nested Subtask`;
         } else if (mode === 'branch') {
             const parent = TASKS_DATA[targetIndex];
             const pTitle = parent ? parent.title : 'Task';
             title.innerHTML = `📥 Paste YAML Subtasks under: <span style="color:#fff;">${escapeHtml(pTitle)}</span>`;
             subtitle.innerText = 'Paste nested YAML tasks. They will automatically nest under this branch.';
-            textarea.value = `- [ ] Subtask 1\n  notes: https://www.youtube.com/watch?v=dQw4w9WgXcQ\n  - [ ] Child Subtask 1.1`;
+            textarea.value = `  - [ ] Subtask 1\n    notes: https://www.youtube.com/watch?v=dQw4w9WgXcQ\n    - [ ] Child Subtask 1.1`;
         }
 
         modal.classList.add('open');
@@ -2550,6 +1637,18 @@
         const modal = document.getElementById('yamlModal');
         modal.classList.remove('open');
         MODAL_CONTEXT = { mode: 'full', targetIndex: null };
+    }
+
+    function prettifyModalYaml() {
+        const textarea = document.getElementById('modalYamlTextarea');
+        if (!textarea || !textarea.value.trim()) return;
+        const parsed = parseYamlToTasks(textarea.value);
+        if (parsed.length > 0) {
+            textarea.value = formatTasksSliceAsYaml(parsed);
+            showToast('✨ Formatted YAML with 2-space indentation!');
+        } else {
+            showToast('Could not parse YAML to format.');
+        }
     }
 
     function applyYamlModalChanges() {
@@ -2616,7 +1715,7 @@
                 const insertAt = range.start + range.count;
 
                 TASKS_DATA.splice(insertAt, 0, ...tasksOnly);
-                UI_STATE.branches[parent.id] = false; // Expand parent so new tasks are visible
+                UI_STATE.branches[parent.id] = false;
 
                 saveState();
                 renderAll();
@@ -2649,32 +1748,6 @@
         });
     }
 
-    // 1-Click TSV Exporter
-    function copyTSVToClipboard() {
-        const headers = ['VISIBLE ( Admin Form )', 'TASK_ID', 'PARENT_ID', 'LEVEL', 'ORDER', 'CHECKED', 'TASK_TITLE', 'TASK_NOTES'];
-        const lines = [headers.join('\t')];
-
-        TASKS_DATA.forEach((t, i) => {
-            lines.push([
-                t.visible ? 'TRUE' : 'FALSE',
-                t.id || 'TASK_' + (i + 1),
-                t.parentId || '',
-                t.level || 0,
-                i + 1,
-                t.checked ? 'TRUE' : 'FALSE',
-                (t.title || '').replace(/\t/g, () => ' '),
-                (t.notes || '').replace(/\t/g, () => ' ')
-            ].join('\t'));
-        });
-
-        const tsvOutput = lines.join('\n');
-        navigator.clipboard.writeText(tsvOutput).then(() => {
-            showToast('📋 Copied full TSV! Ready to paste into Google Sheet.');
-        }).catch(() => {
-            showToast('Failed to copy. Please allow clipboard permissions.');
-        });
-    }
-
     function showToast(msg) {
         const t = document.getElementById('toast');
         if (!t) return;
@@ -2693,9 +1766,26 @@
             .replace(/'/g, () => '&#039;');
     }
 
+    // Modal Backdrop Click-to-Close Listeners
+    function initModals() {
+        const yamlModal = document.getElementById('yamlModal');
+        if (yamlModal) {
+            yamlModal.addEventListener('click', (e) => {
+                if (e.target === yamlModal) closeYamlModal();
+            });
+        }
+        const deleteModal = document.getElementById('deleteModal');
+        if (deleteModal) {
+            deleteModal.addEventListener('click', (e) => {
+                if (e.target === deleteModal) closeDeleteModal();
+            });
+        }
+    }
+
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
             closeYamlModal();
+            closeDeleteModal();
         }
     });
 
