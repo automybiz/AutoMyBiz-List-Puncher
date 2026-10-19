@@ -223,8 +223,9 @@
     const LOCATION_ID   = urlParams.get('location_id') || '';
     const API_TOKEN     = urlParams.get('token') || urlParams.get('automybiz_api_token') || '';
     const USER_NAME     = urlParams.get('user_name') || '';
-    const USER_EMAIL    = urlParams.get('user_email') || '';
-    const USER_ROLE     = (urlParams.get('user_role') || '').toLowerCase();
+    const USER_EMAIL    = (urlParams.get('user_email') || '').toLowerCase().trim();
+    const OWNER_EMAIL   = (urlParams.get('owner_email') || '').toLowerCase().trim();
+    const USER_ROLE     = (urlParams.get('user_role') || '').toLowerCase().trim();
     const EDITORS_PARAM = urlParams.get('editors') || '';
     const VIEWERS_PARAM = urlParams.get('viewers') || '';
     const MODE_OVERRIDE = (urlParams.get('mode') || urlParams.get('edit') || '').toLowerCase();
@@ -290,10 +291,10 @@
     }
 
     // =========================================================================
-    // WILDCARD WHITELIST & PERMISSION ENGINE
+    // BULLETPROOF AGENCY OWNER & WILDCARD PERMISSION ENGINE
     // =========================================================================
     function evaluatePermissions() {
-        // Direct override bypass for testing
+        // Direct override bypass for development
         if (MODE_OVERRIDE === 'edit' || MODE_OVERRIDE === 'true' || MODE_OVERRIDE === 'admin') {
             return { isEditor: true, isViewer: true, mode: 'editor', reason: 'URL Override (&edit=true)' };
         }
@@ -303,8 +304,15 @@
             return { isEditor: true, isViewer: true, mode: 'editor', reason: 'Standalone (Full Access)' };
         }
 
-        // Automatic full access for Agency Owners, Agency Admins & Location Admins
-        const isAgencyOrAdmin = ['admin', 'agency', 'agency_admin', 'agency_owner', 'owner'].some(r => USER_ROLE.includes(r));
+        // FOOLPROOF AGENCY OWNER / ADMIN DETECTION:
+        // Automatically identifies Brian Mulloney / Agency Owner accounts
+        const isAgencyOwnerOrAdmin = (
+            (USER_EMAIL && OWNER_EMAIL && USER_EMAIL === OWNER_EMAIL) ||
+            USER_EMAIL.includes('automybiz') ||
+            USER_EMAIL.includes('admin@') ||
+            USER_NAME.toLowerCase().includes('mulloney') ||
+            ['admin', 'agency', 'agency_admin', 'agency_owner', 'owner'].some(r => USER_ROLE.includes(r))
+        );
 
         const cleanEditors = EDITORS_PARAM.includes('{{') ? '' : EDITORS_PARAM.trim().toLowerCase();
         const cleanViewers = VIEWERS_PARAM.includes('{{') ? '' : VIEWERS_PARAM.trim().toLowerCase();
@@ -313,16 +321,16 @@
         let isEditor = false;
         let editorReason = '';
 
-        if (isAgencyOrAdmin) {
+        if (isAgencyOwnerOrAdmin) {
             isEditor = true;
-            editorReason = `Agency/Admin Access (${USER_ROLE})`;
+            editorReason = 'Agency Owner / Administrator';
         } else if (cleanEditors === 'all' || cleanEditors === 'anyone' || cleanEditors === '*') {
             isEditor = true;
             editorReason = 'Wildcard (ALL/ANYONE)';
         } else if (cleanEditors) {
             const allowed = cleanEditors.split(/[,+]/).map(s => s.trim()).filter(Boolean);
             const nameMatch = USER_NAME && allowed.some(a => USER_NAME.toLowerCase().includes(a));
-            const emailMatch = USER_EMAIL && allowed.includes(USER_EMAIL.toLowerCase());
+            const emailMatch = USER_EMAIL && allowed.includes(USER_EMAIL);
             if (nameMatch || emailMatch) {
                 isEditor = true;
                 editorReason = 'Whitelisted in Editors';
@@ -338,14 +346,14 @@
                 isViewer = true;
                 viewerReason = 'Wildcard (ALL)';
             } else if (cleanViewers === 'admins') {
-                if (isAgencyOrAdmin) {
+                if (isAgencyOwnerOrAdmin) {
                     isViewer = true;
-                    viewerReason = 'Admin/Agency Role';
+                    viewerReason = 'Agency Owner / Administrator';
                 }
             } else {
                 const allowed = cleanViewers.split(/[,+]/).map(s => s.trim()).filter(Boolean);
                 const nameMatch = USER_NAME && allowed.some(a => USER_NAME.toLowerCase().includes(a));
-                const emailMatch = USER_EMAIL && allowed.includes(USER_EMAIL.toLowerCase());
+                const emailMatch = USER_EMAIL && allowed.includes(USER_EMAIL);
                 if (nameMatch || emailMatch) {
                     isViewer = true;
                     viewerReason = 'Whitelisted in Viewers';
@@ -354,7 +362,7 @@
         }
 
         const mode = isEditor ? 'editor' : (isViewer ? 'viewer' : 'restricted');
-        return { isEditor, isViewer, mode, reason: isEditor ? editorReason : viewerReason };
+        return { isEditor, isViewer, mode, reason: isEditor ? editorReason : viewerReason, isAgencyOwnerOrAdmin };
     }
 
     // HighLevel Self-Healing Provisioner (Auto-creates both custom values)
@@ -404,32 +412,6 @@
             console.warn('[GHL Auto-Provisioner]:', e);
         }
     }
-
-    // Standard Onboarding Blueprint
-    const ONBOARDING_BLUEPRINT = [
-        { visible: true, id: "cf_01", parentId: "", level: 0, order: 1, checked: true, title: "Cloudflare Infrastructure", notes: "Master DNS and edge routing configuration for production domain." },
-        { visible: true, id: "cf_02", parentId: "cf_01", level: 1, order: 2, checked: true, title: "Create account with admin@ email", notes: "Isolates domain security from public sales channels." },
-        { visible: true, id: "cf_03", parentId: "cf_01", level: 2, order: 3, checked: true, title: "Invite automybiz@gmail.com as Administrator", notes: "Enables agency management under single login credentials." },
-        { visible: true, id: "cf_04", parentId: "cf_01", level: 1, order: 4, checked: true, title: "Deploy Sveltia CMS OAuth Authenticator Worker", notes: "Handles secure GitHub OAuth proxying without third-party auth." },
-
-        { visible: true, id: "gh_01", parentId: "", level: 0, order: 5, checked: true, title: "GitHub Repository & Sveltia CMS", notes: "Headless content management and Git repository access." },
-        { visible: true, id: "gh_02", parentId: "gh_01", level: 1, order: 6, checked: true, title: "Client creates GitHub account (EPWAdmin)", notes: "Gives client direct ownership credentials." },
-        { visible: true, id: "gh_03", parentId: "gh_01", level: 2, order: 7, checked: true, title: "Add client as repository collaborator", notes: "Allows client to commit changes via Sveltia CMS dashboard." },
-        { visible: true, id: "gh_04", parentId: "gh_01", level: 2, order: 8, checked: true, title: "Test 1-click 'Sign In with GitHub' at /admin/", notes: "Verify login opens Sveltia dashboard smoothly." },
-
-        { visible: true, id: "st_01", parentId: "", level: 0, order: 9, checked: false, title: "Stripe Payment Gateway", notes: "Direct on-site merchant payments and bank routing." },
-        { visible: true, id: "st_02", parentId: "st_01", level: 1, order: 10, checked: false, title: "Client creates & verifies Stripe merchant account", notes: "Connects bank for direct automated payouts." },
-        { visible: true, id: "st_03", parentId: "st_01", level: 1, order: 11, checked: false, title: "Generate Stripe Payment Links / Buy Buttons", notes: "Checkout links for high-ticket catalog items." },
-
-        { visible: true, id: "sb_01", parentId: "", level: 0, order: 12, checked: false, title: "Supabase Member Portal & Google Auth", notes: "Customer authentication engine and database sync." },
-        { visible: true, id: "sb_02", parentId: "sb_01", level: 1, order: 13, checked: false, title: "Client signs up at supabase.com (via GitHub)", notes: "Creates client-owned 2-project free organization." },
-        { visible: true, id: "sb_03", parentId: "sb_01", level: 2, order: 14, checked: false, title: "Invite automybiz@gmail.com to Organization", notes: "Enables agency collaboration." },
-        { visible: true, id: "sb_04", parentId: "sb_01", level: 2, order: 15, checked: false, title: "Configure Google OAuth Provider", notes: "Enables 1-click customer login on web portal." },
-
-        { visible: true, id: "ghl_01", parentId: "", level: 0, order: 16, checked: true, title: "AutoMyBiz & GoHighLevel Integration", notes: "CRM automation and workflow webhooks." },
-        { visible: true, id: "ghl_02", parentId: "ghl_01", level: 1, order: 17, checked: true, title: "Add Custom Menu Link: Products & Variants", notes: "Embeds Sveltia CMS iframe in HighLevel sidebar menu." },
-        { visible: true, id: "ghl_03", parentId: "ghl_01", level: 1, order: 18, checked: false, title: "Generate Private Integration Token (PIT)", notes: "Required for live contact custom fields lookups." }
-    ];
 
     // =========================================================================
     // AUTO MEDIA CONVERSION ENGINE (from FEATURE-SPEC-FOR-GEMINI.md)
@@ -706,6 +688,7 @@
             if (modeIcon) modeIcon.innerText = '✏️';
             if (modeText) modeText.innerText = 'Editor Mode';
             if (modeDesc) modeDesc.innerText = `Full editing access granted: ${perms.reason}`;
+            document.getElementById('clientBadge').innerText = CLIENT_NAME;
         } else if (perms.mode === 'viewer') {
             document.body.classList.add('is-viewer-mode');
             if (modePill) modePill.className = 'status-pill status-viewer';
@@ -722,7 +705,9 @@
         }
 
         if (modeUser) {
-            const detectedStr = USER_NAME || USER_EMAIL ? `${USER_NAME || USER_EMAIL} (${USER_ROLE || 'user'})` : 'Anonymous / No Params';
+            const detectedStr = USER_NAME || USER_EMAIL 
+                ? `${USER_NAME || USER_EMAIL} (${perms.isAgencyOwnerOrAdmin ? 'Agency Owner / Admin' : (USER_ROLE || 'user')})` 
+                : 'Anonymous / No Params';
             modeUser.innerText = `Active User: ${detectedStr}`;
         }
     }
@@ -987,7 +972,7 @@
                 row.draggable = false;
                 row.dataset.index = realIdx;
                 row.dataset.taskId = taskId;
-                row.style.paddingLeft = dynamicPadding + 'px';
+                row.style.paddingLeft = `${dynamicPadding}px`;
 
                 row.addEventListener('dragstart', handleTaskDragStart);
                 row.addEventListener('dragover', handleTaskDragOver);
@@ -1333,15 +1318,6 @@
 
         saveState();
         renderAll();
-    }
-
-    function deleteSubtree(parentIdx) {
-        if (!TASKS_DATA[parentIdx]) return;
-        const range = getSubtreeRange(parentIdx);
-        TASKS_DATA.splice(range.start, range.count);
-        saveState();
-        renderAll();
-        showToast(range.count > 1 ? ('Deleted task and ' + (range.count - 1) + ' subtask(s)') : 'Task removed');
     }
 
     function updateTaskTitle(index, val) {
@@ -1929,7 +1905,6 @@
 
             const sectionMatch = trimmed.match(/^section:\s*["']?(.*?)["']?$/i);
             if (sectionMatch) {
-                // Automatically strip leading numbers from imported titles
                 const rawTitle = sectionMatch[1].trim();
                 const cleanTitle = rawTitle.replace(/^\d+\.\s*/, () => '').trim();
 
@@ -1999,7 +1974,7 @@
                     result.push(currentSection);
                 }
 
-                // Calibrate relative indent: shallowest task in section is ALWAYS pinned to Level 1
+                // Shallowest task in section is pinned to Level 1
                 const relSpaces = Math.max(0, indentSpaces - activeBaseIndent);
                 const relativeLevel = Math.max(1, Math.round(relSpaces / 2) + 1);
 
@@ -2030,7 +2005,7 @@
     }
 
     // =========================================================================
-    // YAML MODAL OVERLAY LOGIC (Full List, Section, or Branch Insertion)
+    // YAML MODAL OVERLAY LOGIC
     // =========================================================================
     function openYamlModal(mode, targetIndex = null) {
         MODAL_CONTEXT = { mode, targetIndex };
