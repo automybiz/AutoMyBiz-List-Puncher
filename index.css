@@ -934,13 +934,13 @@ body {
 
 /* Level 1 (Root): 4px Hook in Color 1 (#0FF) */
 .nest-style-cards .task-row.task-depth-1 {
-    border-left: 4px solid var(--card-border-color-1);
+    border-left: 2px solid var(--card-border-color-1);
     border-radius: 8px;
 }
 
 /* Level 2: 3px Hook in Color 2 (#F80) */
 .nest-style-cards .task-row.task-depth-2 {
-    border-left: 3px solid var(--card-border-color-2);
+    border-left: 2px solid var(--card-border-color-2);
     border-radius: 8px;
 }
 
