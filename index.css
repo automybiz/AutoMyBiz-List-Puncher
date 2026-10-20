@@ -623,8 +623,8 @@ body {
     margin: 10px 14px 6px 14px;
     padding: 8px 12px;
     background: rgba(0, 0, 0, 0.25);
-    border-radius: 6px;
-    border-left: 3px solid var(--accent-cyan);
+    border-radius: 10px;
+    border-left: 2px solid var(--accent-cyan);
     font-size: 0.84rem;
     color: var(--text-secondary);
     line-height: 1.5;
@@ -636,8 +636,8 @@ body {
 
 .section-description-block:hover {
     background: rgba(0, 0, 0, 0.4);
-    border-left-color: #fff;
-    color: #fff;
+    border-left-color: var(--card-border-color-1);
+    color: var(--text-primary);
 }
 
 .section-description-placeholder {
