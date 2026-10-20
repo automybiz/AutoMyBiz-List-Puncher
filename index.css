@@ -686,7 +686,7 @@ body {
     padding: 6px 8px;
     border-radius: 8px;
     background: rgba(255, 255, 255, 0.02);
-    border: 1px solid transparent;
+    border: 0px solid transparent;
     transition: background 0.15s ease, border-color 0.15s ease, opacity 0.2s ease;
     position: relative;
     user-select: text;
@@ -978,7 +978,7 @@ body {
 
 /* Rail Depth 1 (Under Root): Encloses Level 1 children with Color 1 (#0FF) */
 .nest-style-rails .branch-rail.rail-depth-1 {
-    border-left: 3px solid var(--card-border-color-1);
+    border-left: 2px solid var(--card-border-color-1);
     border-radius: 10px;
     margin-left: 14px;
     padding-left: 8px;
@@ -1019,7 +1019,7 @@ body {
 }
 .nest-style-rails .task-row.task-depth-3 {
     border-left: 2px solid var(--card-border-color-1);
-    border-radius: 6px;
+    border-radius: 10px;
 }
 .nest-style-rails .task-row.task-depth-4 {
     border-left: 2px solid var(--card-border-color-2);
