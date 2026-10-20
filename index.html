@@ -52,13 +52,13 @@
     })();
     </script>
 </head>
-<body class="card-border-animated effect-hue-sweep nest-style-cards">
+<body class="card-border-animated effect-hue-sweep nest-style-cards depth-colors-alt">
 
 <div class="container">
 
     <!-- Header Control Bar -->
     <div class="header-card">
-        <!-- Dual Status Badges Cluster (Anchored Top-Right) -->
+        <!-- Dual Status Badges Cluster (Live Auto-Save & Mode Pill) -->
         <div class="header-pills-cluster">
             <!-- Mode Status Pill -->
             <div class="header-pill-wrap">
@@ -86,9 +86,9 @@
                 </div>
             </div>
 
-            <!-- Storage Pill -->
+            <!-- Live Auto-Save Storage Pill -->
             <div class="header-pill-wrap">
-                <button id="storageStatusPill" class="status-pill status-healthy" onclick="openYamlModal('full')" title="Click to view &amp; edit full YAML">
+                <button id="storageStatusPill" class="status-pill status-saved" onclick="openYamlModal('full')" title="Click to view &amp; edit full YAML">
                     <span id="pillIcon">💾</span>
                     <span id="pillText">YAML Local Storage</span>
                 </button>
@@ -97,8 +97,8 @@
                         <span>💾</span>
                         <span>Direct YAML Storage Engine</span>
                     </div>
-                    <div id="tooltipStatusNotice">Saved in browser localStorage (YAML format).</div>
-                    <div class="tooltip-code-box">Key: list_puncher_yaml</div>
+                    <div id="tooltipStatusNotice">Auto-saved with 500ms live debounce.</div>
+                    <div class="tooltip-code-box" id="storageKeyBox">Key: list_puncher_yaml</div>
                     <span class="tooltip-footer-note">Click pill to open the Full YAML Modal Editor</span>
                 </div>
             </div>
@@ -109,10 +109,33 @@
                 <div class="brand-title">
                     ⚡ List Puncher <span class="cyan">// Client Onboarding</span>
                 </div>
+                
+                <!-- Multi-Project Switcher Dropdown (Unlimited Lists per Business) -->
+                <div class="project-switcher-wrap">
+                    <button type="button" class="project-select-btn" id="btnProjectSelect" onclick="toggleProjectDropdown()" title="Switch or manage project lists">
+                        <span>📁</span>
+                        <span class="project-select-label" id="currentProjectLabel">Client Onboarding</span>
+                        <span style="font-size: 10px; margin-left: 2px;">▾</span>
+                    </button>
+                    <div class="project-dropdown-menu" id="projectDropdownMenu">
+                        <div id="projectItemsList"></div>
+                        <div class="project-menu-divider"></div>
+                        <div class="project-action-item" onclick="promptCreateProject()">
+                            <span>➕</span> <span>New Project List...</span>
+                        </div>
+                        <div class="project-action-item" onclick="promptRenameProject()">
+                            <span>✏️</span> <span>Rename Active List...</span>
+                        </div>
+                        <div class="project-action-item delete-proj" onclick="promptDeleteProject()">
+                            <span>✕</span> <span>Delete Active List</span>
+                        </div>
+                    </div>
+                </div>
+
                 <span class="client-badge" id="clientBadge">Client Workspace</span>
             </div>
 
-            <!-- Action & Toggle Controls -->
+            <!-- Granular Action & Filter Controls -->
             <div class="header-actions">
                 <button type="button" class="btn-action" onclick="copyAiPromptToClipboard()" title="Copy prompt for ChatGPT, Claude, Gemini or Grok">
                     🤖 Copy AI Prompt
@@ -135,6 +158,10 @@
                 <!-- Dual-Engine Nesting Style Toggle (Option 2 Cards vs Option 1 Rails) -->
                 <button type="button" class="btn-action btn-toggle" id="btnNestStyle" onclick="toggleNestStyle()" title="Toggle between clean card brackets and continuous scope guide rails">
                     🎋 Rails: OFF
+                </button>
+                <!-- Alternating Depth Colors Toggle -->
+                <button type="button" class="btn-action btn-toggle" id="btnDepthColors" onclick="toggleDepthColors()" title="Toggle alternating color depths vs solid theme color">
+                    🎨 Colors: ALT
                 </button>
                 <button type="button" class="btn-action" onclick="openYamlModal('full')" title="Open Full YAML Editor Overlay">
                     📝 YAML Editor
@@ -179,8 +206,8 @@
         </div>
         <div class="modal-footer">
             <div style="display: flex; align-items: center; gap: 8px;">
-                <span class="modal-hint">Tabs auto-convert to 2 spaces. Supports nested subtasks &amp; media notes.</span>
-                <button type="button" class="btn-action btn-sm" onclick="prettifyModalYaml()" title="Auto-convert tabs and standardize 2-space indentation">
+                <span class="modal-hint">Tabs auto-convert to 2 spaces. Illogical indent steps clamped automatically.</span>
+                <button type="button" class="btn-action btn-sm" onclick="prettifyModalYaml()" title="Auto-convert tabs, clamp depths, and standardize 2-space indentation">
                     ✨ Prettify YAML
                 </button>
             </div>
@@ -213,7 +240,14 @@
 <div id="toast" class="toast">Action completed!</div>
 
 <script>
-    // Global Constants avoiding protocol slashes inside template literals (Rule 9)
+    // =========================================================================
+    // CONFIGURATION CONSTANTS (ALL_CAPS_SEPARATED_BY_UNDERSCORES)
+    // =========================================================================
+    const AUTOSAVE_DELAY_MS = 500;
+    const INDENT_SPACES_PER_LEVEL = 2;
+    const DEFAULT_PROJECT_ID = 'default_onboarding';
+    const DEFAULT_PROJECT_NAME = 'Client Onboarding';
+
     const GHL_API_BASE = 'https://services.leadconnectorhq.com';
     const SETTINGS_GATEWAY_DOMAIN = 'https://ghl-custom-workflow-settings.automybiz.workers.dev';
     const DEFAULT_GLOBALS_ID = '1u_mZhsYM3J7in_8clshqbRYzHuCC83i15OMz2i3aAHQ';
@@ -223,8 +257,8 @@
     const ACTIVE_GLOBALS_ID = urlParams.get('gsheet_globals_id') || DEFAULT_GLOBALS_ID;
     const CLIENT_NAME = urlParams.get('location_name') || urlParams.get('client_name') || 'Euro Parts West';
 
-    // HighLevel Role, Permissions & Self-Healing Credentials
-    const LOCATION_ID   = urlParams.get('location_id') || '';
+    // HighLevel Role, Permissions & Credentials
+    const LOCATION_ID   = urlParams.get('location_id') || 'default_subaccount';
     const API_TOKEN     = urlParams.get('token') || urlParams.get('automybiz_api_token') || '';
     const USER_NAME     = urlParams.get('user_name') || '';
     const USER_EMAIL    = (urlParams.get('user_email') || '').toLowerCase().trim();
@@ -233,6 +267,11 @@
     const EDITORS_PARAM = urlParams.get('editors') || '';
     const VIEWERS_PARAM = urlParams.get('viewers') || '';
     const MODE_OVERRIDE = (urlParams.get('mode') || urlParams.get('edit') || '').toLowerCase();
+    const URL_PROJECT   = urlParams.get('project') || urlParams.get('project_id') || '';
+
+    // Multi-Project State
+    let ACTIVE_PROJECT_ID = DEFAULT_PROJECT_ID;
+    let PROJECTS_LIST = [];
 
     // In-memory Task State & Persistent UI State
     let TASKS_DATA = [];
@@ -242,8 +281,12 @@
         notesOpen: {},
         autoNumber: true,
         completedAtBottom: false,
-        nestStyle: 'cards' // 'cards' (Default Option 2) | 'rails' (Option 1)
+        nestStyle: 'cards', // 'cards' (Option 2) | 'rails' (Option 1)
+        depthColorMode: 'alt' // 'alt' (Staggered by level) | 'solid'
     };
+
+    // Live Auto-Save Debounce Timer
+    let AUTOSAVE_TIMER = null;
 
     // Drag-and-drop state
     let IS_DRAGGING_TASK = false;
@@ -285,7 +328,7 @@
         <line x1="5" y1="12" x2="19" y2="12"></line>
     </svg>`;
 
-    // Deterministic slug generator for stable persistence across page refreshes
+    // Deterministic slug generator
     function generateSlugId(prefix, title, index) {
         const slug = String(title || '')
             .toLowerCase()
@@ -293,6 +336,248 @@
             .replace(/^_+|_+$/g, () => '')
             .substring(0, 36);
         return `${prefix}_${slug || 'item'}_${index}`;
+    }
+
+    // =========================================================================
+    // MULTI-PROJECT SCOPE ENGINE (UNLIMITED LISTS PER GHL LOCATION)
+    // =========================================================================
+    function getProjectsStorageKey() {
+        return `list_puncher_${LOCATION_ID}_projects`;
+    }
+
+    function getActiveProjectStorageKey() {
+        return `list_puncher_${LOCATION_ID}_active_proj_id`;
+    }
+
+    function getProjectYamlKey(projId) {
+        return `list_puncher_${LOCATION_ID}_proj_${projId}_yaml`;
+    }
+
+    function getProjectUiKey(projId) {
+        return `list_puncher_${LOCATION_ID}_proj_${projId}_ui_state`;
+    }
+
+    function loadProjectsDirectory() {
+        const key = getProjectsStorageKey();
+        const raw = localStorage.getItem(key);
+        if (raw) {
+            try { PROJECTS_LIST = JSON.parse(raw); } catch(e) { PROJECTS_LIST = []; }
+        }
+
+        if (!PROJECTS_LIST || !PROJECTS_LIST.length) {
+            PROJECTS_LIST = [{ id: DEFAULT_PROJECT_ID, name: DEFAULT_PROJECT_NAME }];
+            localStorage.setItem(key, JSON.stringify(PROJECTS_LIST));
+        }
+
+        // Resolve active project ID from URL or storage
+        if (URL_PROJECT) {
+            const found = PROJECTS_LIST.find(p => p.id === URL_PROJECT || p.name.toLowerCase() === URL_PROJECT.toLowerCase());
+            if (found) {
+                ACTIVE_PROJECT_ID = found.id;
+            } else {
+                ACTIVE_PROJECT_ID = generateSlugId('proj', URL_PROJECT, Date.now());
+                PROJECTS_LIST.push({ id: ACTIVE_PROJECT_ID, name: URL_PROJECT });
+                localStorage.setItem(key, JSON.stringify(PROJECTS_LIST));
+            }
+        } else {
+            const storedActiveId = localStorage.getItem(getActiveProjectStorageKey());
+            if (storedActiveId && PROJECTS_LIST.some(p => p.id === storedActiveId)) {
+                ACTIVE_PROJECT_ID = storedActiveId;
+            } else {
+                ACTIVE_PROJECT_ID = PROJECTS_LIST[0].id;
+            }
+        }
+
+        localStorage.setItem(getActiveProjectStorageKey(), ACTIVE_PROJECT_ID);
+        renderProjectDropdownUI();
+    }
+
+    function renderProjectDropdownUI() {
+        const curProj = PROJECTS_LIST.find(p => p.id === ACTIVE_PROJECT_ID) || PROJECTS_LIST[0];
+        const labelEl = document.getElementById('currentProjectLabel');
+        if (labelEl && curProj) labelEl.innerText = curProj.name;
+
+        const itemsContainer = document.getElementById('projectItemsList');
+        if (!itemsContainer) return;
+
+        itemsContainer.innerHTML = '';
+        PROJECTS_LIST.forEach(proj => {
+            const item = document.createElement('div');
+            item.className = `project-item ${proj.id === ACTIVE_PROJECT_ID ? 'active' : ''}`;
+            item.innerHTML = `
+                <span>${escapeHtml(proj.name)}</span>
+                ${proj.id === ACTIVE_PROJECT_ID ? '<span style="color:var(--accent-cyan); font-size:12px;">✓</span>' : ''}
+            `;
+            item.onclick = (e) => {
+                e.stopPropagation();
+                switchActiveProject(proj.id);
+            };
+            itemsContainer.appendChild(item);
+        });
+
+        const storageBox = document.getElementById('storageKeyBox');
+        if (storageBox) {
+            storageBox.innerText = `Key: list_puncher_${LOCATION_ID}_proj_${ACTIVE_PROJECT_ID}_yaml`;
+        }
+    }
+
+    function toggleProjectDropdown() {
+        const menu = document.getElementById('projectDropdownMenu');
+        if (menu) menu.classList.toggle('open');
+    }
+
+    function switchActiveProject(projId) {
+        if (projId === ACTIVE_PROJECT_ID) {
+            toggleProjectDropdown();
+            return;
+        }
+
+        // Flush and save current project before switching
+        executeAutoSave();
+
+        ACTIVE_PROJECT_ID = projId;
+        localStorage.setItem(getActiveProjectStorageKey(), ACTIVE_PROJECT_ID);
+
+        const menu = document.getElementById('projectDropdownMenu');
+        if (menu) menu.classList.remove('open');
+
+        // Load targeted project's YAML and UI state
+        loadCurrentProjectData();
+        renderProjectDropdownUI();
+        showToast('Switched project list');
+    }
+
+    function promptCreateProject() {
+        toggleProjectDropdown();
+        const name = prompt('Enter New Project List Name:', 'Project Tasks');
+        if (name && name.trim()) {
+            executeAutoSave();
+            const newId = generateSlugId('proj', name.trim(), Date.now());
+            PROJECTS_LIST.push({ id: newId, name: name.trim() });
+            localStorage.setItem(getProjectsStorageKey(), JSON.stringify(PROJECTS_LIST));
+
+            ACTIVE_PROJECT_ID = newId;
+            localStorage.setItem(getActiveProjectStorageKey(), ACTIVE_PROJECT_ID);
+
+            // Seed with blueprint
+            TASKS_DATA = JSON.parse(JSON.stringify(ONBOARDING_BLUEPRINT));
+            saveState();
+
+            loadCurrentProjectData();
+            renderProjectDropdownUI();
+            showToast(`Created new project "${name.trim()}"`);
+        }
+    }
+
+    function promptRenameProject() {
+        toggleProjectDropdown();
+        const curProj = PROJECTS_LIST.find(p => p.id === ACTIVE_PROJECT_ID);
+        if (!curProj) return;
+
+        const newName = prompt('Enter New Name for this Project List:', curProj.name);
+        if (newName && newName.trim() && newName.trim() !== curProj.name) {
+            curProj.name = newName.trim();
+            localStorage.setItem(getProjectsStorageKey(), JSON.stringify(PROJECTS_LIST));
+            renderProjectDropdownUI();
+            showToast(`Renamed project to "${curProj.name}"`);
+        }
+    }
+
+    function promptDeleteProject() {
+        toggleProjectDropdown();
+        if (PROJECTS_LIST.length <= 1) {
+            alert('Cannot delete the only remaining project list.');
+            return;
+        }
+
+        const curProj = PROJECTS_LIST.find(p => p.id === ACTIVE_PROJECT_ID);
+        if (!curProj) return;
+
+        if (!confirm(`Are you sure you want to permanently delete the project list "${curProj.name}"?`)) return;
+
+        localStorage.removeItem(getProjectYamlKey(ACTIVE_PROJECT_ID));
+        localStorage.removeItem(getProjectUiKey(ACTIVE_PROJECT_ID));
+
+        PROJECTS_LIST = PROJECTS_LIST.filter(p => p.id !== ACTIVE_PROJECT_ID);
+        localStorage.setItem(getProjectsStorageKey(), JSON.stringify(PROJECTS_LIST));
+
+        ACTIVE_PROJECT_ID = PROJECTS_LIST[0].id;
+        localStorage.setItem(getActiveProjectStorageKey(), ACTIVE_PROJECT_ID);
+
+        loadCurrentProjectData();
+        renderProjectDropdownUI();
+        showToast('Project deleted');
+    }
+
+    function loadCurrentProjectData() {
+        // Load UI state for this project
+        const rawUi = localStorage.getItem(getProjectUiKey(ACTIVE_PROJECT_ID));
+        if (rawUi) {
+            try { UI_STATE = Object.assign(UI_STATE, JSON.parse(rawUi)); } catch(e) {}
+        } else {
+            UI_STATE.sections = {};
+            UI_STATE.branches = {};
+            UI_STATE.notesOpen = {};
+        }
+
+        applyNestingModeClass();
+        applyDepthColorClass();
+        updateHeaderToggleButtonsUI();
+
+        // Load YAML content for this project
+        const rawYaml = localStorage.getItem(getProjectYamlKey(ACTIVE_PROJECT_ID));
+        if (rawYaml && rawYaml.trim()) {
+            TASKS_DATA = parseYamlToTasks(rawYaml);
+            renderAll();
+        } else {
+            // Check legacy migration key once
+            const legacyYaml = localStorage.getItem('list_puncher_yaml');
+            if (legacyYaml && legacyYaml.trim()) {
+                TASKS_DATA = parseYamlToTasks(legacyYaml);
+                saveState();
+                renderAll();
+            } else {
+                seedOnboardingBlueprint();
+            }
+        }
+    }
+
+    // =========================================================================
+    // LIVE DEBOUNCED AUTO-SAVE ENGINE (AUTOSAVE_DELAY_MS = 500)
+    // =========================================================================
+    function triggerDebouncedAutoSave() {
+        setStoragePillStatus('saving', '⌛ Saving...');
+        clearTimeout(AUTOSAVE_TIMER);
+        AUTOSAVE_TIMER = setTimeout(() => {
+            executeAutoSave();
+        }, AUTOSAVE_DELAY_MS);
+    }
+
+    function executeAutoSave() {
+        clearTimeout(AUTOSAVE_TIMER);
+        saveState();
+        setStoragePillStatus('saved', '✓ Saved');
+        setTimeout(() => {
+            setStoragePillStatus('healthy', 'YAML Local Storage');
+        }, 1400);
+    }
+
+    function setStoragePillStatus(stateClass, text) {
+        const pill = document.getElementById('storageStatusPill');
+        const pillText = document.getElementById('pillText');
+        if (pill) {
+            pill.className = `status-pill status-${stateClass}`;
+        }
+        if (pillText) {
+            pillText.innerText = text;
+        }
+    }
+
+    function saveState() {
+        const fullYaml = formatTasksSliceAsYaml(TASKS_DATA);
+        localStorage.setItem(getProjectYamlKey(ACTIVE_PROJECT_ID), fullYaml);
+        localStorage.setItem(getProjectUiKey(ACTIVE_PROJECT_ID), JSON.stringify(UI_STATE));
+        localStorage.setItem('list_puncher_yaml', fullYaml); // Legacy backup
     }
 
     // =========================================================================
@@ -307,7 +592,6 @@
             return { isEditor: true, isViewer: true, mode: 'editor', reason: 'Standalone (Full Access)' };
         }
 
-        // Automatic identification for Agency Owner / Admin accounts
         const isAgencyOwnerOrAdmin = (
             (USER_EMAIL && OWNER_EMAIL && USER_EMAIL === OWNER_EMAIL) ||
             USER_EMAIL.includes('automybiz') ||
@@ -339,7 +623,7 @@
             }
         }
 
-        // 2. Evaluate Viewer Permissions (Editors automatically authorized to view)
+        // 2. Evaluate Viewer Permissions
         let isViewer = isEditor;
         let viewerReason = isEditor ? editorReason : '';
 
@@ -367,9 +651,9 @@
         return { isEditor, isViewer, mode, reason: isEditor ? editorReason : viewerReason, isAgencyOwnerOrAdmin };
     }
 
-    // HighLevel Self-Healing Provisioner (Auto-creates both custom values)
+    // HighLevel Self-Healing Provisioner
     async function checkAndProvisionGHL() {
-        if (!LOCATION_ID || !API_TOKEN) return;
+        if (!LOCATION_ID || !API_TOKEN || LOCATION_ID === 'default_subaccount') return;
         const cleanToken = API_TOKEN.trim();
         if (!cleanToken.startsWith('pit-')) return;
 
@@ -405,10 +689,6 @@
                     headers: headers,
                     body: JSON.stringify({ name: 'list_puncher_viewers', value: 'ALL' })
                 });
-            }
-
-            if (!hasEditors || !hasViewers) {
-                showToast('⚡ Auto-provisioned list_puncher custom values in HighLevel!');
             }
         } catch(e) {
             console.warn('[GHL Auto-Provisioner]:', e);
@@ -658,7 +938,7 @@
     }
 
     // =========================================================================
-    // APP INITIALIZATION & YAML LOCAL STORAGE
+    // APP INITIALIZATION
     // =========================================================================
     async function initApp() {
         document.getElementById('clientBadge').innerText = CLIENT_NAME;
@@ -679,33 +959,28 @@
             return;
         }
 
-        const savedUiState = localStorage.getItem('automybiz_punch_ui_state');
-        if (savedUiState) {
-            try { 
-                UI_STATE = Object.assign(UI_STATE, JSON.parse(savedUiState)); 
-            } catch(e) {}
-        }
-
-        // Apply active nesting mode (Option 2 Cards by default)
-        applyNestingModeClass();
-        updateHeaderToggleButtonsUI();
-
-        const savedYaml = localStorage.getItem('list_puncher_yaml');
-        if (savedYaml && savedYaml.trim()) {
-            TASKS_DATA = parseYamlToTasks(savedYaml);
-            renderAll();
-            showToast('Loaded tasks from YAML storage');
-        } else {
-            seedOnboardingBlueprint();
-        }
+        // Initialize unlimited multi-project directory for this location
+        loadProjectsDirectory();
+        loadCurrentProjectData();
 
         checkAndProvisionGHL();
+
+        // Flush auto-save on page exit
+        window.addEventListener('beforeunload', () => {
+            executeAutoSave();
+        });
     }
 
     function applyNestingModeClass() {
         const isRails = (UI_STATE.nestStyle === 'rails');
         document.body.classList.toggle('nest-style-rails', isRails);
         document.body.classList.toggle('nest-style-cards', !isRails);
+    }
+
+    function applyDepthColorClass() {
+        const isSolid = (UI_STATE.depthColorMode === 'solid');
+        document.body.classList.toggle('depth-colors-solid', isSolid);
+        document.body.classList.toggle('depth-colors-alt', !isSolid);
     }
 
     function updatePermissionsUI(perms) {
@@ -767,12 +1042,6 @@
         `;
         document.querySelector('.progress-section').style.display = 'none';
         document.querySelector('.header-actions').style.display = 'none';
-    }
-
-    function saveState() {
-        const fullYaml = formatTasksSliceAsYaml(TASKS_DATA);
-        localStorage.setItem('list_puncher_yaml', fullYaml);
-        localStorage.setItem('automybiz_punch_ui_state', JSON.stringify(UI_STATE));
     }
 
     function seedOnboardingBlueprint() {
@@ -866,7 +1135,7 @@
 
             const deck = document.createElement('div');
             deck.className = 'section-deck ' + (isCollapsed ? 'is-collapsed ' : '') + (allDone ? 'all-tasks-completed' : '');
-            deck.id = 'deck_' + secId;
+            deck.id = `deck_${secId}`;
             deck.dataset.sectionIndex = sIdx;
             deck.dataset.headerIndex = sec.headerIndex;
 
@@ -895,7 +1164,7 @@
                           data-section-index="${sIdx}">⋮⋮</span>
                     ${autoNumberBadgeHtml}
                     <input type="text" class="section-title" value="${escapeHtml(sec.header.title)}" 
-                           onchange="updateSectionTitle(${sec.headerIndex}, this.value)" 
+                           oninput="updateSectionTitle(${sec.headerIndex}, this.value)" 
                            onclick="event.stopPropagation();" />
                 </div>
                 <div class="section-meta-right">
@@ -911,7 +1180,7 @@
                         </button>
                         <button type="button" class="btn-icon sec-action-btn delete-btn" title="Delete milestone and all its tasks" onclick="confirmDeleteSection(${sIdx})">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                                <line x1="18" y1="6" x2="6" y2="18"></line>
+                                <line x1="18" y1="6" x2="18" y2="18"></line>
                                 <line x1="6" y1="6" x2="18" y2="18"></line>
                             </svg>
                         </button>
@@ -949,7 +1218,7 @@
                     <textarea class="section-description-textarea auto-expand-textarea" 
                               id="sec_desc_textarea_${secId}" 
                               placeholder="Add milestone description, overview, images or YouTube links..."
-                              oninput="autoExpandTextarea(this);"
+                              oninput="autoExpandTextarea(this); updateSectionDescriptionLive(${sec.headerIndex}, this.value);"
                               onkeydown="handleSectionDescKeydown(event, '${secId}', ${sec.headerIndex}, this)"
                               onblur="finishEditSectionDescription('${secId}', ${sec.headerIndex}, this)">${escapeHtml(sec.header.notes || '')}</textarea>
                     <div class="notes-edit-footer">
@@ -964,7 +1233,7 @@
             list.className = 'task-list';
             list.dataset.sectionIndex = sIdx;
 
-            // Build hierarchical tree for recursive rendering
+            // Build hierarchical tree for unified indentation
             const rootNodes = [];
             const stack = [];
 
@@ -984,7 +1253,7 @@
                 stack.push(node);
             });
 
-            // Recursive task node renderer with Margin-Based Inset Stepping
+            // Recursive task node renderer
             function renderTaskNodeTree(node, targetContainer, depth = 1) {
                 const t = node.item;
                 const realIdx = node.originalIndex;
@@ -1002,7 +1271,7 @@
                     ? Boolean(UI_STATE.notesOpen[taskId]) 
                     : Boolean(t.notes && t.notes.trim());
 
-                // Staggered depth classes for alternating colors
+                // Staggered depth classes for unified colors by level
                 const depthClass = `task-depth-${depth} ${depth % 2 === 1 ? 'task-depth-odd' : 'task-depth-even'}`;
 
                 const row = document.createElement('div');
@@ -1012,16 +1281,9 @@
                 row.dataset.taskId = taskId;
                 row.dataset.level = t.level;
 
-                // INSET STEPPING FIX: Drives physical card and left border inward using margin-left!
-                const isCardsMode = (UI_STATE.nestStyle !== 'rails');
-                if (isCardsMode) {
-                    const dynamicMargin = Math.max(0, (t.level - 1) * 22);
-                    row.style.marginLeft = `${dynamicMargin}px`;
-                    row.style.paddingLeft = '8px';
-                } else {
-                    row.style.marginLeft = '0px';
-                    row.style.paddingLeft = '8px';
-                }
+                // Indentation is physically driven by .branch-rail container in both modes
+                row.style.marginLeft = '0px';
+                row.style.paddingLeft = '8px';
 
                 row.addEventListener('dragstart', handleTaskDragStart);
                 row.addEventListener('dragover', handleTaskDragOver);
@@ -1058,7 +1320,7 @@
                             <input type="checkbox" class="task-checkbox" ${t.checked ? 'checked' : ''} onchange="toggleTask(${realIdx})" />
                         </div>
 
-                        <input type="text" class="task-title-input" value="${escapeHtml(t.title)}" onchange="updateTaskTitle(${realIdx}, this.value)" />
+                        <input type="text" class="task-title-input" value="${escapeHtml(t.title)}" oninput="updateTaskTitle(${realIdx}, this.value)" />
 
                         <div class="task-right-cluster">
                             <div class="task-actions">
@@ -1088,7 +1350,7 @@
                             <textarea class="task-notes-textarea auto-expand-textarea" 
                                       id="notes_textarea_${taskId}"
                                       placeholder="Add notes, paste images or YouTube URLs (multi-line)..." 
-                                      oninput="autoExpandTextarea(this);"
+                                      oninput="autoExpandTextarea(this); updateTaskNotesLive(${realIdx}, this.value);"
                                       onkeydown="handleNoteKeydown(event, '${taskId}', ${realIdx}, this)"
                                       onblur="finishEditNotes('${taskId}', ${realIdx}, this)">${escapeHtml(t.notes || '')}</textarea>
                             <div class="notes-edit-footer">
@@ -1118,7 +1380,7 @@
 
                 targetContainer.appendChild(row);
 
-                // Recursive continuous scope rails for Option 1
+                // Recursive branch rail (Identical 14px indent in both Cards and Rails mode)
                 if (node.children.length > 0 && !isBranchCollapsed) {
                     const rail = document.createElement('div');
                     const railDepthNum = ((depth - 1) % 4) + 1;
@@ -1151,6 +1413,15 @@
         updateHeaderToggleButtonsUI();
         renderAll();
         showToast(UI_STATE.nestStyle === 'rails' ? '🎋 Scope Rails: ON' : '🎋 Scope Rails: OFF (Cards Mode)');
+    }
+
+    function toggleDepthColors() {
+        UI_STATE.depthColorMode = (UI_STATE.depthColorMode === 'solid') ? 'alt' : 'solid';
+        saveState();
+        applyDepthColorClass();
+        updateHeaderToggleButtonsUI();
+        renderAll();
+        showToast(UI_STATE.depthColorMode === 'solid' ? '🎨 Depth Colors: SOLID' : '🎨 Depth Colors: ALTERNATING');
     }
 
     function toggleSection(secId) {
@@ -1237,6 +1508,13 @@
             btnNest.classList.toggle('active', isRails);
             btnNest.innerText = `🎋 Rails: ${isRails ? 'ON' : 'OFF'}`;
         }
+
+        const btnDepth = document.getElementById('btnDepthColors');
+        if (btnDepth) {
+            const isAlt = (UI_STATE.depthColorMode !== 'solid');
+            btnDepth.classList.toggle('active', isAlt);
+            btnDepth.innerText = `🎨 Colors: ${isAlt ? 'ALT' : 'SOLID'}`;
+        }
     }
 
     function handleArrowClick(realIdx) {
@@ -1254,6 +1532,7 @@
         renderAll();
     }
 
+    // Section Description Controller
     function startEditSectionDescription(secId, headerIdx) {
         const viewEl = document.getElementById(`sec_desc_view_${secId}`);
         const editorEl = document.getElementById(`sec_desc_editor_${secId}`);
@@ -1269,6 +1548,13 @@
         textarea.focus();
     }
 
+    function updateSectionDescriptionLive(headerIdx, val) {
+        if (TASKS_DATA[headerIdx]) {
+            TASKS_DATA[headerIdx].notes = val;
+            triggerDebouncedAutoSave();
+        }
+    }
+
     function finishEditSectionDescription(secId, headerIdx, textarea) {
         if (!textarea) return;
         const newVal = textarea.value.trim();
@@ -1276,7 +1562,7 @@
 
         if (sec) {
             sec.notes = newVal;
-            saveState();
+            executeAutoSave();
         }
 
         const viewEl = document.getElementById(`sec_desc_view_${secId}`);
@@ -1307,6 +1593,7 @@
         }
     }
 
+    // Task Notes Controller
     function startEditNotes(taskId, realIdx) {
         const viewEl = document.getElementById(`notes_view_${taskId}`);
         const editorEl = document.getElementById(`notes_editor_${taskId}`);
@@ -1322,6 +1609,13 @@
         textarea.focus();
     }
 
+    function updateTaskNotesLive(realIdx, val) {
+        if (TASKS_DATA[realIdx]) {
+            TASKS_DATA[realIdx].notes = val;
+            triggerDebouncedAutoSave();
+        }
+    }
+
     function finishEditNotes(taskId, realIdx, textarea) {
         if (!textarea) return;
         const newVal = textarea.value.trim();
@@ -1329,7 +1623,7 @@
 
         if (task) {
             task.notes = newVal;
-            saveState();
+            executeAutoSave();
         }
 
         const viewEl = document.getElementById(`notes_view_${taskId}`);
@@ -1363,7 +1657,7 @@
     function toggleTask(index) {
         if (!TASKS_DATA[index]) return;
         TASKS_DATA[index].checked = !TASKS_DATA[index].checked;
-        saveState();
+        executeAutoSave();
         renderAll();
     }
 
@@ -1387,30 +1681,21 @@
             TASKS_DATA[i].level = Math.max(1, (TASKS_DATA[i].level || 1) + delta);
         }
 
-        saveState();
+        executeAutoSave();
         renderAll();
-    }
-
-    function deleteSubtree(parentIdx) {
-        if (!TASKS_DATA[parentIdx]) return;
-        const range = getSubtreeRange(parentIdx);
-        TASKS_DATA.splice(range.start, range.count);
-        saveState();
-        renderAll();
-        showToast(range.count > 1 ? (`Deleted task and ${range.count - 1} subtask(s)`) : 'Task removed');
     }
 
     function updateTaskTitle(index, val) {
         if (TASKS_DATA[index]) {
-            TASKS_DATA[index].title = val.trim();
-            saveState();
+            TASKS_DATA[index].title = val;
+            triggerDebouncedAutoSave();
         }
     }
 
     function updateSectionTitle(index, val) {
         if (TASKS_DATA[index]) {
-            TASKS_DATA[index].title = val.trim();
-            saveState();
+            TASKS_DATA[index].title = val;
+            triggerDebouncedAutoSave();
         }
     }
 
@@ -1439,7 +1724,7 @@
         }
 
         TASKS_DATA.splice(insertAt, 0, newTask);
-        saveState();
+        executeAutoSave();
         renderAll();
 
         setTimeout(() => {
@@ -1477,7 +1762,7 @@
         TASKS_DATA.splice(insertAt, 0, newSubtask);
         UI_STATE.branches[parent.id] = false;
 
-        saveState();
+        executeAutoSave();
         renderAll();
 
         setTimeout(() => {
@@ -1523,7 +1808,7 @@
                 title: cleanTitle,
                 notes: ''
             });
-            saveState();
+            executeAutoSave();
             renderAll();
             showToast(`Created milestone: ${cleanTitle}`);
         }
@@ -1583,14 +1868,14 @@
         if (DELETE_CONTEXT.type === 'task') {
             const range = getSubtreeRange(DELETE_CONTEXT.targetIndex);
             TASKS_DATA.splice(range.start, range.count);
-            saveState();
+            executeAutoSave();
             renderAll();
             showToast(range.count > 1 ? (`Deleted task and ${range.count - 1} subtask(s)`) : 'Task removed');
         } else if (DELETE_CONTEXT.type === 'section') {
             const { range, headerIdx } = DELETE_CONTEXT;
             const secTitle = TASKS_DATA[headerIdx].title;
             TASKS_DATA.splice(range.start, range.count);
-            saveState();
+            executeAutoSave();
             renderAll();
             showToast(`Deleted milestone "${secTitle}"`);
         }
@@ -1695,7 +1980,7 @@
 
         TASKS_DATA.splice(insertAt, 0, ...movingSectionTasks);
 
-        saveState();
+        executeAutoSave();
         renderAll();
         showToast('Milestone reordered!');
     }
@@ -1762,7 +2047,7 @@
         }
 
         const deltaX = e.clientX - DRAG_START_X;
-        const levelShift = Math.round(deltaX / 22);
+        const levelShift = Math.round(deltaX / 14);
         const parentItem = TASKS_DATA[DRAG_START_INDEX];
         const baseLevel = parentItem ? parentItem.level : 1;
 
@@ -1778,8 +2063,7 @@
         line.className = 'drop-indicator-line';
         line.id = 'activeDropIndicator';
 
-        const isCardsMode = (UI_STATE.nestStyle !== 'rails');
-        const lineIndent = isCardsMode ? Math.max(0, (proposedLevel - 1) * 22) : Math.max(0, (proposedLevel - 1) * 14);
+        const lineIndent = Math.max(0, (proposedLevel - 1) * 14);
         line.style.marginLeft = `${lineIndent}px`;
 
         if (position === 'before') {
@@ -1829,7 +2113,7 @@
 
         TASKS_DATA.splice(insertAt, 0, ...subtree);
 
-        saveState();
+        executeAutoSave();
         renderAll();
         showToast('Task & subtasks moved');
     }
@@ -1902,11 +2186,48 @@
         return lines.join('\n').trim();
     }
 
-    // YAML Parser with Tab Normalization, Smart Clean Section Titles & Level 1 Calibration
+    // Clamps illogical jump steps (Max +2 spaces deeper than predecessor)
+    function clampYamlNestingSteps(yamlText) {
+        const lines = yamlText.split(/\r?\n/);
+        const clampedLines = [];
+        let prevTaskIndent = -1;
+
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            const taskMatch = line.match(/^(\s*)-\s*(?:\[[ xX]\])?/);
+
+            if (taskMatch) {
+                let indent = taskMatch[1].length;
+
+                // Max +2 spaces deeper than previous task
+                if (prevTaskIndent !== -1 && indent > prevTaskIndent + INDENT_SPACES_PER_LEVEL) {
+                    indent = prevTaskIndent + INDENT_SPACES_PER_LEVEL;
+                    const remainder = line.replace(/^\s*-\s*/, () => '- ');
+                    clampedLines.push(' '.repeat(indent) + remainder);
+                } else {
+                    clampedLines.push(line);
+                }
+                prevTaskIndent = indent;
+            } else if (line.trim().startsWith('section:')) {
+                prevTaskIndent = -1; // Reset per section
+                clampedLines.push(line);
+            } else {
+                clampedLines.push(line);
+            }
+        }
+        return clampedLines.join('\n');
+    }
+
+    // YAML Parser: Replaces Tabs to Spaces First, then Clamps Depths
     function parseYamlToTasks(yamlText) {
         if (!yamlText || !yamlText.trim()) return [];
 
+        // 1. Replace all literal tabs with double spaces first
         let sanitized = yamlText.replace(/\t/g, () => '  ');
+        
+        // 2. Clamp illogical jump steps
+        sanitized = clampYamlNestingSteps(sanitized);
+
         const lines = sanitized.split(/\r?\n/);
         const result = [];
 
@@ -2052,9 +2373,9 @@
                     result.push(currentSection);
                 }
 
-                // Shallowest task in section is Level 1
+                // Shallowest task in section is anchored at Level 1
                 const relSpaces = Math.max(0, indentSpaces - activeBaseIndent);
-                const relativeLevel = Math.max(1, Math.round(relSpaces / 2) + 1);
+                const relativeLevel = Math.max(1, Math.round(relSpaces / INDENT_SPACES_PER_LEVEL) + 1);
 
                 currentTask = {
                     visible: true,
@@ -2124,10 +2445,15 @@
     function prettifyModalYaml() {
         const textarea = document.getElementById('modalYamlTextarea');
         if (!textarea || !textarea.value.trim()) return;
-        const parsed = parseYamlToTasks(textarea.value);
+
+        // Tabs to spaces first, then clamps illogical steps
+        let cleanYaml = textarea.value.replace(/\t/g, () => '  ');
+        cleanYaml = clampYamlNestingSteps(cleanYaml);
+
+        const parsed = parseYamlToTasks(cleanYaml);
         if (parsed.length > 0) {
             textarea.value = formatTasksSliceAsYaml(parsed);
-            showToast('✨ Formatted YAML with 2-space indentation!');
+            showToast('✨ Formatted YAML with 2-space indentation & clamped depths!');
         } else {
             showToast('Could not parse YAML to format.');
         }
@@ -2148,7 +2474,7 @@
             const parsed = parseYamlToTasks(yamlText);
             if (parsed.length > 0) {
                 TASKS_DATA = parsed;
-                saveState();
+                executeAutoSave();
                 renderAll();
                 showToast('Applied Full YAML Punch List!');
                 closeYamlModal();
@@ -2172,9 +2498,9 @@
                     }
                 }
                 TASKS_DATA.splice(insertAt, 0, ...tasksOnly);
-                saveState();
+                executeAutoSave();
                 renderAll();
-                showToast(`Inserted ${tasksOnly.length} tasks into section!`);
+                showToast(`Inserted ${tasksOnly.length} tasks into milestone!`);
                 closeYamlModal();
             }
         } else if (mode === 'branch') {
@@ -2199,7 +2525,7 @@
                 TASKS_DATA.splice(insertAt, 0, ...tasksOnly);
                 UI_STATE.branches[parent.id] = false;
 
-                saveState();
+                executeAutoSave();
                 renderAll();
                 showToast(`Inserted ${tasksOnly.length} subtask(s) under "${parent.title}"!`);
                 closeYamlModal();
@@ -2228,6 +2554,7 @@
         });
     }
 
+    // Context-friendly AI Prompt Copier
     function copyAiPromptToClipboard() {
         const aiPromptText = `Convert the goals, tasks and milestones from our discussion above into List Puncher YAML format.
 
@@ -2290,12 +2617,21 @@ tasks:
                 if (e.target === deleteModal) closeDeleteModal();
             });
         }
+        // Close project menu on outside click
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.project-switcher-wrap')) {
+                const menu = document.getElementById('projectDropdownMenu');
+                if (menu) menu.classList.remove('open');
+            }
+        });
     }
 
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
             closeYamlModal();
             closeDeleteModal();
+            const menu = document.getElementById('projectDropdownMenu');
+            if (menu) menu.classList.remove('open');
         }
     });
 

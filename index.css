@@ -1,16 +1,15 @@
 /**
- * List Puncher - Master Stylesheet (v1.05 - Stepped Margin & Unified 10px Hooks)
+ * List Puncher - Master Stylesheet (v1.06 - Multi-Project & Unified Indent)
  * File: index.css
  * 
  * AutoMyBiz Core Engineering Standards:
- * - Dual-Engine Nesting: Option 2 (Tiered Card Hooks - Default) & Option 1 (Continuous Scope Rails)
- * - Unified 2.5px width & 10px radius on all nested depth borders (zero skinny borders)
- * - Strict Color Staggering: Alternates between --card-border-color-1 (#0FF) and --card-border-color-2 (#F80)
+ * - Multi-Project Scope Switcher: Unlimited lists per GHL Sub-Account
+ * - Unified Indentation: Exact same 14px rail spacing for both Rails ON and Rails OFF
+ * - Color Depth Toggle: .depth-colors-alt (Staggered by level) & .depth-colors-solid (Unified)
  * - Two-tier task row architecture with full-width notes and responsive media embeds
- * - Dual top-right status pill cluster (YAML Storage + Permission Mode)
+ * - Dual top-right status pill cluster (Live Save Indicator + Permissions Mode)
  * - Milestone description banner at top of accordion body with media embeds
  * - Dynamic auto-numbering badge styles (#1, #2, #3)
- * - Header toggle controls for Auto-Number, Completed-at-Bottom, Rails Toggle & Filters
  */
 
 :root {
@@ -69,7 +68,7 @@ body {
 }
 
 /* ==========================================================================
-   Header Control Card & Dual Top-Right Status Badge Cluster
+   Header Control Card & Project Switcher Dropdown
    ========================================================================== */
 .header-card {
     background: var(--card-bg);
@@ -89,7 +88,7 @@ body {
     gap: 12px;
     border-bottom: 1px solid var(--border-color);
     padding-bottom: 16px;
-    padding-right: 340px; /* Space for top-right badge cluster */
+    padding-right: 340px; /* Space for top-right status badges */
 }
 
 .brand-title-wrap {
@@ -112,19 +111,119 @@ body {
     color: var(--accent-cyan);
 }
 
-.client-badge {
-    font-size: 0.75rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    color: var(--accent-cyan);
-    background: rgba(0, 229, 255, 0.1);
-    border: 1px solid rgba(0, 229, 255, 0.25);
-    padding: 3px 8px;
-    border-radius: 12px;
+/* Multi-Project Dropdown Selector */
+.project-switcher-wrap {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
 }
 
-/* Dual Status Badges Cluster (Anchored Top-Right) */
+.project-select-btn {
+    background: var(--card-header-bg);
+    border: 1px solid var(--border-color);
+    color: var(--accent-cyan);
+    border-radius: 8px;
+    padding: 4px 10px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    font-family: inherit;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.2s ease;
+    max-width: 240px;
+    user-select: none;
+}
+
+.project-select-btn:hover {
+    background: var(--card-header-hover);
+    border-color: #fff;
+    color: #fff;
+}
+
+.project-select-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.project-dropdown-menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    z-index: 10000;
+    background: #0d121f;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    min-width: 250px;
+    max-width: 320px;
+    max-height: 380px;
+    overflow-y: auto;
+    box-shadow: 0 12px 35px rgba(0, 0, 0, 0.9);
+    display: none;
+    flex-direction: column;
+    padding: 6px 0;
+}
+
+.project-dropdown-menu.open {
+    display: flex;
+}
+
+.project-item {
+    padding: 8px 14px;
+    font-size: 0.84rem;
+    color: var(--text-primary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+
+.project-item:hover {
+    background: var(--card-hover-bg);
+    color: var(--accent-cyan);
+}
+
+.project-item.active {
+    background: rgba(0, 229, 255, 0.15);
+    color: var(--accent-cyan);
+    font-weight: 700;
+}
+
+.project-menu-divider {
+    height: 1px;
+    background: rgba(255, 255, 255, 0.1);
+    margin: 4px 0;
+}
+
+.project-action-item {
+    padding: 7px 14px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: color 0.15s ease, background 0.15s ease;
+}
+
+.project-action-item:hover {
+    background: rgba(255, 255, 255, 0.05);
+    color: #fff;
+}
+
+.project-action-item.delete-proj:hover {
+    color: var(--accent-red);
+    background: rgba(239, 68, 68, 0.15);
+}
+
+/* ==========================================================================
+   Dual Top-Right Status Badges Cluster (Live Auto-Save & Mode Pill)
+   ========================================================================== */
 .header-pills-cluster {
     position: absolute;
     top: 20px;
@@ -166,10 +265,18 @@ body {
     transform: translateY(-1px);
 }
 
-.status-pill.status-healthy {
+/* Live Auto-Save Pill States */
+.status-pill.status-saved {
     background: rgba(16, 185, 129, 0.12);
     color: #10b981;
     border-color: #10b981;
+}
+
+.status-pill.status-saving {
+    background: rgba(250, 160, 0, 0.18);
+    color: var(--accent-yellow);
+    border-color: var(--accent-yellow);
+    animation: pulseWarning 1.2s infinite;
 }
 
 /* Mode Pill Colorways */
@@ -687,8 +794,8 @@ body {
     padding: 6px 10px;
     border-radius: 10px;
     background: rgba(255, 255, 255, 0.02);
-    border: 0px solid transparent;
-    transition: background 0.15s ease, border-color 0.15s ease, opacity 0.2s ease, margin-left 0.2s ease;
+    border-left: 2.5px solid var(--card-border-color-1);
+    transition: background 0.15s ease, border-color 0.15s ease, opacity 0.2s ease;
     position: relative;
     user-select: text;
     box-sizing: border-box;
@@ -924,107 +1031,62 @@ body {
 }
 
 /* ==========================================================================
-   NESTING ENGINE 1: OPTION 2 (DEFAULT) — Stepped Cards with Unified 10px Hooks
-   Staggers strictly between --card-border-color-1 (#0FF) & --card-border-color-2 (#F80)
+   UNIFIED BRANCH RAIL STRUCTURE (Exact Same 14px Indent in Both Modes)
    ========================================================================== */
+.branch-rail {
+    position: relative;
+    margin-left: 14px;
+    padding-left: 8px;
+    margin-top: 4px;
+    margin-bottom: 4px;
+    box-sizing: border-box;
+}
+
+/* Mode 1: Rails ON - visible left continuous bracket */
+.nest-style-rails .branch-rail {
+    border-left: 2.5px solid var(--card-border-color-1);
+    border-radius: 10px;
+}
+
+/* Mode 2: Rails OFF - identical margin & padding, border is hidden */
 .nest-style-cards .branch-rail {
-    border-left: none;
-    margin-left: 0;
-    padding-left: 0;
-}
-
-/* Level 1 (Root): 2.5px Hook in Color 1 (#0FF) */
-.nest-style-cards .task-row.task-depth-1 {
-    border-left: 2.5px solid var(--card-border-color-1);
-    border-radius: 10px;
-}
-
-/* Level 2: 2.5px Hook in Color 2 (#F80) */
-.nest-style-cards .task-row.task-depth-2 {
-    border-left: 2.5px solid var(--card-border-color-2);
-    border-radius: 10px;
-}
-
-/* Level 3: 2.5px Hook in Color 1 (#0FF) */
-.nest-style-cards .task-row.task-depth-3 {
-    border-left: 2.5px solid var(--card-border-color-1);
-    border-radius: 10px;
-}
-
-/* Level 4: 2.5px Hook in Color 2 (#F80) */
-.nest-style-cards .task-row.task-depth-4 {
-    border-left: 2.5px solid var(--card-border-color-2);
-    border-radius: 10px;
-}
-
-/* Level 5+: Continues Staggering */
-.nest-style-cards .task-row.task-depth-odd:not(.task-depth-1):not(.task-depth-3) {
-    border-left: 2.5px solid var(--card-border-color-1);
-    border-radius: 10px;
-}
-.nest-style-cards .task-row.task-depth-even:not(.task-depth-2):not(.task-depth-4) {
-    border-left: 2.5px solid var(--card-border-color-2);
+    border-left: 2.5px solid transparent;
     border-radius: 10px;
 }
 
 /* ==========================================================================
-   NESTING ENGINE 2: OPTION 1 (TOGGLED) — Continuous Scope Rails (Unified 10px)
-   Enclosing guide brackets that physically wrap the branch from top to bottom
+   COLOR DEPTH ENGINES (Alternating vs Solid Level Colors)
    ========================================================================== */
-.nest-style-rails .branch-rail {
-    position: relative;
-    margin-top: 4px;
-    margin-bottom: 4px;
+/* Mode A: Alternating Color Depths (Unified by level) */
+.depth-colors-alt .task-depth-1,
+.depth-colors-alt .rail-depth-1 {
+    border-left-color: var(--card-border-color-1) !important;
+}
+.depth-colors-alt .task-depth-2,
+.depth-colors-alt .rail-depth-2 {
+    border-left-color: var(--card-border-color-2) !important;
+}
+.depth-colors-alt .task-depth-3,
+.depth-colors-alt .rail-depth-3 {
+    border-left-color: var(--card-border-color-1) !important;
+}
+.depth-colors-alt .task-depth-4,
+.depth-colors-alt .rail-depth-4 {
+    border-left-color: var(--card-border-color-2) !important;
+}
+.depth-colors-alt .task-depth-odd,
+.depth-colors-alt .rail-depth-odd {
+    border-left-color: var(--card-border-color-1) !important;
+}
+.depth-colors-alt .task-depth-even,
+.depth-colors-alt .rail-depth-even {
+    border-left-color: var(--card-border-color-2) !important;
 }
 
-/* Rail Depth 1 (Under Root): Encloses Level 1 children with Color 1 (#0FF) */
-.nest-style-rails .branch-rail.rail-depth-1 {
-    border-left: 2.5px solid var(--card-border-color-1);
-    border-radius: 10px;
-    margin-left: 14px;
-    padding-left: 8px;
-}
-
-/* Rail Depth 2 (Under Level 1): Encloses Level 2 children with Color 2 (#F80) */
-.nest-style-rails .branch-rail.rail-depth-2 {
-    border-left: 2.5px solid var(--card-border-color-2);
-    border-radius: 10px;
-    margin-left: 14px;
-    padding-left: 8px;
-}
-
-/* Rail Depth 3 (Under Level 2): Staggers back to Color 1 (#0FF) */
-.nest-style-rails .branch-rail.rail-depth-3 {
-    border-left: 2.5px solid var(--card-border-color-1);
-    border-radius: 10px;
-    margin-left: 14px;
-    padding-left: 8px;
-}
-
-/* Rail Depth 4: Staggers to Color 2 (#F80) */
-.nest-style-rails .branch-rail.rail-depth-4 {
-    border-left: 2.5px solid var(--card-border-color-2);
-    border-radius: 10px;
-    margin-left: 14px;
-    padding-left: 8px;
-}
-
-/* Individual card accents inside continuous rails */
-.nest-style-rails .task-row.task-depth-1 {
-    border-left: 2.5px solid var(--card-border-color-1);
-    border-radius: 10px;
-}
-.nest-style-rails .task-row.task-depth-2 {
-    border-left: 2.5px solid var(--card-border-color-2);
-    border-radius: 10px;
-}
-.nest-style-rails .task-row.task-depth-3 {
-    border-left: 2.5px solid var(--card-border-color-1);
-    border-radius: 10px;
-}
-.nest-style-rails .task-row.task-depth-4 {
-    border-left: 2.5px solid var(--card-border-color-2);
-    border-radius: 10px;
+/* Mode B: Solid Color Depths (Clean unified color across all levels) */
+.depth-colors-solid .task-row,
+.depth-colors-solid .branch-rail {
+    border-left-color: var(--card-border-color-1) !important;
 }
 
 /* ==========================================================================
