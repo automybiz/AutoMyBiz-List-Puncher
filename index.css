@@ -986,7 +986,7 @@ body {
 
 /* Rail Depth 2 (Under Level 1): Encloses Level 2 children with Color 2 (#F80) */
 .nest-style-rails .branch-rail.rail-depth-2 {
-    border-left: 3px solid var(--card-border-color-2);
+    border-left: 2px solid var(--card-border-color-2);
     border-radius: 10px;
     margin-left: 14px;
     padding-left: 8px;
@@ -994,7 +994,7 @@ body {
 
 /* Rail Depth 3 (Under Level 2): Staggers back to Color 1 (#0FF) */
 .nest-style-rails .branch-rail.rail-depth-3 {
-    border-left: 3px solid var(--card-border-color-1);
+    border-left: 2px solid var(--card-border-color-1);
     border-radius: 10px;
     margin-left: 14px;
     padding-left: 8px;
@@ -1002,7 +1002,7 @@ body {
 
 /* Rail Depth 4: Staggers to Color 2 (#F80) */
 .nest-style-rails .branch-rail.rail-depth-4 {
-    border-left: 3px solid var(--card-border-color-2);
+    border-left: 2px solid var(--card-border-color-2);
     border-radius: 10px;
     margin-left: 14px;
     padding-left: 8px;
@@ -1010,12 +1010,12 @@ body {
 
 /* Individual card accents inside continuous rails */
 .nest-style-rails .task-row.task-depth-1 {
-    border-left: 4px solid var(--card-border-color-1);
-    border-radius: 8px;
+    border-left: 2px solid var(--card-border-color-1);
+    border-radius: 10px;
 }
 .nest-style-rails .task-row.task-depth-2 {
-    border-left: 3px solid var(--card-border-color-2);
-    border-radius: 6px;
+    border-left: 2px solid var(--card-border-color-2);
+    border-radius: 10px;
 }
 .nest-style-rails .task-row.task-depth-3 {
     border-left: 2px solid var(--card-border-color-1);
