@@ -114,7 +114,7 @@
 
             <!-- Action & Toggle Controls -->
             <div class="header-actions">
-                <button type="button" class="btn-action" onclick="copyAiPromptToClipboard()" title="Copy prompt for Gemini, Grok, Claude, ChatGPT">
+                <button type="button" class="btn-action" onclick="copyAiPromptToClipboard()" title="Copy prompt for ChatGPT, Claude, Gemini or Grok">
                     🤖 Copy AI Prompt
                 </button>
                 <button type="button" class="btn-action" onclick="toggleAllSections()" id="btnToggleAll" title="Expand or collapse all milestones">
@@ -984,7 +984,7 @@
                 stack.push(node);
             });
 
-            // Recursive task node renderer
+            // Recursive task node renderer with Margin-Based Inset Stepping
             function renderTaskNodeTree(node, targetContainer, depth = 1) {
                 const t = node.item;
                 const realIdx = node.originalIndex;
@@ -1005,17 +1005,23 @@
                 // Staggered depth classes for alternating colors
                 const depthClass = `task-depth-${depth} ${depth % 2 === 1 ? 'task-depth-odd' : 'task-depth-even'}`;
 
-                // In Cards mode, indent dynamically; in Rails mode, indent is handled by rail
-                const isCardsMode = (UI_STATE.nestStyle !== 'rails');
-                const dynamicPadding = isCardsMode ? Math.max(4, (t.level - 1) * 22 + 4) : 4;
-
                 const row = document.createElement('div');
                 row.className = `task-row ${depthClass} ${isNested ? 'is-nested ' : ''} ${t.checked ? 'is-checked' : ''}`;
                 row.draggable = false;
                 row.dataset.index = realIdx;
                 row.dataset.taskId = taskId;
                 row.dataset.level = t.level;
-                row.style.paddingLeft = `${dynamicPadding}px`;
+
+                // INSET STEPPING FIX: Drives physical card and left border inward using margin-left!
+                const isCardsMode = (UI_STATE.nestStyle !== 'rails');
+                if (isCardsMode) {
+                    const dynamicMargin = Math.max(0, (t.level - 1) * 22);
+                    row.style.marginLeft = `${dynamicMargin}px`;
+                    row.style.paddingLeft = '8px';
+                } else {
+                    row.style.marginLeft = '0px';
+                    row.style.paddingLeft = '8px';
+                }
 
                 row.addEventListener('dragstart', handleTaskDragStart);
                 row.addEventListener('dragover', handleTaskDragOver);
@@ -1112,11 +1118,11 @@
 
                 targetContainer.appendChild(row);
 
-                // If node has children and is not collapsed, render continuous scope rail or children container
+                // Recursive continuous scope rails for Option 1
                 if (node.children.length > 0 && !isBranchCollapsed) {
                     const rail = document.createElement('div');
-                    const railClass = `branch-rail rail-depth-${depth} ${depth % 2 === 1 ? 'rail-depth-1' : 'rail-depth-2'}`;
-                    rail.className = railClass;
+                    const railDepthNum = ((depth - 1) % 4) + 1;
+                    rail.className = `branch-rail rail-depth-${railDepthNum}`;
 
                     node.children.forEach(childNode => {
                         renderTaskNodeTree(childNode, rail, depth + 1);
@@ -1383,6 +1389,15 @@
 
         saveState();
         renderAll();
+    }
+
+    function deleteSubtree(parentIdx) {
+        if (!TASKS_DATA[parentIdx]) return;
+        const range = getSubtreeRange(parentIdx);
+        TASKS_DATA.splice(range.start, range.count);
+        saveState();
+        renderAll();
+        showToast(range.count > 1 ? (`Deleted task and ${range.count - 1} subtask(s)`) : 'Task removed');
     }
 
     function updateTaskTitle(index, val) {
@@ -1763,7 +1778,8 @@
         line.className = 'drop-indicator-line';
         line.id = 'activeDropIndicator';
 
-        const lineIndent = Math.max(4, (proposedLevel - 1) * 22 + 4);
+        const isCardsMode = (UI_STATE.nestStyle !== 'rails');
+        const lineIndent = isCardsMode ? Math.max(0, (proposedLevel - 1) * 22) : Math.max(0, (proposedLevel - 1) * 14);
         line.style.marginLeft = `${lineIndent}px`;
 
         if (position === 'before') {
@@ -2212,7 +2228,6 @@
         });
     }
 
-    // Context-friendly AI Prompt Copier
     function copyAiPromptToClipboard() {
         const aiPromptText = `Convert the goals, tasks and milestones from our discussion above into List Puncher YAML format.
 
@@ -2238,7 +2253,7 @@ tasks:
     - [ ] Subtask Title`;
 
         navigator.clipboard.writeText(aiPromptText).then(() => {
-            showToast('🤖 AI Prompt copied! Paste into Gemini, Grok, Claude, ChatGPT.');
+            showToast('🤖 AI Prompt copied! Paste into ChatGPT, Claude, or Gemini.');
         }).catch(() => {
             showToast('Failed to copy. Please allow clipboard permissions.');
         });
@@ -2262,7 +2277,6 @@ tasks:
             .replace(/'/g, () => '&#039;');
     }
 
-    // Modal Backdrop Click-to-Close Listeners
     function initModals() {
         const yamlModal = document.getElementById('yamlModal');
         if (yamlModal) {

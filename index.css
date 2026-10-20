@@ -1,9 +1,10 @@
 /**
- * List Puncher - Master Stylesheet (v1.04 - Dual-Engine Nesting)
+ * List Puncher - Master Stylesheet (v1.05 - Stepped Margin & Unified 10px Hooks)
  * File: index.css
  * 
  * AutoMyBiz Core Engineering Standards:
  * - Dual-Engine Nesting: Option 2 (Tiered Card Hooks - Default) & Option 1 (Continuous Scope Rails)
+ * - Unified 2.5px width & 10px radius on all nested depth borders (zero skinny borders)
  * - Strict Color Staggering: Alternates between --card-border-color-1 (#0FF) and --card-border-color-2 (#F80)
  * - Two-tier task row architecture with full-width notes and responsive media embeds
  * - Dual top-right status pill cluster (YAML Storage + Permission Mode)
@@ -624,7 +625,7 @@ body {
     padding: 8px 12px;
     background: rgba(0, 0, 0, 0.25);
     border-radius: 10px;
-    border-left: 2px solid var(--accent-cyan);
+    border-left: 2.5px solid var(--accent-cyan);
     font-size: 0.84rem;
     color: var(--text-secondary);
     line-height: 1.5;
@@ -683,18 +684,18 @@ body {
     display: flex;
     flex-direction: column;
     gap: 4px;
-    padding: 6px 8px;
-    border-radius: 8px;
+    padding: 6px 10px;
+    border-radius: 10px;
     background: rgba(255, 255, 255, 0.02);
     border: 0px solid transparent;
-    transition: background 0.15s ease, border-color 0.15s ease, opacity 0.2s ease;
+    transition: background 0.15s ease, border-color 0.15s ease, opacity 0.2s ease, margin-left 0.2s ease;
     position: relative;
     user-select: text;
+    box-sizing: border-box;
 }
 
 .task-row:hover {
     background: var(--card-hover-bg);
-    border-color: rgba(255, 255, 255, 0.08);
 }
 
 .task-row.is-checked {
@@ -848,7 +849,7 @@ body {
 .task-notes-block {
     width: 100%;
     margin-top: 2px;
-    padding-left: 56px; /* Aligns under task title */
+    padding-left: 54px; /* Aligns under task title */
     box-sizing: border-box;
 }
 
@@ -923,7 +924,7 @@ body {
 }
 
 /* ==========================================================================
-   NESTING ENGINE 1: OPTION 2 (DEFAULT) — Tiered Card Hooks
+   NESTING ENGINE 1: OPTION 2 (DEFAULT) — Stepped Cards with Unified 10px Hooks
    Staggers strictly between --card-border-color-1 (#0FF) & --card-border-color-2 (#F80)
    ========================================================================== */
 .nest-style-cards .branch-rail {
@@ -932,42 +933,42 @@ body {
     padding-left: 0;
 }
 
-/* Level 1 (Root): 4px Hook in Color 1 (#0FF) */
+/* Level 1 (Root): 2.5px Hook in Color 1 (#0FF) */
 .nest-style-cards .task-row.task-depth-1 {
-    border-left: 2px solid var(--card-border-color-1);
-    border-radius: 8px;
+    border-left: 2.5px solid var(--card-border-color-1);
+    border-radius: 10px;
 }
 
-/* Level 2: 3px Hook in Color 2 (#F80) */
+/* Level 2: 2.5px Hook in Color 2 (#F80) */
 .nest-style-cards .task-row.task-depth-2 {
-    border-left: 2px solid var(--card-border-color-2);
-    border-radius: 8px;
+    border-left: 2.5px solid var(--card-border-color-2);
+    border-radius: 10px;
 }
 
-/* Level 3: 2px Slim in Color 1 (#0FF) */
+/* Level 3: 2.5px Hook in Color 1 (#0FF) */
 .nest-style-cards .task-row.task-depth-3 {
-    border-left: 2px solid var(--card-border-color-1);
-    border-radius: 6px;
+    border-left: 2.5px solid var(--card-border-color-1);
+    border-radius: 10px;
 }
 
-/* Level 4: 2px Slim in Color 2 (#F80) */
+/* Level 4: 2.5px Hook in Color 2 (#F80) */
 .nest-style-cards .task-row.task-depth-4 {
-    border-left: 2px solid var(--card-border-color-2);
-    border-radius: 6px;
+    border-left: 2.5px solid var(--card-border-color-2);
+    border-radius: 10px;
 }
 
 /* Level 5+: Continues Staggering */
 .nest-style-cards .task-row.task-depth-odd:not(.task-depth-1):not(.task-depth-3) {
-    border-left: 2px solid var(--card-border-color-1);
-    border-radius: 6px;
+    border-left: 2.5px solid var(--card-border-color-1);
+    border-radius: 10px;
 }
 .nest-style-cards .task-row.task-depth-even:not(.task-depth-2):not(.task-depth-4) {
-    border-left: 2px solid var(--card-border-color-2);
-    border-radius: 6px;
+    border-left: 2.5px solid var(--card-border-color-2);
+    border-radius: 10px;
 }
 
 /* ==========================================================================
-   NESTING ENGINE 2: OPTION 1 (TOGGLED) — Continuous Scope Rails
+   NESTING ENGINE 2: OPTION 1 (TOGGLED) — Continuous Scope Rails (Unified 10px)
    Enclosing guide brackets that physically wrap the branch from top to bottom
    ========================================================================== */
 .nest-style-rails .branch-rail {
@@ -978,7 +979,7 @@ body {
 
 /* Rail Depth 1 (Under Root): Encloses Level 1 children with Color 1 (#0FF) */
 .nest-style-rails .branch-rail.rail-depth-1 {
-    border-left: 2px solid var(--card-border-color-1);
+    border-left: 2.5px solid var(--card-border-color-1);
     border-radius: 10px;
     margin-left: 14px;
     padding-left: 8px;
@@ -986,7 +987,7 @@ body {
 
 /* Rail Depth 2 (Under Level 1): Encloses Level 2 children with Color 2 (#F80) */
 .nest-style-rails .branch-rail.rail-depth-2 {
-    border-left: 2px solid var(--card-border-color-2);
+    border-left: 2.5px solid var(--card-border-color-2);
     border-radius: 10px;
     margin-left: 14px;
     padding-left: 8px;
@@ -994,7 +995,7 @@ body {
 
 /* Rail Depth 3 (Under Level 2): Staggers back to Color 1 (#0FF) */
 .nest-style-rails .branch-rail.rail-depth-3 {
-    border-left: 2px solid var(--card-border-color-1);
+    border-left: 2.5px solid var(--card-border-color-1);
     border-radius: 10px;
     margin-left: 14px;
     padding-left: 8px;
@@ -1002,7 +1003,7 @@ body {
 
 /* Rail Depth 4: Staggers to Color 2 (#F80) */
 .nest-style-rails .branch-rail.rail-depth-4 {
-    border-left: 2px solid var(--card-border-color-2);
+    border-left: 2.5px solid var(--card-border-color-2);
     border-radius: 10px;
     margin-left: 14px;
     padding-left: 8px;
@@ -1010,20 +1011,20 @@ body {
 
 /* Individual card accents inside continuous rails */
 .nest-style-rails .task-row.task-depth-1 {
-    border-left: 2px solid var(--card-border-color-1);
+    border-left: 2.5px solid var(--card-border-color-1);
     border-radius: 10px;
 }
 .nest-style-rails .task-row.task-depth-2 {
-    border-left: 2px solid var(--card-border-color-2);
+    border-left: 2.5px solid var(--card-border-color-2);
     border-radius: 10px;
 }
 .nest-style-rails .task-row.task-depth-3 {
-    border-left: 2px solid var(--card-border-color-1);
+    border-left: 2.5px solid var(--card-border-color-1);
     border-radius: 10px;
 }
 .nest-style-rails .task-row.task-depth-4 {
-    border-left: 2px solid var(--card-border-color-2);
-    border-radius: 6px;
+    border-left: 2.5px solid var(--card-border-color-2);
+    border-radius: 10px;
 }
 
 /* ==========================================================================
