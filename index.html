@@ -958,6 +958,7 @@
         fetchAndApplyLiveTheme();
         initModals();
         initFxThrottle();
+        guardAgainstStaleStylesheet();
 
         const perms = evaluatePermissions();
         updatePermissionsUI(perms);
@@ -1025,7 +1026,6 @@
     function initFxThrottle() {
         // 1. Background tabs never need decorative motion
         document.addEventListener('visibilitychange', () => setFxPauseSource('hidden', document.hidden));
-
         // 2. Clicking into the YouTube iframe blurs our window -> freeze the FX for the player
         window.addEventListener('blur', () => setFxPauseSource('windowBlur', true));
         window.addEventListener('focus', () => setFxPauseSource('windowBlur', false));
@@ -1053,6 +1053,39 @@
                 }
             });
         }
+    }
+
+    // =========================================================================
+    // STALE STYLESHEET GUARD
+    // GitHub Pages serves assets with a ~10 minute cache, so a brand new
+    // index.html can arrive next to an OLD index.css - which silently disables
+    // the FX throttle. Detect it and tell the user exactly what to do.
+    // =========================================================================
+    function isStylesheetStale() {
+        let inspected = 0;
+        try {
+            for (let s = 0; s < document.styleSheets.length; s++) {
+                let rules = null;
+                try { rules = document.styleSheets[s].cssRules; } catch (e) { continue; }
+                if (!rules) continue;
+                inspected++;
+                for (let r = 0; r < rules.length; r++) {
+                    const sel = rules[r].selectorText;
+                    if (sel && sel.indexOf('.fx-off') !== -1) return false;
+                }
+            }
+        } catch (e) {
+            return false;
+        }
+        return inspected > 0; // only claim "stale" when at least one sheet was actually readable
+    }
+
+    function guardAgainstStaleStylesheet() {
+        if (!isStylesheetStale()) return;
+        console.warn(`[List Puncher] Stale index.css detected - build ${APP_BUILD} expects index.css?v=1.09.`);
+        setTimeout(() => {
+            showToast(`⚠ Old stylesheet cached — press Ctrl+Shift+R to load build ${APP_BUILD}`);
+        }, 1200);
     }
 
     function updatePermissionsUI(perms) {
