@@ -12,7 +12,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
     
     <!-- Separated Master Stylesheet (Zero Prism Crash) - version query busts the GitHub Pages 10min cache -->
-    <link rel="stylesheet" href="index.css?v=1.11">
+    <link rel="stylesheet" href="index.css?v=1.12">
 
     <script>
     /* Universal Dark Reader Kill Switch (Rule 9) */
@@ -206,11 +206,11 @@
             <button type="button" class="modal-close-btn" onclick="closeYamlModal()">✕</button>
         </div>
         <div class="modal-body">
-            <textarea id="modalYamlTextarea" class="modal-textarea" spellcheck="false" placeholder="Paste your YAML here..."></textarea>
+            <textarea id="modalYamlTextarea" class="modal-textarea" spellcheck="false" placeholder="Paste your YAML here..." onkeydown="handleYamlModalKeydown(event, this)"></textarea>
         </div>
         <div class="modal-footer">
             <div style="display: flex; align-items: center; gap: 8px;">
-                <span class="modal-hint">Tabs convert to 2 spaces per nesting level. Notes stay aligned with their task; illogical steps are clamped automatically.</span>
+                <span class="modal-hint">Tab / Shift+Tab indent 2 spaces. Tabs convert to 2 spaces; illogical steps are clamped automatically.</span>
                 <button type="button" class="btn-action btn-sm" onclick="prettifyModalYaml()" title="Auto-convert tabs, align notes with their task, and clamp nesting steps to 2 spaces">
                     ✨ Prettify YAML
                 </button>
@@ -249,7 +249,7 @@
     // =========================================================================
     const AUTOSAVE_DELAY_MS = 500;
     const INDENT_SPACES_PER_LEVEL = 2;
-    const APP_BUILD = '1.11'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
+    const APP_BUILD = '1.12'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
     const LIVE_FX = { animSpeed: '30s' }; // Live theme's card border speed, kept so the FX throttle can restore it
     const DEFAULT_PROJECT_ID = 'default_onboarding';
     const DEFAULT_PROJECT_NAME = 'Client Onboarding';
@@ -563,11 +563,11 @@
 
     function executeAutoSave() {
         clearTimeout(AUTOSAVE_TIMER);
-        saveState();
-        setStoragePillStatus('saved', '✓ Saved');
+        const savedOk = saveState();
+        setStoragePillStatus(savedOk ? 'saved' : 'restricted', savedOk ? '✓ Saved' : '⚠ Save check failed');
         setTimeout(() => {
             setStoragePillStatus('healthy', 'YAML Local Storage');
-        }, 1400);
+        }, savedOk ? 1400 : 6000);
     }
 
     function setStoragePillStatus(stateClass, text) {
@@ -585,7 +585,20 @@
         const fullYaml = formatTasksSliceAsYaml(TASKS_DATA);
         localStorage.setItem(getProjectYamlKey(ACTIVE_PROJECT_ID), fullYaml);
         localStorage.setItem(getProjectUiKey(ACTIVE_PROJECT_ID), JSON.stringify(UI_STATE));
-        localStorage.setItem('list_puncher_yaml', fullYaml); // Legacy backup
+        localStorage.setItem('list_puncher_yaml', fullYaml); // Legacy backup + cross-key safety net
+
+        // Round-trip self check: if the YAML we just wrote cannot be read back into the same
+        // number of items, the saved list would silently lose tasks on refresh.
+        try {
+            const reloaded = parseYamlToTasks(fullYaml);
+            if (TASKS_DATA.length && reloaded.length !== TASKS_DATA.length) {
+                console.warn('[List Puncher] Save round-trip mismatch: wrote ' + TASKS_DATA.length + ' items, reloaded ' + reloaded.length);
+                return false;
+            }
+        } catch (e) {
+            console.warn('[List Puncher] Save round-trip check error:', e);
+        }
+        return true;
     }
 
     // =========================================================================
@@ -832,7 +845,7 @@
             ? `<img class="media-video-thumb" src="${video.thumbUrl}" alt="Video thumbnail" loading="lazy" onerror="this.style.display='none'" />`
             : '';
 
-        return `<div class="media-video-container media-video-lazy" role="button" tabindex="0" data-video-embed="${video.embedUrl}" title="Click to load the YouTube player" onclick="loadLazyVideo(this)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();loadLazyVideo(this);}">${poster}<span class="media-video-play"><span class="media-video-play-icon">▶</span><span class="media-video-play-text">Click to play</span></span><span class="media-video-url">${escapeHtml(url)}</span></div>`;
+        return `<div class="media-video-container media-video-lazy" role="button" tabindex="0" data-video-embed="${video.embedUrl}" title="Click to load the YouTube player" onclick="event.stopPropagation(); loadLazyVideo(this);" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault(); event.stopPropagation(); loadLazyVideo(this);}">${poster}<span class="media-video-play"><span class="media-video-play-icon">▶</span><span class="media-video-play-text">Click to play</span></span><span class="media-video-url">${escapeHtml(url)}</span></div>`;
     }
 
     // Hydrates a lazy facade into the real YouTube iframe (autoplay=1 so one click plays)
@@ -2393,11 +2406,15 @@
                 if (t.notes && t.notes.trim()) {
                     const noteLines = t.notes.trim().split(/\r?\n/);
                     if (noteLines.length === 1) {
-                        lines.push(`${indent}notes: "${noteLines[0].replace(/"/g, () => '\\"')}"`);
+                        lines.push(`${indent}  notes: "${noteLines[0].replace(/"/g, () => '\\"')}"`);
                     } else {
-                        lines.push(`${indent}notes: |`);
+                        // The notes KEY must sit 2 spaces deeper than its task, and the block body
+                        // 2 spaces deeper again. That is what stops multi-line note content from
+                        // colliding with child tasks (child indent == task indent + 2): aligning
+                        // notes with the task's dash makes saved subtasks get swallowed on reload.
+                        lines.push(`${indent}  notes: |`);
                         noteLines.forEach(nl => {
-                            lines.push(`${indent}  ${nl}`);
+                            lines.push(`${indent}    ${nl}`);
                         });
                     }
                 }
@@ -2662,6 +2679,49 @@
         const modal = document.getElementById('yamlModal');
         modal.classList.remove('open');
         MODAL_CONTEXT = { mode: 'full', targetIndex: null };
+    }
+
+    // =========================================================================
+    // NOTEPAD++ STYLE TAB INDENTATION FOR THE YAML EDITOR (2 spaces per level)
+    // TAB nests the selected line(s) 2 spaces deeper, SHIFT+TAB lifts them 2 spaces.
+    // =========================================================================
+    const YAML_TAB_STEP = 2;
+
+    function handleYamlModalKeydown(e, textarea) {
+        if (!textarea || e.key !== 'Tab') return;
+        e.preventDefault();
+
+        const value = textarea.value;
+        const selStart = textarea.selectionStart;
+        const selEnd = textarea.selectionEnd;
+
+        const lineStart = value.lastIndexOf('\n', selStart - 1) + 1;
+        let lineEnd = value.indexOf('\n', selEnd);
+        if (lineEnd === -1) lineEnd = value.length;
+
+        const outdenting = e.shiftKey;
+        let firstLineDelta = 0;
+        let totalDelta = 0;
+
+        const newLines = value.slice(lineStart, lineEnd).split('\n').map((line, i) => {
+            if (outdenting) {
+                const leading = line.match(/^ {1,2}/);
+                const removed = leading ? leading[0].length : 0;
+                if (i === 0) firstLineDelta = -removed;
+                totalDelta -= removed;
+                return line.slice(removed);
+            }
+            if (i === 0) firstLineDelta = YAML_TAB_STEP;
+            totalDelta += YAML_TAB_STEP;
+            return ' '.repeat(YAML_TAB_STEP) + line;
+        });
+
+        textarea.value = value.slice(0, lineStart) + newLines.join('\n') + value.slice(lineEnd);
+
+        // Keep the selection over the same block of text after re-indenting
+        const newStart = Math.max(lineStart, selStart + firstLineDelta);
+        const newEnd = Math.max(newStart, selEnd + totalDelta);
+        textarea.setSelectionRange(newStart, newEnd);
     }
 
     function prettifyModalYaml() {

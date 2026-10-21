@@ -1,5 +1,5 @@
 /**
- * List Puncher - Master Stylesheet (v1.11 - Lazy YouTube Facade)
+ * List Puncher - Master Stylesheet (v1.12 - Lazy Video Facade + Editor Tab Indent)
  * File: index.css
  * 
  * AutoMyBiz Core Engineering Standards:
@@ -34,7 +34,7 @@
     --indent-step: 22px;
 
     /* Build marker: lets the app detect a stale cached stylesheet (compared against APP_BUILD in index.html) */
-    --lp-css-build: "1.11";
+    --lp-css-build: "1.12";
 
     --completed-opacity: 0.42;
 
