@@ -852,7 +852,7 @@
 
         element.classList.add('is-loading');
 
-        // 1. Update play badge to a live loading state instead of wiping to black
+        // 1. Update play badge to a live loading state
         const playBadge = element.querySelector('.media-video-play');
         if (playBadge) {
             playBadge.innerHTML = `
@@ -861,10 +861,7 @@
             `;
         }
 
-        // 2. Video-first FX throttle: freeze background card animations
-        setFxPauseSource('media', true);
-
-        // 3. Prepare iframe with eager loading and proper parameters
+        // 2. Prepare iframe with eager loading and proper parameters
         const separator = embedUrl.indexOf('?') === -1 ? '?' : '&';
         const frame = document.createElement('iframe');
         frame.className = 'media-video-frame';
@@ -875,13 +872,16 @@
         frame.setAttribute('allow', 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share');
         frame.setAttribute('allowfullscreen', '');
         
-        // Hide iframe until it finishes loading so the thumbnail remains visible
+        // Start transparent so the thumbnail stays visible while YouTube boots
         frame.style.opacity = '0';
         frame.style.transition = 'opacity 0.25s ease';
 
-        frame.onload = function() {
+        // 3. Reveal player and clean up thumbnail as soon as YouTube loads
+        let revealed = false;
+        const revealPlayer = function() {
+            if (revealed) return;
+            revealed = true;
             frame.style.opacity = '1';
-            // Clean up the thumbnail once the video is ready
             setTimeout(() => {
                 const thumb = element.querySelector('.media-video-thumb');
                 const badge = element.querySelector('.media-video-play');
@@ -890,8 +890,13 @@
                 if (badge) badge.remove();
                 if (urlLabel) urlLabel.remove();
                 element.classList.remove('is-loading');
-            }, 300);
+            }, 250);
         };
+
+        frame.onload = revealPlayer;
+        
+        // Safety net: in Brave/Firefox with tracking protection, reveal after 1.5s even if onload is delayed
+        setTimeout(revealPlayer, 1500);
 
         element.appendChild(frame);
     }
