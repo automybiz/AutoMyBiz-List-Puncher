@@ -7,6 +7,8 @@
     <meta name="darkreader-lock">
     <title>List Puncher - Client Onboarding and Task Engine</title>
     
+    <link rel="preconnect" href="https://www.youtube-nocookie.com">
+    <link rel="preconnect" href="https://i.ytimg.com">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
@@ -812,14 +814,14 @@
             if (startTime) params.push('start=' + encodeURIComponent(startTime));
             const query = params.length > 0 ? ('?' + params.join('&')) : '';
 
+            // Using youtube-nocookie.com eliminates the 20s anti-adblock black-screen timeout
             const embedUrl = videoId
-                ? ('https://www.youtube.com/embed/' + videoId + query)
-                : ('https://www.youtube.com/embed/videoseries' + query);
+                ? ('https://www.youtube-nocookie.com/embed/' + videoId + query)
+                : ('https://www.youtube-nocookie.com/embed/videoseries' + query);
 
             return {
                 embedUrl: embedUrl,
                 videoId: videoId || '',
-                // Poster frame for the lazy facade (i.ytimg.com is YouTube's public thumbnail CDN)
                 thumbUrl: videoId ? ('https://i.ytimg.com/vi/' + videoId + '/hqdefault.jpg') : ''
             };
         }
@@ -864,10 +866,10 @@
         const separator = embedUrl.indexOf('?') === -1 ? '?' : '&';
         const frame = document.createElement('iframe');
         frame.className = 'media-video-frame';
-        frame.src = embedUrl + separator + 'autoplay=1&rel=0&playsinline=1';
+        frame.src = embedUrl + separator + 'autoplay=1&rel=0&playsinline=1&enablejsapi=1';
         frame.title = 'YouTube video player';
         frame.setAttribute('frameborder', '0');
-        frame.setAttribute('allow', 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture');
+        frame.setAttribute('allow', 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share');
         frame.setAttribute('allowfullscreen', '');
 
         element.classList.remove('media-video-lazy');
