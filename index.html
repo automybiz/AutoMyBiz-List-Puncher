@@ -15,7 +15,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
     
     <!-- Separated Master Stylesheet (Zero Prism Crash) - version query busts the GitHub Pages 10min cache -->
-    <link rel="stylesheet" href="index.css?v=1.13">
+    <link rel="stylesheet" href="index.css?v=1.14">
 
     <script>
     /* Universal Dark Reader Kill Switch (Rule 9) */
@@ -209,8 +209,8 @@
         </div>
         <div class="modal-footer">
             <div style="display: flex; align-items: center; gap: 8px;">
-                <span class="modal-hint">Tab / Shift+Tab indent 2 spaces. Tabs convert to 2 spaces; illogical steps are clamped automatically.</span>
-                <button type="button" class="btn-action btn-sm" onclick="prettifyModalYaml()" title="Auto-convert tabs, align notes with their task, and clamp nesting steps to 2 spaces">
+                <span class="modal-hint">Tab / Shift+Tab indent 2 spaces. Tabs convert to 2 spaces. Old shorthand YAML is upgraded to valid standard YAML on Apply.</span>
+                <button type="button" class="btn-action btn-sm" onclick="prettifyModalYaml()" title="Convert tabs and old shorthand YAML into valid standard YAML">
                     ✨ Prettify YAML
                 </button>
             </div>
@@ -248,7 +248,7 @@
     // =========================================================================
     const AUTOSAVE_DELAY_MS = 500;
     const INDENT_SPACES_PER_LEVEL = 2;
-    const APP_BUILD = '1.13'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
+    const APP_BUILD = '1.14'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
     const DEFAULT_PROJECT_ID = 'default_onboarding';
     const DEFAULT_PROJECT_NAME = 'Client Onboarding';
 
@@ -2273,51 +2273,124 @@
     // =========================================================================
     // YAML PARSER & SERIALIZER ENGINE (Pure JavaScript)
     // =========================================================================
+    // Double-quotes a scalar so it stays valid YAML. Backslashes are escaped
+    // FIRST: an unescaped "\U" (a Windows path inside a note) is an illegal
+    // escape sequence in double-quoted YAML and makes the whole file unparseable.
+    // Tabs become "\t" so the emitted document contains no raw tab characters.
+    function yamlQuote(value) {
+        const text = String(value === undefined || value === null ? '' : value)
+            .replace(/\\/g, () => '\\\\')
+            .replace(/"/g, () => '\\"')
+            .replace(/\t/g, () => '\\t')
+            .replace(/\r?\n/g, () => '\\n');
+        return `"${text}"`;
+    }
+
+    // Pushes "key: value" lines for free text: one quoted line, or a literal
+    // block ("|") when the value spans multiple lines. The value is trimmed, so
+    // the first body line never starts with whitespace - that is exactly what
+    // lets YAML auto-detect the body indentation without an explicit indicator.
+    function pushYamlTextValue(lines, keyIndent, key, value) {
+        const text = String(value || '').trim();
+        if (!text) return;
+        const pad = ' '.repeat(keyIndent);
+        const textLines = text.split(/\r?\n/);
+
+        if (textLines.length === 1) {
+            lines.push(`${pad}${key}: ${yamlQuote(textLines[0])}`);
+            return;
+        }
+
+        lines.push(`${pad}${key}: |`);
+        // A genuinely empty line stays empty (no padding), so it reads back as an
+        // empty line instead of turning its padding into note content.
+        textLines.forEach(tl => lines.push(tl === '' ? '' : `${pad}  ${tl}`));
+    }
+
+    // Expands tabs used for INDENTATION into 2 spaces. Tabs inside a note or a
+    // description are content, not layout, so they stay untouched.
+    function expandLeadingTabs(yamlText) {
+        return String(yamlText || '')
+            .split(/\r?\n/)
+            .map(line => line.replace(/^[ \t]*/, ws => ws.replace(/\t/g, () => '  ')))
+            .join('\n');
+    }
+
+    // Milestone titles never carry their dynamic "1. " number inside the YAML.
+    function stripLeadingSectionNumber(title) {
+        return String(title || '').replace(/^\d+\.\s*/, () => '').trim();
+    }
+
+    // The strict format always writes tasks as "- title: ..." and milestones as
+    // "- section: ...". Anything else is legacy shorthand ("- [ ] Title"), which
+    // the legacy reader still accepts.
+    function isStrictPuncherYaml(yamlText) {
+        return /^[ \t]*-[ \t]*["']?(title|section)["']?[ \t]*:/m.test(String(yamlText || ''));
+    }
+
+    // SERIALIZER - always emits STANDARD-VALID YAML.
+    // A task is a mapping ("- title:" + checked / notes / subtasks). The old
+    // shorthand ("- [ ] Title") is NOT valid YAML: "[ ]" is an empty flow
+    // sequence and a scalar list item can never also carry mapping keys, so real
+    // parsers (PyYAML, js-yaml, Gemini) reject the whole document.
     function formatTasksSliceAsYaml(tasks) {
         if (!tasks || !tasks.length) return '';
         const baseLevel = tasks[0].level || 0;
         const lines = [];
 
+        // 1. Build a parent/child tree from the flat level-based array.
+        const roots = [];
+        const stack = [];
         tasks.forEach(t => {
-            const isSection = (t.level === 0);
-            if (isSection) {
-                lines.push('\n# ==========================================');
-                lines.push(`# ${t.title.toUpperCase()}`);
-                lines.push('# ==========================================');
-                lines.push(`section: "${t.title.replace(/"/g, () => '\\"')}"`);
-                if (t.notes && t.notes.trim()) {
-                    const descLines = t.notes.trim().split(/\r?\n/);
-                    if (descLines.length === 1) {
-                        lines.push(`description: "${descLines[0].replace(/"/g, () => '\\"')}"`);
-                    } else {
-                        lines.push('description: |');
-                        descLines.forEach(dl => lines.push(`  ${dl}`));
-                    }
-                }
-                lines.push('tasks:');
-            } else {
-                const relLevel = Math.max(0, (t.level || baseLevel) - (baseLevel === 0 ? 1 : baseLevel));
-                const indent = '  '.repeat(relLevel + (baseLevel === 0 ? 1 : 0));
-                const checkMark = t.checked ? '[x]' : '[ ]';
-                lines.push(`${indent}- ${checkMark} ${t.title || 'Untitled'}`);
+            const level = (t.level === undefined || t.level === null) ? baseLevel : t.level;
+            const node = { task: t, level: level, children: [] };
+            while (stack.length && stack[stack.length - 1].level >= level) stack.pop();
+            if (stack.length) stack[stack.length - 1].children.push(node);
+            else roots.push(node);
+            stack.push(node);
+        });
 
-                if (t.notes && t.notes.trim()) {
-                    const noteLines = t.notes.trim().split(/\r?\n/);
-                    if (noteLines.length === 1) {
-                        lines.push(`${indent}  notes: "${noteLines[0].replace(/"/g, () => '\\"')}"`);
-                    } else {
-                        // The notes KEY must sit 2 spaces deeper than its task, and the block body
-                        // 2 spaces deeper again. That is what stops multi-line note content from
-                        // colliding with child tasks (child indent == task indent + 2): aligning
-                        // notes with the task's dash makes saved subtasks get swallowed on reload.
-                        lines.push(`${indent}  notes: |`);
-                        noteLines.forEach(nl => {
-                            lines.push(`${indent}    ${nl}`);
-                        });
-                    }
+        // 2. Emit one task plus its whole subtree as a nested YAML mapping.
+        const emitTaskNode = (node, indent) => {
+            const keyIndent = indent + 2;
+            const dashPad = ' '.repeat(indent);
+            const keyPad = ' '.repeat(keyIndent);
+
+            lines.push(`${dashPad}- title: ${yamlQuote(node.task.title || 'Untitled')}`);
+            lines.push(`${keyPad}checked: ${node.task.checked ? 'true' : 'false'}`);
+            pushYamlTextValue(lines, keyIndent, 'notes', node.task.notes);
+
+            if (node.children.length) {
+                lines.push(`${keyPad}subtasks:`);
+                node.children.forEach(child => emitTaskNode(child, keyIndent + 2));
+            }
+        };
+
+        // 3. Every milestone is a root list item ("- section:"), so a list with
+        //    N milestones can never repeat the same root key - duplicate keys are
+        //    invalid YAML even though a regex parser would happily read them.
+        //    A slice that starts at a task level is emitted as a root sequence too.
+        roots.forEach(root => {
+            if (root.level === 0) {
+                const sectionTitle = root.task.title || 'Untitled Section';
+                lines.push('');
+                lines.push('# ==========================================');
+                lines.push(`# ${String(sectionTitle).replace(/\r?\n/g, () => ' ').toUpperCase()}`);
+                lines.push('# ==========================================');
+                lines.push(`- section: ${yamlQuote(sectionTitle)}`);
+                pushYamlTextValue(lines, 2, 'description', root.task.notes);
+
+                if (root.children.length) {
+                    lines.push('  tasks:');
+                    root.children.forEach(child => emitTaskNode(child, 4));
+                } else {
+                    lines.push('  tasks: []');
                 }
+            } else {
+                emitTaskNode(root, 0);
             }
         });
+
         return lines.join('\n').trim();
     }
 
@@ -2353,15 +2426,269 @@
         return clampedLines.join('\n');
     }
 
-    // YAML Parser: Replaces Tabs to Spaces First, then Clamps Depths
+    // YAML Parser: dispatches to the strict (standard-valid) reader and falls
+    // back to the legacy shorthand reader so old saved lists still load.
     function parseYamlToTasks(yamlText) {
         if (!yamlText || !yamlText.trim()) return [];
 
-        // 1. Replace all literal tabs with double spaces first
-        let sanitized = yamlText.replace(/\t/g, () => '  ');
-        
-        // 2. Clamp illogical jump steps
-        sanitized = clampYamlNestingSteps(sanitized);
+        // 1. Tabs used for indentation become 2 spaces (content tabs are kept)
+        const sanitized = expandLeadingTabs(yamlText);
+
+        // 2. Standard YAML - the format this app writes -> strict reader
+        if (isStrictPuncherYaml(sanitized)) return parseStrictPuncherYaml(sanitized);
+
+        // 3. Legacy shorthand ("- [ ] Title") -> clamp depths, then legacy reader
+        return parseLegacyShorthandYaml(sanitized);
+    }
+
+    // STANDARD-YAML READER for the format this app writes (see
+    // .conductor/conductor.prompt §3). Nesting comes from the "- " dash indent
+    // stack, so any step width is tolerated and "subtasks:" is only a container.
+    // Legacy "- [ ] Title" dash lines are accepted too, so a mixed paste loads.
+    function isYamlBlockIndicator(value) {
+        return /^[|>][-+]?\d*$/.test(String(value || '').trim());
+    }
+
+    // Turns a YAML scalar into plain text: strips quotes and undoes the escapes
+    // yamlQuote() writes. A single left-to-right pass keeps "\\n" a literal \n
+    // while turning "\n" into a real newline.
+    function unquoteYamlScalar(value) {
+        const text = String(value === undefined || value === null ? '' : value).trim();
+        if (text.length >= 2 && text.startsWith('"') && text.endsWith('"')) {
+            const escapes = { '\\': '\\', '"': '"', 'n': '\n', 't': '\t', 'r': '\r' };
+            return text.slice(1, -1).replace(/\\([\\"ntr])/g, (m, ch) => escapes[ch]);
+        }
+        if (text.length >= 2 && text.startsWith("'") && text.endsWith("'")) {
+            return text.slice(1, -1).replace(/''/g, () => "'");
+        }
+        return text;
+    }
+
+    function parseYamlBoolean(value, fallback) {
+        const text = unquoteYamlScalar(value).toLowerCase();
+        if (['true', 'yes', 'y', 'on', '1', '[x]', 'x', 'done', 'checked'].includes(text)) return true;
+        if (['false', 'no', 'n', 'off', '0', '[ ]', 'todo', 'unchecked'].includes(text)) return false;
+        return !!fallback;
+    }
+
+    function parseStrictPuncherYaml(yamlText) {
+        const lines = yamlText.split(/\r?\n/);
+        const result = [];
+
+        let currentSection = null;
+        let inDescBlock = false;
+        let descIndent = 0;
+        let descLines = [];
+
+        let inNotesBlock = false;
+        let notesIndent = 0;
+        let noteLines = [];
+        let notesOwner = null;
+
+        const taskStack = []; // [{ dashIndent, task }] - innermost task last
+
+        const closeDescBlock = () => {
+            if (inDescBlock && currentSection) currentSection.notes = descLines.join('\n').trim();
+            inDescBlock = false;
+            descLines = [];
+        };
+
+        const closeNotesBlock = () => {
+            if (inNotesBlock && notesOwner) notesOwner.notes = noteLines.join('\n').trim();
+            inNotesBlock = false;
+            noteLines = [];
+            notesOwner = null;
+        };
+
+        // A document without a section still needs a milestone to hang tasks on.
+        const ensureSection = () => {
+            if (!currentSection) {
+                currentSection = {
+                    visible: true,
+                    id: 'sec_project_setup_0',
+                    parentId: '',
+                    level: 0,
+                    order: result.length + 1,
+                    checked: false,
+                    title: 'Project Setup',
+                    notes: ''
+                };
+                result.push(currentSection);
+            }
+            return currentSection;
+        };
+
+        // "- section: \"Name\"" (a root list item) and a bare "section: \"Name\""
+        // both open a new milestone.
+        const startSection = (rawTitle) => {
+            const cleanTitle = stripLeadingSectionNumber(unquoteYamlScalar(rawTitle));
+            currentSection = {
+                visible: true,
+                id: generateSlugId('sec', cleanTitle, result.length),
+                parentId: '',
+                level: 0,
+                order: result.length + 1,
+                checked: false,
+                title: cleanTitle,
+                notes: ''
+            };
+            result.push(currentSection);
+            taskStack.length = 0;
+            return currentSection;
+        };
+
+        lines.forEach(rawLine => {
+            const trimmed = rawLine.trim();
+            const indentMatch = rawLine.match(/^( *)/);
+            const lineIndent = indentMatch ? indentMatch[1].length : 0;
+
+            // Block scalars own every line deeper than their key, so they are
+            // consumed first - blank lines and "#" stay part of the text.
+            if (inDescBlock) {
+                if (trimmed === '' || lineIndent >= descIndent) {
+                    descLines.push(rawLine.length > descIndent ? rawLine.substring(descIndent) : '');
+                    return;
+                }
+                closeDescBlock();
+            }
+
+            if (inNotesBlock) {
+                if (trimmed === '' || lineIndent >= notesIndent) {
+                    noteLines.push(rawLine.length > notesIndent ? rawLine.substring(notesIndent) : '');
+                    return;
+                }
+                closeNotesBlock();
+            }
+
+            if (!trimmed || trimmed.startsWith('#')) return;
+
+            // section: "Milestone Name"
+            const sectionMatch = rawLine.match(/^(\s*)section\s*:\s*(.*)$/i);
+            if (sectionMatch) {
+                startSection(sectionMatch[2]);
+                return;
+            }
+
+            // description: - section level only (a task's own keys sit deeper)
+            const descMatch = rawLine.match(/^(\s*)description\s*:\s*(.*)$/i);
+            if (descMatch && currentSection && !taskStack.length) {
+                const descVal = descMatch[2].trim();
+                if (isYamlBlockIndicator(descVal)) {
+                    inDescBlock = true;
+                    descIndent = descMatch[1].length + 2;
+                    descLines = [];
+                } else {
+                    currentSection.notes = unquoteYamlScalar(descVal);
+                }
+                return;
+            }
+
+            // "- section: ..." (a milestone root list item)
+            const dashSectionMatch = rawLine.match(/^(\s*)-\s*["']?section["']?\s*:\s*(.*)$/i);
+            if (dashSectionMatch) {
+                startSection(dashSectionMatch[2]);
+                return;
+            }
+
+            // "- title: ..." (standard) or "- [ ] Title" / "- Title" (legacy)
+            const dashMatch = rawLine.match(/^(\s*)-\s*(.*)$/);
+            if (dashMatch) {
+                const dashIndent = dashMatch[1].length;
+                const body = dashMatch[2].trim();
+
+                let title = body;
+                let checked = false;
+
+                const titleKeyMatch = body.match(/^["']?title["']?\s*:\s*(.*)$/i);
+                if (titleKeyMatch) {
+                    title = unquoteYamlScalar(titleKeyMatch[1].trim());
+                } else {
+                    const boxMatch = body.match(/^\[([ xX])\]\s*(.*)$/);
+                    if (boxMatch) {
+                        checked = boxMatch[1].toLowerCase() === 'x';
+                        title = boxMatch[2].trim();
+                    }
+                }
+
+                // A "[ ] " / "[x] " prefix inside the title value is a checkbox too
+                const inlineBox = title.match(/^\[([ xX])\]\s*(.*)$/);
+                if (inlineBox) {
+                    checked = inlineBox[1].toLowerCase() === 'x';
+                    title = inlineBox[2].trim();
+                }
+
+                ensureSection();
+
+                // Nesting = dash indentation: any deeper dash is a child of the
+                // innermost shallower task, so "subtasks:" needs no special casing.
+                while (taskStack.length && taskStack[taskStack.length - 1].dashIndent >= dashIndent) {
+                    taskStack.pop();
+                }
+                const parentEntry = taskStack.length ? taskStack[taskStack.length - 1] : null;
+
+                const task = {
+                    visible: true,
+                    id: generateSlugId('task', title, result.length),
+                    parentId: '',
+                    level: parentEntry ? parentEntry.task.level + 1 : 1,
+                    order: result.length + 1,
+                    checked: checked,
+                    title: title || 'Untitled Task',
+                    notes: ''
+                };
+                result.push(task);
+                taskStack.push({ dashIndent: dashIndent, task: task });
+                return;
+            }
+
+            // Task keys: title / checked / notes / subtasks (+ container aliases)
+            const keyMatch = rawLine.match(/^(\s*)(title|checked|notes|subtasks|tasks|children)\s*:\s*(.*)$/i);
+            if (keyMatch) {
+                const keyIndent = keyMatch[1].length;
+                const key = keyMatch[2].toLowerCase();
+                const value = keyMatch[3].trim();
+                const ownerEntry = (taskStack.length && taskStack[taskStack.length - 1].dashIndent < keyIndent)
+                    ? taskStack[taskStack.length - 1]
+                    : null;
+
+                if (ownerEntry) {
+                    const owner = ownerEntry.task;
+                    if (key === 'title') {
+                        const ownerTitle = unquoteYamlScalar(value);
+                        if (ownerTitle) owner.title = ownerTitle;
+                    } else if (key === 'checked') {
+                        owner.checked = parseYamlBoolean(value, owner.checked);
+                    } else if (key === 'notes') {
+                        if (isYamlBlockIndicator(value)) {
+                            inNotesBlock = true;
+                            notesIndent = keyIndent + 2;
+                            noteLines = [];
+                            notesOwner = owner;
+                        } else {
+                            owner.notes = unquoteYamlScalar(value);
+                        }
+                    }
+                    // 'subtasks' / 'tasks' / 'children' are pure containers.
+                }
+                return;
+            }
+
+            // Any other key or stray text is ignored on purpose - never crash a paste.
+        });
+
+        closeDescBlock();
+        closeNotesBlock();
+
+        return result;
+    }
+
+    // LEGACY READER: indentation-anchored shorthand ("- [ ] Title"), kept so lists
+    // saved by older builds - and older AI output - still load unchanged.
+    function parseLegacyShorthandYaml(yamlText) {
+        if (!yamlText || !yamlText.trim()) return [];
+
+        // Clamp illogical jump steps before measuring indentation
+        const sanitized = clampYamlNestingSteps(yamlText);
 
         const lines = sanitized.split(/\r?\n/);
         const result = [];
@@ -2442,7 +2769,7 @@
             const sectionMatch = trimmed.match(/^section:\s*["']?(.*?)["']?$/i);
             if (sectionMatch) {
                 const rawTitle = sectionMatch[1].trim();
-                const cleanTitle = rawTitle.replace(/^\d+\.\s*/, () => '').trim();
+                const cleanTitle = stripLeadingSectionNumber(rawTitle);
 
                 currentSection = {
                     visible: true,
@@ -2557,13 +2884,13 @@
         } else if (mode === 'section') {
             title.innerHTML = '📥 Paste Tasks into Milestone';
             subtitle.innerText = 'Paste YAML tasks to insert into this milestone.';
-            textarea.value = `  - [ ] New Task\n    notes: Task note with image or YouTube\n    - [ ] Nested Subtask`;
+            textarea.value = `  - title: "New Task"\n    checked: false\n    notes: "Task note with image or YouTube"\n    subtasks:\n      - title: "Nested Subtask"\n        checked: false`;
         } else if (mode === 'branch') {
             const parent = TASKS_DATA[targetIndex];
             const pTitle = parent ? parent.title : 'Task';
             title.innerHTML = `📥 Paste YAML Subtasks under: <span style="color:#fff;">${escapeHtml(pTitle)}</span>`;
             subtitle.innerText = 'Paste nested YAML tasks. They will automatically nest under this branch.';
-            textarea.value = `  - [ ] Subtask 1\n    notes: https://www.youtube.com/watch?v=dQw4w9WgXcQ\n    - [ ] Child Subtask 1.1`;
+            textarea.value = `  - title: "Subtask 1"\n    checked: false\n    notes: "https://www.youtube.com/watch?v=dQw4w9WgXcQ"\n    subtasks:\n      - title: "Child Subtask 1.1"\n        checked: false`;
         }
 
         modal.classList.add('open');
@@ -2626,14 +2953,12 @@
         const textarea = document.getElementById('modalYamlTextarea');
         if (!textarea || !textarea.value.trim()) return;
 
-        // Tabs to spaces first, then clamps illogical steps
-        let cleanYaml = textarea.value.replace(/\t/g, () => '  ');
-        cleanYaml = clampYamlNestingSteps(cleanYaml);
-
-        const parsed = parseYamlToTasks(cleanYaml);
+        // Tabs and legacy shorthand are handled inside the parser, so this is a
+        // pure "read it, then write it back in the standard-valid shape" pass.
+        const parsed = parseYamlToTasks(textarea.value);
         if (parsed.length > 0) {
             textarea.value = formatTasksSliceAsYaml(parsed);
-            showToast('✨ Formatted YAML with 2-space indentation & clamped depths!');
+            showToast('✨ Converted to valid standard YAML!');
         } else {
             showToast('Could not parse YAML to format.');
         }
@@ -2740,24 +3065,32 @@
 
 Format rules:
 - Output raw YAML only (no markdown code blocks, no conversational preamble).
-- Use strictly 2-space indentation (no literal tabs).
-- Use clean section names WITHOUT numbers (e.g. section: "Cloudflare Infrastructure") because List Puncher automatically numbers milestones dynamically.
+- The YAML MUST be valid standard YAML (it has to parse with PyYAML / js-yaml). Never write the shorthand "- [ ] Task Title" - that is NOT valid YAML.
+- Use strictly 2-space indentation. Never use tabs.
+- Every task is a YAML mapping: "- title: ..." plus "checked: true/false". Always wrap titles, notes and descriptions in double quotes.
+- Nest subtasks under their parent's "subtasks:" key, indented 2 spaces deeper than the "subtasks:" key itself (a task's own keys sit 2 spaces deeper than its "- " dash).
+- Notes can be single-line (notes: "...") or a multi-line block (notes: |) whose body is indented 2 spaces deeper than "notes:".
+- Every milestone is a root list item that starts with "- section:". Never repeat a bare "section:" key twice in one document - duplicate YAML keys make the whole file invalid.
+- Use clean section names WITHOUT numbers (e.g. - section: "Cloudflare Infrastructure") because List Puncher automatically numbers milestones dynamically.
 - Include a full, detailed description under each section explaining the objectives, prerequisites, and context (descriptions can be as long as needed).
-- Every unfinished task must start with an empty checkbox: - [ ] Task Title
-- Every finished task must start with an empty checkbox: - [x] Task Title
-- Notes can be single-line (notes: "...") or multi-line blocks (notes: | ...), aligned with the task's dash (one 2-space step per nesting level).
+- checked: false = still to do, checked: true = already finished.
 - Feel free to include YouTube video/tutorial links (including timestamps if needed ?t=111s) and image links inside task notes or descriptions (List Puncher auto-renders them into video players and images).
-- Nest subtasks under their parent tasks by indenting 2 additional spaces.
 - Nesting depth limit doesn't exist. Nest the tasks as deep as needed.
 
-YAML Structure:
-section: "Goal/Milestone Name"
-description: |
-  Multi-line overview of this goal/milestone...
-tasks:
-  - [ ] Task Title
-  notes: "Helpful instructions or links"
-    - [ ] Subtask Title`;
+YAML Structure (one list item per milestone):
+- section: "Goal/Milestone Name"
+  description: |
+    Multi-line overview of this goal/milestone...
+  tasks:
+    - title: "Task Title"
+      checked: false
+      notes: "Helpful instructions or links"
+      subtasks:
+        - title: "Subtask Title"
+          checked: false
+          notes: |
+            https://youtu.be/eqQfmTJD1A
+            https://www.example.com/diagram.png`;
 
         navigator.clipboard.writeText(aiPromptText).then(() => {
             showToast('🤖 AI Prompt copied! Paste into ChatGPT, Claude, or Gemini.');
