@@ -62,12 +62,10 @@ This exact shape is what the app writes, what it must read back, and what the AI
 - section: "Cloudflare Infrastructure"
   description: "Master DNS and edge routing configuration."
   tasks:
-    - title: "Task Title"
-      checked: false
+    - task: "[ ] Task Title"
       notes: "Helpful instructions or links"
-      subtasks:
-        - title: "Subtask Title"
-          checked: true
+      tasks:
+        - task: "[x] Subtask Title"
           notes: |
             https://youtu.be/eqQfmTJD1A
             https://www.example.com/diagram.png
@@ -76,34 +74,45 @@ This exact shape is what the app writes, what it must read back, and what the AI
 **Why a milestone is a list item:** one list holds N milestones. Repeating a bare `section:` key at the
 document root is a *duplicate key* error in every real YAML parser (a regex reader would never notice).
 
+**Why the checkbox sits inside the value and children need a key:** `- task: "[ ] Title"` costs 2 lines per
+task (no `checked:` key) and keeps the `[ ]` / `[x]` state visible and greppable. Nesting is the one place
+the grammar forces a key - a block sequence may never sit inside a block mapping without one - so children
+hang off `tasks:`, the same name a milestone uses for its task list. That holds the vocabulary to 5 names:
+`section` / `description` / `tasks` / `task` / `notes`.
+
 **Hard rules:**
 1. **The output must be VALID STANDARD YAML.** The old shorthand `- [ ] Task Title` is NOT valid YAML
    (PyYAML/js-yaml reject it: `[ ]` is an empty flow sequence, and a scalar list item can never also
-   carry mapping keys), so build 1.14 replaced it. A task is a mapping: `- title:` + `checked:`, and a
-   milestone is a root list item (`- section:`), never a repeated root key.
-2. **One nesting step = 2 spaces**: a task's own keys sit at `dash + 2`, its `subtasks:` children at
+   carry mapping keys), so 1.14 replaced it and 1.15 condensed it. A task is a mapping `- task: "[ ] X"`;
+   a milestone is a root list item (`- section:`), never a repeated root key.
+2. **The checkbox is the value's prefix**: `- task: "[ ] Title"` / `- task: "[x] Title"`. The writer never
+   emits a `checked:` key (it is still READ, so an AI that adds one is harmless).
+3. **One nesting step = 2 spaces**: a task's own keys sit at `dash + 2`, its `tasks:` children at
    `dash + 4`. Never tabs in output.
-3. **Children live under the parent's `subtasks:` key** - never as a bare dash at key indentation.
-4. **`notes:` / `description:` block bodies sit 2 spaces deeper than their key.** The value is trimmed
+4. **Children live under the parent's `tasks:` key.** A bare indented `- task:` is invalid YAML
+   (`expected <block end>, but found '-'`) because a sequence can never sit inside a mapping without a key.
+   Reusing `tasks:` keeps the vocabulary at 5 names: `section` / `description` / `tasks` / `task` / `notes`.
+5. **`notes:` / `description:` block bodies sit 2 spaces deeper than their key.** The value is trimmed
    before it is written, so the first body line never starts with whitespace - that is what lets YAML
    auto-detect the body indentation (no explicit `|2` indicator needed).
    **NEVER align `notes:` with the task's dash.** Doing so puts the notes body at the same indent as child
    tasks, so on reload the parser swallows every following subtask into the notes block - the list appears to
    "never save". (This exact bug shipped once. Do not repeat it.)
-5. **Every scalar is double-quoted** (`yamlQuote()`), escaping backslashes BEFORE quotes - a Windows path
+6. **Every scalar is double-quoted** (`yamlQuote()`), escaping backslashes BEFORE quotes - a Windows path
    like `C:\Users\...` would otherwise be an illegal YAML escape sequence and break the whole document.
-6. **Milestones are root list items**: `- section:` -> `description:` (optional) -> `tasks:` (or `tasks: []`
+7. **Milestones are root list items**: `- section:` -> `description:` (optional) -> `tasks:` (or `tasks: []`
    when empty). Section titles are written WITHOUT leading numbers; the app numbers milestones dynamically.
-7. **Unlimited depth** is allowed; the strict reader nests by dash indentation, so any step width (even the
+8. **Unlimited depth** is allowed; the strict reader nests by dash indentation, so any step width (even the
    6/8/14-space mess a sloppy AI paste produces) still nests correctly.
-8. **Legacy shorthand is still READ, never written.** `parseYamlToTasks()` dispatches: text matching
-   `- title:` goes to `parseStrictPuncherYaml()`, anything else to `parseLegacyShorthandYaml()` (which still
-   clamps depths). Old localStorage lists and old AI output keep loading; the next save rewrites them in the
-   valid shape, and `Prettify YAML` is the manual upgrader.
-9. **Tabs used for indentation become 2 spaces** (`expandLeadingTabs()`); tabs inside a note stay (they are
-   content, not layout).
-10. **Media lives in notes**: bare YouTube URLs become lazy video facades; bare image URLs become `<img>`s.
-11. **Round-trip is law.** Any serializer change must satisfy: `parse(format(x)) === x` and
+9. **Legacy shorthand is still READ, never written.** `parseYamlToTasks()` dispatches: text matching
+   `- task:` / `- title:` / `- section:` goes to `parseStrictPuncherYaml()` (which also accepts the 1.14
+   `- title:` + `checked:` spelling and the `subtasks:` alias), anything else to `parseLegacyShorthandYaml()`
+   (which still clamps depths). Old localStorage lists and old AI output keep loading; the next save rewrites
+   them in the condensed shape, and `Prettify YAML` is the manual upgrader.
+10. **Tabs used for indentation become 2 spaces** (`expandLeadingTabs()`); tabs inside a note stay (they are
+    content, not layout).
+11. **Media lives in notes**: bare YouTube URLs become lazy video facades; bare image URLs become `<img>`s.
+12. **Round-trip is law.** Any serializer change must satisfy: `parse(format(x)) === x` and
     `format(parse(format(x))) === format(x)` (idempotent), AND `format(x)` must parse cleanly in a REAL YAML
     parser (PyYAML/js-yaml). `saveState()` re-parses what it wrote and flags the
     storage pill with "Save check failed" if the item count would change.
@@ -249,7 +258,9 @@ Always tell the owner to hard-refresh and how to confirm the live build.
 |---|---|---|
 | `body.state .class-on-body ...` selector | New CSS rule never applies ("nothing changed") | Compound the body classes: `body.state.class-on-body` |
 | `notes:` aligned with the task dash | Saved list loses subtasks on refresh ("YAML never saves") | Notes key at +2, body at +4 |
-| Shorthand `- [ ] Title` written as output | Gemini/PyYAML/js-yaml report the whole document as invalid YAML | Emit the mapping form (`- title:` + `checked:` + `subtasks:`); shorthand is read-only legacy |
+| Shorthand `- [ ] Title` written as output | Gemini/PyYAML/js-yaml report the whole document as invalid YAML | Emit `- task: "[ ] Title"` (mapping form); shorthand is read-only legacy |
+| Indented `- task:` with no children key above it | `expected <block end>, but found '-'` - the whole file is invalid | Children hang off `tasks:`; a sequence can never sit inside a mapping without a key |
+| Quoting a bare dash line (`- "[ ] Title"` + `notes:`) | Still invalid - a scalar item cannot also carry mapping keys | The quotes must sit on a `task:` value |
 | Player iframe created on page load | ~20s black screen on first play click | Click-only lazy facade |
 | `youtube.com/embed` + ad blocker | Black screen / playback timeout | Use `youtube-nocookie.com` + autoplay params |
 | Media click not stopped | Clicking play opens the note editor instead | `event.stopPropagation()` on media |

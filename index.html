@@ -15,7 +15,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
     
     <!-- Separated Master Stylesheet (Zero Prism Crash) - version query busts the GitHub Pages 10min cache -->
-    <link rel="stylesheet" href="index.css?v=1.14">
+    <link rel="stylesheet" href="index.css?v=1.15">
 
     <script>
     /* Universal Dark Reader Kill Switch (Rule 9) */
@@ -248,7 +248,7 @@
     // =========================================================================
     const AUTOSAVE_DELAY_MS = 500;
     const INDENT_SPACES_PER_LEVEL = 2;
-    const APP_BUILD = '1.14'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
+    const APP_BUILD = '1.15'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
     const DEFAULT_PROJECT_ID = 'default_onboarding';
     const DEFAULT_PROJECT_NAME = 'Client Onboarding';
 
@@ -2321,18 +2321,20 @@
         return String(title || '').replace(/^\d+\.\s*/, () => '').trim();
     }
 
-    // The strict format always writes tasks as "- title: ..." and milestones as
-    // "- section: ...". Anything else is legacy shorthand ("- [ ] Title"), which
-    // the legacy reader still accepts.
+    // The strict format always writes tasks as "- task: ..." and milestones as
+    // "- section: ...". "- title: ..." is the 1.14 spelling and is still read so
+    // lists saved this morning keep loading. Anything else is legacy shorthand
+    // ("- [ ] Title"), which the legacy reader still accepts.
     function isStrictPuncherYaml(yamlText) {
-        return /^[ \t]*-[ \t]*["']?(title|section)["']?[ \t]*:/m.test(String(yamlText || ''));
+        return /^[ \t]*-[ \t]*["']?(task|title|section)["']?[ \t]*:/m.test(String(yamlText || ''));
     }
 
-    // SERIALIZER - always emits STANDARD-VALID YAML.
-    // A task is a mapping ("- title:" + checked / notes / subtasks). The old
-    // shorthand ("- [ ] Title") is NOT valid YAML: "[ ]" is an empty flow
-    // sequence and a scalar list item can never also carry mapping keys, so real
-    // parsers (PyYAML, js-yaml, Gemini) reject the whole document.
+    // SERIALIZER - always emits STANDARD-VALID YAML, as condensed as the grammar
+    // allows: a task is a mapping ("- task:" whose quoted value starts with its
+    // checkbox, plus optional notes / tasks). The old shorthand ("- [ ] Title")
+    // is NOT valid YAML: "[ ]" is an empty flow sequence and a scalar list item
+    // can never also carry mapping keys, so real parsers (PyYAML, js-yaml,
+    // Gemini) reject the whole document.
     function formatTasksSliceAsYaml(tasks) {
         if (!tasks || !tasks.length) return '';
         const baseLevel = tasks[0].level || 0;
@@ -2356,12 +2358,17 @@
             const dashPad = ' '.repeat(indent);
             const keyPad = ' '.repeat(keyIndent);
 
-            lines.push(`${dashPad}- title: ${yamlQuote(node.task.title || 'Untitled')}`);
-            lines.push(`${keyPad}checked: ${node.task.checked ? 'true' : 'false'}`);
+            // The checkbox lives INSIDE the quoted value ("[ ] Title" / "[x] Title"),
+            // so a task costs 2 lines instead of 3 - there is no "checked:" key.
+            const checkBox = node.task.checked ? '[x]' : '[ ]';
+            lines.push(`${dashPad}- task: ${yamlQuote(`${checkBox} ${node.task.title || 'Untitled'}`)}`);
             pushYamlTextValue(lines, keyIndent, 'notes', node.task.notes);
 
             if (node.children.length) {
-                lines.push(`${keyPad}subtasks:`);
+                // Children need a key - a sequence cannot sit inside a mapping
+                // without one. Reusing "tasks:" keeps the whole vocabulary at 5
+                // names: section / description / tasks / task / notes.
+                lines.push(`${keyPad}tasks:`);
                 node.children.forEach(child => emitTaskNode(child, keyIndent + 2));
             }
         };
@@ -2590,7 +2597,8 @@
                 return;
             }
 
-            // "- title: ..." (standard) or "- [ ] Title" / "- Title" (legacy)
+            // "- task: ..." (standard) / "- title: ..." (1.14 spelling) or
+            // "- [ ] Title" / "- Title" (legacy shorthand)
             const dashMatch = rawLine.match(/^(\s*)-\s*(.*)$/);
             if (dashMatch) {
                 const dashIndent = dashMatch[1].length;
@@ -2599,7 +2607,7 @@
                 let title = body;
                 let checked = false;
 
-                const titleKeyMatch = body.match(/^["']?title["']?\s*:\s*(.*)$/i);
+                const titleKeyMatch = body.match(/^["']?(?:task|title)["']?\s*:\s*(.*)$/i);
                 if (titleKeyMatch) {
                     title = unquoteYamlScalar(titleKeyMatch[1].trim());
                 } else {
@@ -2610,7 +2618,7 @@
                     }
                 }
 
-                // A "[ ] " / "[x] " prefix inside the title value is a checkbox too
+                // A "[ ] " / "[x] " prefix inside the value is the checkbox
                 const inlineBox = title.match(/^\[([ xX])\]\s*(.*)$/);
                 if (inlineBox) {
                     checked = inlineBox[1].toLowerCase() === 'x';
@@ -2641,8 +2649,8 @@
                 return;
             }
 
-            // Task keys: title / checked / notes / subtasks (+ container aliases)
-            const keyMatch = rawLine.match(/^(\s*)(title|checked|notes|subtasks|tasks|children)\s*:\s*(.*)$/i);
+            // Task keys: task / title / checked / notes / tasks (+ legacy aliases)
+            const keyMatch = rawLine.match(/^(\s*)(task|title|checked|notes|subtasks|tasks|children)\s*:\s*(.*)$/i);
             if (keyMatch) {
                 const keyIndent = keyMatch[1].length;
                 const key = keyMatch[2].toLowerCase();
@@ -2653,7 +2661,7 @@
 
                 if (ownerEntry) {
                     const owner = ownerEntry.task;
-                    if (key === 'title') {
+                    if (key === 'task' || key === 'title') {
                         const ownerTitle = unquoteYamlScalar(value);
                         if (ownerTitle) owner.title = ownerTitle;
                     } else if (key === 'checked') {
@@ -2884,13 +2892,13 @@
         } else if (mode === 'section') {
             title.innerHTML = '📥 Paste Tasks into Milestone';
             subtitle.innerText = 'Paste YAML tasks to insert into this milestone.';
-            textarea.value = `  - title: "New Task"\n    checked: false\n    notes: "Task note with image or YouTube"\n    subtasks:\n      - title: "Nested Subtask"\n        checked: false`;
+            textarea.value = `  - task: "[ ] New Task"\n    notes: "Task note with image or YouTube"\n    tasks:\n      - task: "[ ] Nested Subtask"`;
         } else if (mode === 'branch') {
             const parent = TASKS_DATA[targetIndex];
             const pTitle = parent ? parent.title : 'Task';
             title.innerHTML = `📥 Paste YAML Subtasks under: <span style="color:#fff;">${escapeHtml(pTitle)}</span>`;
             subtitle.innerText = 'Paste nested YAML tasks. They will automatically nest under this branch.';
-            textarea.value = `  - title: "Subtask 1"\n    checked: false\n    notes: "https://www.youtube.com/watch?v=dQw4w9WgXcQ"\n    subtasks:\n      - title: "Child Subtask 1.1"\n        checked: false`;
+            textarea.value = `  - task: "[ ] Subtask 1"\n    notes: "https://www.youtube.com/watch?v=dQw4w9WgXcQ"\n    tasks:\n      - task: "[ ] Child Subtask 1.1"`;
         }
 
         modal.classList.add('open');
@@ -3067,13 +3075,12 @@ Format rules:
 - Output raw YAML only (no markdown code blocks, no conversational preamble).
 - The YAML MUST be valid standard YAML (it has to parse with PyYAML / js-yaml). Never write the shorthand "- [ ] Task Title" - that is NOT valid YAML.
 - Use strictly 2-space indentation. Never use tabs.
-- Every task is a YAML mapping: "- title: ..." plus "checked: true/false". Always wrap titles, notes and descriptions in double quotes.
-- Nest subtasks under their parent's "subtasks:" key, indented 2 spaces deeper than the "subtasks:" key itself (a task's own keys sit 2 spaces deeper than its "- " dash).
+- Every task is a YAML mapping whose value STARTS WITH ITS CHECKBOX: - task: "[ ] Task Title" (still to do) or - task: "[x] Task Title" (finished). Always wrap task values, notes and descriptions in double quotes.
+- Nest subtasks under their parent's "tasks:" key, indented 2 spaces deeper than that key (a task's own keys sit 2 spaces deeper than its "- " dash). An indented "- task:" with no "tasks:" key above it is NOT valid YAML.
 - Notes can be single-line (notes: "...") or a multi-line block (notes: |) whose body is indented 2 spaces deeper than "notes:".
 - Every milestone is a root list item that starts with "- section:". Never repeat a bare "section:" key twice in one document - duplicate YAML keys make the whole file invalid.
 - Use clean section names WITHOUT numbers (e.g. - section: "Cloudflare Infrastructure") because List Puncher automatically numbers milestones dynamically.
 - Include a full, detailed description under each section explaining the objectives, prerequisites, and context (descriptions can be as long as needed).
-- checked: false = still to do, checked: true = already finished.
 - Feel free to include YouTube video/tutorial links (including timestamps if needed ?t=111s) and image links inside task notes or descriptions (List Puncher auto-renders them into video players and images).
 - Nesting depth limit doesn't exist. Nest the tasks as deep as needed.
 
@@ -3082,12 +3089,10 @@ YAML Structure (one list item per milestone):
   description: |
     Multi-line overview of this goal/milestone...
   tasks:
-    - title: "Task Title"
-      checked: false
+    - task: "[ ] Task Title"
       notes: "Helpful instructions or links"
-      subtasks:
-        - title: "Subtask Title"
-          checked: false
+      tasks:
+        - task: "[x] Subtask Title"
           notes: |
             https://youtu.be/eqQfmTJD1A
             https://www.example.com/diagram.png`;
