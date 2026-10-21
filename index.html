@@ -11,8 +11,8 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
     
-    <!-- Separated Master Stylesheet (Zero Prism Crash) -->
-    <link rel="stylesheet" href="index.css">
+    <!-- Separated Master Stylesheet (Zero Prism Crash) - version query busts the GitHub Pages 10min cache -->
+    <link rel="stylesheet" href="index.css?v=1.09">
 
     <script>
     /* Universal Dark Reader Kill Switch (Rule 9) */
@@ -249,6 +249,7 @@
     // =========================================================================
     const AUTOSAVE_DELAY_MS = 500;
     const INDENT_SPACES_PER_LEVEL = 2;
+    const APP_BUILD = '1.09'; // Bump together with index.css?v= on every deploy so stale-cache states are visible
     const DEFAULT_PROJECT_ID = 'default_onboarding';
     const DEFAULT_PROJECT_NAME = 'Client Onboarding';
 
@@ -1018,7 +1019,7 @@
         saveState();
         applyFxAnimationClass();
         updateHeaderToggleButtonsUI();
-        showToast(UI_STATE.fxAnimations ? '✨ Card FX: ON' : '✨ Card FX: OFF (video-first mode)');
+        showToast(UI_STATE.fxAnimations ? `✨ Card FX: ON (build ${APP_BUILD})` : `✨ Card FX: OFF — plain border, zero animation (build ${APP_BUILD})`);
     }
 
     function initFxThrottle() {

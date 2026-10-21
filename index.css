@@ -1,5 +1,5 @@
 /**
- * List Puncher - Master Stylesheet (v1.08 - Video-First FX Throttle)
+ * List Puncher - Master Stylesheet (v1.09 - Video-First FX Throttle + Cache-Bust)
  * File: index.css
  * 
  * AutoMyBiz Core Engineering Standards:
@@ -586,8 +586,17 @@ body.fx-paused .card-border-animated.effect-hue-sweep .section-deck:not(.is-coll
 }
 
 body.fx-off .card-border-animated .section-deck:not(.is-collapsed),
+body.fx-off .card-border-animated.effect-hue-sweep .section-deck:not(.is-collapsed) {
+    animation: none !important;
+    /* Video-first mode: plain solid border, no conic gradient, no beam.
+       Also serves as the unmistakable "fresh CSS is live" indicator. */
+    border: 1.5px solid var(--card-border-color-1) !important;
+    background: var(--card-bg) !important;
+}
+
 body.fx-off .card-border-animated.effect-hue-sweep .section-deck:not(.is-collapsed) .section-header::after {
     animation: none !important;
+    background: none !important;
 }
 
 @media (prefers-reduced-motion: reduce) {
