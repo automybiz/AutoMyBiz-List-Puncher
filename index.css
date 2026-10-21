@@ -308,6 +308,10 @@ body {
     50% { box-shadow: 0 0 12px rgba(239, 68, 68, 0.65); }
 }
 
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
 /* Tooltip Popover */
 .status-tooltip-popover {
     visibility: hidden;

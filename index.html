@@ -8,6 +8,7 @@
     <title>List Puncher - Client Onboarding and Task Engine</title>
     
     <link rel="preconnect" href="https://www.youtube-nocookie.com">
+    <link rel="preconnect" href="https://googlevideo.com">
     <link rel="preconnect" href="https://i.ytimg.com">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -850,27 +851,48 @@
         if (!embedUrl) return;
 
         element.classList.add('is-loading');
-        const label = element.querySelector('.media-video-play-text');
-        if (label) label.innerText = '⏳ Loading video...';
 
+        // 1. Update play badge to a live loading state instead of wiping to black
+        const playBadge = element.querySelector('.media-video-play');
+        if (playBadge) {
+            playBadge.innerHTML = `
+                <div style="display:inline-block; width:34px; height:34px; border:3px solid rgba(0,229,255,0.3); border-top-color:var(--accent-cyan); border-radius:50%; animation:spin 0.8s linear infinite;"></div>
+                <span class="media-video-play-text" style="margin-top:6px;">Loading video...</span>
+            `;
+        }
+
+        // 2. Video-first FX throttle: freeze background card animations
+        setFxPauseSource('media', true);
+
+        // 3. Prepare iframe with eager loading and proper parameters
         const separator = embedUrl.indexOf('?') === -1 ? '?' : '&';
         const frame = document.createElement('iframe');
         frame.className = 'media-video-frame';
         frame.src = embedUrl + separator + 'autoplay=1&rel=0&playsinline=1&enablejsapi=1';
         frame.title = 'YouTube video player';
         frame.setAttribute('frameborder', '0');
+        frame.setAttribute('loading', 'eager');
         frame.setAttribute('allow', 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share');
         frame.setAttribute('allowfullscreen', '');
+        
+        // Hide iframe until it finishes loading so the thumbnail remains visible
+        frame.style.opacity = '0';
+        frame.style.transition = 'opacity 0.25s ease';
 
-        element.classList.remove('media-video-lazy');
-        element.classList.add('media-video-live');
-        element.removeAttribute('onclick');
-        element.removeAttribute('onkeydown');
-        element.removeAttribute('data-video-embed');
-        element.removeAttribute('role');
-        element.removeAttribute('tabindex');
-        element.removeAttribute('title');
-        element.innerHTML = '';
+        frame.onload = function() {
+            frame.style.opacity = '1';
+            // Clean up the thumbnail once the video is ready
+            setTimeout(() => {
+                const thumb = element.querySelector('.media-video-thumb');
+                const badge = element.querySelector('.media-video-play');
+                const urlLabel = element.querySelector('.media-video-url');
+                if (thumb) thumb.remove();
+                if (badge) badge.remove();
+                if (urlLabel) urlLabel.remove();
+                element.classList.remove('is-loading');
+            }, 300);
+        };
+
         element.appendChild(frame);
     }
 
