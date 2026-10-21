@@ -12,7 +12,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
     
     <!-- Separated Master Stylesheet (Zero Prism Crash) - version query busts the GitHub Pages 10min cache -->
-    <link rel="stylesheet" href="index.css?v=1.09">
+    <link rel="stylesheet" href="index.css?v=1.10">
 
     <script>
     /* Universal Dark Reader Kill Switch (Rule 9) */
@@ -249,7 +249,8 @@
     // =========================================================================
     const AUTOSAVE_DELAY_MS = 500;
     const INDENT_SPACES_PER_LEVEL = 2;
-    const APP_BUILD = '1.09'; // Bump together with index.css?v= on every deploy so stale-cache states are visible
+    const APP_BUILD = '1.10'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
+    const LIVE_FX = { animSpeed: '30s' }; // Live theme's card border speed, kept so the FX throttle can restore it
     const DEFAULT_PROJECT_ID = 'default_onboarding';
     const DEFAULT_PROJECT_NAME = 'Client Onboarding';
 
@@ -882,6 +883,7 @@
             const animSpeed = tokens['CARD_BORDER_ANIMATE_SPEED'] || '30s';
             const animEffect = String(tokens['CARD_BORDER_ANIMATE_EFFECT'] || 'Hue Sweep').toLowerCase().replace(/\s+/g, () => '-');
 
+            LIVE_FX.animSpeed = animSpeed;
             document.body.style.setProperty('--card-border-speed', animSpeed);
             document.body.classList.toggle('card-border-animated', isAnimateEnabled);
             document.body.classList.remove('effect-laser-comet', 'effect-dual-tone-blend', 'effect-hue-sweep', 'effect-fx-rainbow');
@@ -994,25 +996,76 @@
 
     // =========================================================================
     // VIDEO-FRIENDLY FX THROTTLE
+    // <<< REVERT: delete this whole block + the matching block in index.css to
+    // fully restore the original (un-throttled) card FX. >>>
     // Decorative card motion auto-freezes the moment a media player takes over
     // (player focus, tab in background, or pointer entering a video container),
     // so the YouTube player never has to compete for paint/compositor time.
+    // The result is verified with getComputedStyle and, if the stylesheet is
+    // stale or out of date, enforced with inline !important declarations.
     // =========================================================================
     const FX_PAUSE_SOURCES = { media: false, windowBlur: false, hidden: false };
 
-    function applyFxAnimationClass() {
-        document.body.classList.toggle('fx-off', UI_STATE.fxAnimations === false);
-        applyFxPauseState();
+    function isFxOff() {
+        return UI_STATE.fxAnimations === false;
     }
 
-    function applyFxPauseState() {
-        const shouldPause = FX_PAUSE_SOURCES.media || FX_PAUSE_SOURCES.windowBlur || FX_PAUSE_SOURCES.hidden;
-        document.body.classList.toggle('fx-paused', shouldPause && UI_STATE.fxAnimations !== false);
+    function isFxPaused() {
+        return FX_PAUSE_SOURCES.media || FX_PAUSE_SOURCES.windowBlur || FX_PAUSE_SOURCES.hidden;
+    }
+
+    function applyFxAnimationClass() {
+        const fxOff = isFxOff();
+        const paused = isFxPaused();
+        document.body.classList.toggle('fx-off', fxOff);
+        document.body.classList.toggle('fx-paused', paused && !fxOff);
+        enforceFxVisualState(fxOff, paused);
+    }
+
+    // Self-verifying enforcement: read what the browser actually resolved and only
+    // fall back to inline !important styles when the stylesheet did not deliver.
+    function enforceFxVisualState(fxOff, paused) {
+        let cssMissed = false;
+
+        document.querySelectorAll('.section-deck').forEach(deck => {
+            const computed = getComputedStyle(deck);
+            const isAnimated = Boolean(computed.animationName) && computed.animationName !== 'none';
+
+            if (fxOff) {
+                deck.style.removeProperty('animation-play-state');
+                if (isAnimated) {
+                    cssMissed = true;
+                    deck.style.setProperty('animation', 'none', 'important');
+                    deck.style.setProperty('border', '1.5px solid var(--card-border-color-1)', 'important');
+                    deck.style.setProperty('background', 'var(--card-bg)', 'important');
+                }
+                return;
+            }
+
+            deck.style.removeProperty('animation');
+            deck.style.removeProperty('border');
+            deck.style.removeProperty('background');
+
+            if (!paused) {
+                deck.style.removeProperty('animation-play-state');
+            } else if (isAnimated && computed.animationPlayState !== 'paused') {
+                cssMissed = true;
+                deck.style.setProperty('animation-play-state', 'paused', 'important');
+            }
+        });
+
+        // The section-header beam is a ::after pseudo-element (inline styles cannot
+        // reach it), so freeze it through the animation speed variable instead.
+        if (cssMissed) {
+            document.body.style.setProperty('--card-border-speed', '0s', 'important');
+        } else if (document.body.style.getPropertyValue('--card-border-speed') === '0s') {
+            document.body.style.setProperty('--card-border-speed', LIVE_FX.animSpeed);
+        }
     }
 
     function setFxPauseSource(source, value) {
         FX_PAUSE_SOURCES[source] = Boolean(value);
-        applyFxPauseState();
+        applyFxAnimationClass();
     }
 
     function toggleFxAnimations() {
@@ -1057,34 +1110,24 @@
 
     // =========================================================================
     // STALE STYLESHEET GUARD
-    // GitHub Pages serves assets with a ~10 minute cache, so a brand new
-    // index.html can arrive next to an OLD index.css - which silently disables
-    // the FX throttle. Detect it and tell the user exactly what to do.
+    // GitHub Pages caches assets, so a brand new index.html can arrive next to an
+    // OLD index.css. Compare the stylesheet's own build marker with APP_BUILD.
     // =========================================================================
-    function isStylesheetStale() {
-        let inspected = 0;
+    function readCssBuild() {
         try {
-            for (let s = 0; s < document.styleSheets.length; s++) {
-                let rules = null;
-                try { rules = document.styleSheets[s].cssRules; } catch (e) { continue; }
-                if (!rules) continue;
-                inspected++;
-                for (let r = 0; r < rules.length; r++) {
-                    const sel = rules[r].selectorText;
-                    if (sel && sel.indexOf('.fx-off') !== -1) return false;
-                }
-            }
+            const raw = getComputedStyle(document.documentElement).getPropertyValue('--lp-css-build');
+            return String(raw || '').replace(/["'\s]/g, '');
         } catch (e) {
-            return false;
+            return '';
         }
-        return inspected > 0; // only claim "stale" when at least one sheet was actually readable
     }
 
     function guardAgainstStaleStylesheet() {
-        if (!isStylesheetStale()) return;
-        console.warn(`[List Puncher] Stale index.css detected - build ${APP_BUILD} expects index.css?v=1.09.`);
+        const cssBuild = readCssBuild();
+        if (cssBuild === APP_BUILD) return;
+        console.warn(`[List Puncher] Stylesheet build "${cssBuild || 'unknown'}" does not match app build ${APP_BUILD} - hard-refresh (Ctrl+Shift+R).`);
         setTimeout(() => {
-            showToast(`⚠ Old stylesheet cached — press Ctrl+Shift+R to load build ${APP_BUILD}`);
+            showToast(`⚠ Old stylesheet cached (css ${cssBuild || '?'} vs app ${APP_BUILD}) — press Ctrl+Shift+R`);
         }, 1200);
     }
 
@@ -1510,6 +1553,9 @@
         });
 
         updateProgress();
+
+        // Re-apply the FX state: renderAll() recreates every .section-deck element
+        applyFxAnimationClass();
     }
 
     function toggleNestStyle() {

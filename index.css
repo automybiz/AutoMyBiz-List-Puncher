@@ -1,5 +1,5 @@
 /**
- * List Puncher - Master Stylesheet (v1.09 - Video-First FX Throttle + Cache-Bust)
+ * List Puncher - Master Stylesheet (v1.10 - FX Throttle Selector Fix + Build Marker)
  * File: index.css
  * 
  * AutoMyBiz Core Engineering Standards:
@@ -32,6 +32,9 @@
     --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     --font-mono: 'Fira Code', 'Courier New', monospace;
     --indent-step: 22px;
+
+    /* Build marker: lets the app detect a stale cached stylesheet (compared against APP_BUILD in index.html) */
+    --lp-css-build: "1.10";
 
     --completed-opacity: 0.42;
 
@@ -575,18 +578,26 @@ body {
 
 /* ==========================================================================
    VIDEO-FRIENDLY FX THROTTLE (Never fight the YouTube player for paint time)
-   Selectors mirror the beam rules above (same specificity + later source order)
-   so these always win over the `animation: ... !important` shorthand.
+   <<< REVERT: delete this whole block to restore the original card FX >>>
+   CRITICAL: .fx-off / .fx-paused live on the SAME element as .card-border-animated
+   (all three are <body> classes), so they MUST be written as ONE compound part:
+       body.fx-off.card-border-animated .section-deck      <- matches
+       body.fx-off .card-border-animated .section-deck     <- NEVER matches (that
+                                                              space asks for a
+                                                              descendant carrying
+                                                              the class)
+   The (0,4,1) / (0,6,1) specificity also beats the beam rules above, so these
+   always win over their `animation: ... !important` shorthand.
    .fx-paused -> decorative motion frozen while a player holds focus / tab hidden
    .fx-off    -> user switched the decorative card FX off (header toggle)
    ========================================================================== */
-body.fx-paused .card-border-animated .section-deck:not(.is-collapsed),
-body.fx-paused .card-border-animated.effect-hue-sweep .section-deck:not(.is-collapsed) .section-header::after {
+body.fx-paused.card-border-animated .section-deck:not(.is-collapsed),
+body.fx-paused.card-border-animated.effect-hue-sweep .section-deck:not(.is-collapsed) .section-header::after {
     animation-play-state: paused !important;
 }
 
-body.fx-off .card-border-animated .section-deck:not(.is-collapsed),
-body.fx-off .card-border-animated.effect-hue-sweep .section-deck:not(.is-collapsed) {
+body.fx-off.card-border-animated .section-deck:not(.is-collapsed),
+body.fx-off.card-border-animated.effect-hue-sweep .section-deck:not(.is-collapsed) {
     animation: none !important;
     /* Video-first mode: plain solid border, no conic gradient, no beam.
        Also serves as the unmistakable "fresh CSS is live" indicator. */
@@ -594,7 +605,7 @@ body.fx-off .card-border-animated.effect-hue-sweep .section-deck:not(.is-collaps
     background: var(--card-bg) !important;
 }
 
-body.fx-off .card-border-animated.effect-hue-sweep .section-deck:not(.is-collapsed) .section-header::after {
+body.fx-off.card-border-animated.effect-hue-sweep .section-deck:not(.is-collapsed) .section-header::after {
     animation: none !important;
     background: none !important;
 }
