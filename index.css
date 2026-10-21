@@ -1,11 +1,12 @@
 /**
- * List Puncher - Master Stylesheet (v1.06 - Multi-Project & Unified Indent)
+ * List Puncher - Master Stylesheet (v1.07 - One Color Per Nesting Level)
  * File: index.css
  * 
  * AutoMyBiz Core Engineering Standards:
  * - Multi-Project Scope Switcher: Unlimited lists per GHL Sub-Account
  * - Unified Indentation: Exact same 14px rail spacing for both Rails ON and Rails OFF
- * - Color Depth Toggle: .depth-colors-alt (Staggered by level) & .depth-colors-solid (Unified)
+ * - Rails OFF hides the continuous rails in BOTH color modes (rail colors are scoped to Rails ON)
+ * - Color Depth Toggle: .depth-colors-alt (one alternating color per nesting level) & .depth-colors-solid (Unified)
  * - Two-tier task row architecture with full-width notes and responsive media embeds
  * - Dual top-right status pill cluster (Live Save Indicator + Permissions Mode)
  * - Milestone description banner at top of accordion body with media embeds
@@ -1055,38 +1056,37 @@ body {
 }
 
 /* ==========================================================================
-   COLOR DEPTH ENGINES (Alternating vs Solid Level Colors)
+   COLOR DEPTH ENGINES (One Alternating Color Per Nesting Level)
+   Mode A: .depth-colors-alt   -> levels 1/3 = Color 1 (#0FF), levels 2/4 = Color 2 (#F80)
+   Mode B: .depth-colors-solid -> single theme color on every level
    ========================================================================== */
-/* Mode A: Alternating Color Depths (Unified by level) */
-.depth-colors-alt .task-depth-1,
-.depth-colors-alt .rail-depth-1 {
+/* Mode A: Alternating Color Depths (rail + row hooks share one color per level) */
+.depth-colors-alt .task-depth-odd {
     border-left-color: var(--card-border-color-1) !important;
 }
-.depth-colors-alt .task-depth-2,
-.depth-colors-alt .rail-depth-2 {
+.depth-colors-alt .task-depth-even {
     border-left-color: var(--card-border-color-2) !important;
 }
-.depth-colors-alt .task-depth-3,
-.depth-colors-alt .rail-depth-3 {
+.nest-style-rails.depth-colors-alt .rail-depth-1,
+.nest-style-rails.depth-colors-alt .rail-depth-3 {
     border-left-color: var(--card-border-color-1) !important;
 }
-.depth-colors-alt .task-depth-4,
-.depth-colors-alt .rail-depth-4 {
-    border-left-color: var(--card-border-color-2) !important;
-}
-.depth-colors-alt .task-depth-odd,
-.depth-colors-alt .rail-depth-odd {
-    border-left-color: var(--card-border-color-1) !important;
-}
-.depth-colors-alt .task-depth-even,
-.depth-colors-alt .rail-depth-even {
+.nest-style-rails.depth-colors-alt .rail-depth-2,
+.nest-style-rails.depth-colors-alt .rail-depth-4 {
     border-left-color: var(--card-border-color-2) !important;
 }
 
 /* Mode B: Solid Color Depths (Clean unified color across all levels) */
-.depth-colors-solid .task-row,
-.depth-colors-solid .branch-rail {
+.depth-colors-solid .task-row {
     border-left-color: var(--card-border-color-1) !important;
+}
+.nest-style-rails.depth-colors-solid .branch-rail {
+    border-left-color: var(--card-border-color-1) !important;
+}
+
+/* Safety net: Rails OFF must always win over every depth-color rule above */
+.nest-style-cards .branch-rail {
+    border-left-color: transparent !important;
 }
 
 /* ==========================================================================

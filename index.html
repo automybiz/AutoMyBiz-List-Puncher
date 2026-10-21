@@ -206,8 +206,8 @@
         </div>
         <div class="modal-footer">
             <div style="display: flex; align-items: center; gap: 8px;">
-                <span class="modal-hint">Tabs auto-convert to 2 spaces. Illogical indent steps clamped automatically.</span>
-                <button type="button" class="btn-action btn-sm" onclick="prettifyModalYaml()" title="Auto-convert tabs, clamp depths, and standardize 2-space indentation">
+                <span class="modal-hint">Tabs convert to 2 spaces per nesting level. Notes stay aligned with their task; illogical steps are clamped automatically.</span>
+                <button type="button" class="btn-action btn-sm" onclick="prettifyModalYaml()" title="Auto-convert tabs, align notes with their task, and clamp nesting steps to 2 spaces">
                     ✨ Prettify YAML
                 </button>
             </div>
@@ -1383,7 +1383,8 @@
                 // Recursive branch rail (Identical 14px indent in both Cards and Rails mode)
                 if (node.children.length > 0 && !isBranchCollapsed) {
                     const rail = document.createElement('div');
-                    const railDepthNum = ((depth - 1) % 4) + 1;
+                    // Rail carries the color of the depth level it encloses (children of a depth-1 row => rail-depth-2)
+                    const railDepthNum = (depth % 4) + 1;
                     rail.className = `branch-rail rail-depth-${railDepthNum}`;
 
                     node.children.forEach(childNode => {
@@ -2173,11 +2174,11 @@
                 if (t.notes && t.notes.trim()) {
                     const noteLines = t.notes.trim().split(/\r?\n/);
                     if (noteLines.length === 1) {
-                        lines.push(`${indent}  notes: "${noteLines[0].replace(/"/g, () => '\\"')}"`);
+                        lines.push(`${indent}notes: "${noteLines[0].replace(/"/g, () => '\\"')}"`);
                     } else {
-                        lines.push(`${indent}  notes: |`);
+                        lines.push(`${indent}notes: |`);
                         noteLines.forEach(nl => {
-                            lines.push(`${indent}    ${nl}`);
+                            lines.push(`${indent}  ${nl}`);
                         });
                     }
                 }
@@ -2240,22 +2241,24 @@
         let noteLines = [];
         let descLines = [];
 
-        let sectionBaseIndents = [];
-        let curMinIndent = 999;
+        // Per-section anchor: the FIRST task line of a section defines its Level 1 indent.
+        // Using the first task (not the section minimum) keeps a stray outdented line
+        // (e.g. "- [ ] Untitled" pasted flush-left) from pushing its siblings a level deeper.
+        const sectionBaseIndents = [];
+        let pendingBaseIndent = null;
         lines.forEach(line => {
             const trimmed = line.trim();
             if (trimmed.startsWith('section:')) {
-                if (curMinIndent !== 999) sectionBaseIndents.push(curMinIndent);
-                curMinIndent = 999;
+                sectionBaseIndents.push(pendingBaseIndent === null ? 0 : pendingBaseIndent);
+                pendingBaseIndent = null;
             } else {
                 const m = line.match(/^(\s*)-\s*(?:\[[ xX]\])?/);
-                if (m) {
-                    const spaces = m[1].length;
-                    if (spaces < curMinIndent) curMinIndent = spaces;
+                if (m && pendingBaseIndent === null) {
+                    pendingBaseIndent = m[1].length;
                 }
             }
         });
-        if (curMinIndent !== 999) sectionBaseIndents.push(curMinIndent);
+        sectionBaseIndents.push(pendingBaseIndent === null ? 0 : pendingBaseIndent);
 
         let sectionCounter = 0;
         let activeBaseIndent = sectionBaseIndents[0] !== undefined ? sectionBaseIndents[0] : 0;
@@ -2373,7 +2376,7 @@
                     result.push(currentSection);
                 }
 
-                // Shallowest task in section is anchored at Level 1
+                // First task in a section anchors Level 1 (stray outdented lines never push siblings deeper)
                 const relSpaces = Math.max(0, indentSpaces - activeBaseIndent);
                 const relativeLevel = Math.max(1, Math.round(relSpaces / INDENT_SPACES_PER_LEVEL) + 1);
 
@@ -2565,7 +2568,7 @@ Format rules:
 - Include a full, detailed description under each section explaining the objectives, prerequisites, and context (descriptions can be as long as needed).
 - Every unfinished task must start with an empty checkbox: - [ ] Task Title
 - Every finished task must start with an empty checkbox: - [x] Task Title
-- Notes can be single-line (notes: "...") or multi-line blocks (notes: | ...).
+- Notes can be single-line (notes: "...") or multi-line blocks (notes: | ...), aligned with the task's dash (one 2-space step per nesting level).
 - Feel free to include YouTube video/tutorial links (including timestamps if needed ?t=111s) and image links inside task notes or descriptions (List Puncher auto-renders them into video players and images).
 - Nest subtasks under their parent tasks by indenting 2 additional spaces.
 - Nesting depth limit doesn't exist. Nest the tasks as deep as needed.
@@ -2576,7 +2579,7 @@ description: |
   Multi-line overview of this goal/milestone...
 tasks:
   - [ ] Task Title
-    notes: "Helpful instructions or links"
+  notes: "Helpful instructions or links"
     - [ ] Subtask Title`;
 
         navigator.clipboard.writeText(aiPromptText).then(() => {
