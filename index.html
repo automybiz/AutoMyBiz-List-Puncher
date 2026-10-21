@@ -163,6 +163,10 @@
                 <button type="button" class="btn-action btn-toggle" id="btnDepthColors" onclick="toggleDepthColors()" title="Toggle alternating color depths vs solid theme color">
                     🎨 Colors: ALT
                 </button>
+                <!-- Decorative FX Toggle (video-first escape hatch) -->
+                <button type="button" class="btn-action btn-toggle" id="btnFxToggle" onclick="toggleFxAnimations()" title="Toggle the animated card border FX (turn OFF for maximum YouTube playback performance)">
+                    ✨ FX: ON
+                </button>
                 <button type="button" class="btn-action" onclick="openYamlModal('full')" title="Open Full YAML Editor Overlay">
                     📝 YAML Editor
                 </button>
@@ -282,7 +286,8 @@
         autoNumber: true,
         completedAtBottom: false,
         nestStyle: 'cards', // 'cards' (Option 2) | 'rails' (Option 1)
-        depthColorMode: 'alt' // 'alt' (Staggered by level) | 'solid'
+        depthColorMode: 'alt', // 'alt' (Staggered by level) | 'solid'
+        fxAnimations: true // true (animated card border FX) | false (video-first, FX off)
     };
 
     // Live Auto-Save Debounce Timer
@@ -522,6 +527,7 @@
 
         applyNestingModeClass();
         applyDepthColorClass();
+        applyFxAnimationClass();
         updateHeaderToggleButtonsUI();
 
         // Load YAML content for this project
@@ -824,7 +830,7 @@
             if (isYouTubeURL(url)) {
                 const embedUrl = parseYouTubeEmbed(url);
                 if (embedUrl) {
-                    return `<div class="media-video-container"><iframe class="media-video-frame" src="${embedUrl}" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe></div>` + newlineSuffix;
+                    return `<div class="media-video-container"><iframe class="media-video-frame" src="${embedUrl}" title="YouTube video player" frameborder="0" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe></div>` + newlineSuffix;
                 }
                 return `<a href="${url}" target="_blank" class="note-link" onclick="event.stopPropagation();">${url}</a>` + newlineSuffix;
             }
@@ -950,6 +956,7 @@
 
         fetchAndApplyLiveTheme();
         initModals();
+        initFxThrottle();
 
         const perms = evaluatePermissions();
         updatePermissionsUI(perms);
@@ -981,6 +988,70 @@
         const isSolid = (UI_STATE.depthColorMode === 'solid');
         document.body.classList.toggle('depth-colors-solid', isSolid);
         document.body.classList.toggle('depth-colors-alt', !isSolid);
+    }
+
+    // =========================================================================
+    // VIDEO-FRIENDLY FX THROTTLE
+    // Decorative card motion auto-freezes the moment a media player takes over
+    // (player focus, tab in background, or pointer entering a video container),
+    // so the YouTube player never has to compete for paint/compositor time.
+    // =========================================================================
+    const FX_PAUSE_SOURCES = { media: false, windowBlur: false, hidden: false };
+
+    function applyFxAnimationClass() {
+        document.body.classList.toggle('fx-off', UI_STATE.fxAnimations === false);
+        applyFxPauseState();
+    }
+
+    function applyFxPauseState() {
+        const shouldPause = FX_PAUSE_SOURCES.media || FX_PAUSE_SOURCES.windowBlur || FX_PAUSE_SOURCES.hidden;
+        document.body.classList.toggle('fx-paused', shouldPause && UI_STATE.fxAnimations !== false);
+    }
+
+    function setFxPauseSource(source, value) {
+        FX_PAUSE_SOURCES[source] = Boolean(value);
+        applyFxPauseState();
+    }
+
+    function toggleFxAnimations() {
+        UI_STATE.fxAnimations = (UI_STATE.fxAnimations === false);
+        saveState();
+        applyFxAnimationClass();
+        updateHeaderToggleButtonsUI();
+        showToast(UI_STATE.fxAnimations ? '✨ Card FX: ON' : '✨ Card FX: OFF (video-first mode)');
+    }
+
+    function initFxThrottle() {
+        // 1. Background tabs never need decorative motion
+        document.addEventListener('visibilitychange', () => setFxPauseSource('hidden', document.hidden));
+
+        // 2. Clicking into the YouTube iframe blurs our window -> freeze the FX for the player
+        window.addEventListener('blur', () => setFxPauseSource('windowBlur', true));
+        window.addEventListener('focus', () => setFxPauseSource('windowBlur', false));
+
+        // 3. Belt & braces: focus landing on any embedded player also freezes the FX
+        document.addEventListener('focusin', () => setFxPauseSource('media', false));
+        document.addEventListener('focusout', () => {
+            setTimeout(() => {
+                const active = document.activeElement;
+                setFxPauseSource('media', Boolean(active && active.tagName === 'IFRAME'));
+            }, 0);
+        });
+
+        // 4. Pointer hovering a player freezes the FX too (resumes when it leaves)
+        const deckContainer = document.getElementById('deckContainer');
+        if (deckContainer) {
+            deckContainer.addEventListener('mouseover', (e) => {
+                if (e.target instanceof Element && e.target.closest('.media-video-container')) {
+                    setFxPauseSource('media', true);
+                }
+            });
+            deckContainer.addEventListener('mouseout', (e) => {
+                if (e.target instanceof Element && e.target.closest('.media-video-container')) {
+                    setFxPauseSource('media', false);
+                }
+            });
+        }
     }
 
     function updatePermissionsUI(perms) {
@@ -1515,6 +1586,13 @@
             const isAlt = (UI_STATE.depthColorMode !== 'solid');
             btnDepth.classList.toggle('active', isAlt);
             btnDepth.innerText = `🎨 Colors: ${isAlt ? 'ALT' : 'SOLID'}`;
+        }
+
+        const btnFx = document.getElementById('btnFxToggle');
+        if (btnFx) {
+            const isFxOn = (UI_STATE.fxAnimations !== false);
+            btnFx.classList.toggle('active', isFxOn);
+            btnFx.innerText = `✨ FX: ${isFxOn ? 'ON' : 'OFF'}`;
         }
     }
 

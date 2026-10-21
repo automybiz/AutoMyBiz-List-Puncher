@@ -1,5 +1,5 @@
 /**
- * List Puncher - Master Stylesheet (v1.07 - One Color Per Nesting Level)
+ * List Puncher - Master Stylesheet (v1.08 - Video-First FX Throttle)
  * File: index.css
  * 
  * AutoMyBiz Core Engineering Standards:
@@ -7,6 +7,7 @@
  * - Unified Indentation: Exact same 14px rail spacing for both Rails ON and Rails OFF
  * - Rails OFF hides the continuous rails in BOTH color modes (rail colors are scoped to Rails ON)
  * - Color Depth Toggle: .depth-colors-alt (one alternating color per nesting level) & .depth-colors-solid (Unified)
+ * - Video-First FX Throttle: .fx-paused / .fx-off freeze decorative motion so YouTube keeps its paint budget
  * - Two-tier task row architecture with full-width notes and responsive media embeds
  * - Dual top-right status pill cluster (Live Save Indicator + Permissions Mode)
  * - Milestone description banner at top of accordion body with media embeds
@@ -513,9 +514,13 @@ body {
     border: 1.5px dashed var(--accent-cyan);
 }
 
+/* VIDEO-FIRST THROTTLE: an animated @property angle forces a full conic-gradient
+   re-raster of the whole card on every frame. Stepping the beam in 3deg increments
+   (~4 updates/sec instead of 60/sec) is visually identical at 1.5px border width,
+   but hands ~95% of the raster budget back to the YouTube player. */
 .card-border-animated .section-deck:not(.is-collapsed) {
     border: 1.5px solid transparent !important;
-    animation: rotateBorderBeam var(--card-border-speed, 30s) linear infinite !important;
+    animation: rotateBorderBeam var(--card-border-speed, 30s) steps(120, end) infinite !important;
     box-shadow: 0 4px 25px rgba(0,0,0,0.5);
 }
 
@@ -566,6 +571,30 @@ body {
     margin: 8px 0;
     box-shadow: 0 0 12px var(--accent-cyan);
     pointer-events: none;
+}
+
+/* ==========================================================================
+   VIDEO-FRIENDLY FX THROTTLE (Never fight the YouTube player for paint time)
+   Selectors mirror the beam rules above (same specificity + later source order)
+   so these always win over the `animation: ... !important` shorthand.
+   .fx-paused -> decorative motion frozen while a player holds focus / tab hidden
+   .fx-off    -> user switched the decorative card FX off (header toggle)
+   ========================================================================== */
+body.fx-paused .card-border-animated .section-deck:not(.is-collapsed),
+body.fx-paused .card-border-animated.effect-hue-sweep .section-deck:not(.is-collapsed) .section-header::after {
+    animation-play-state: paused !important;
+}
+
+body.fx-off .card-border-animated .section-deck:not(.is-collapsed),
+body.fx-off .card-border-animated.effect-hue-sweep .section-deck:not(.is-collapsed) .section-header::after {
+    animation: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .card-border-animated .section-deck:not(.is-collapsed),
+    .card-border-animated.effect-hue-sweep .section-deck:not(.is-collapsed) .section-header::after {
+        animation: none !important;
+    }
 }
 
 /* ==========================================================================
