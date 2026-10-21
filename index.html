@@ -12,7 +12,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
     
     <!-- Separated Master Stylesheet (Zero Prism Crash) - version query busts the GitHub Pages 10min cache -->
-    <link rel="stylesheet" href="index.css?v=1.10">
+    <link rel="stylesheet" href="index.css?v=1.11">
 
     <script>
     /* Universal Dark Reader Kill Switch (Rule 9) */
@@ -249,7 +249,7 @@
     // =========================================================================
     const AUTOSAVE_DELAY_MS = 500;
     const INDENT_SPACES_PER_LEVEL = 2;
-    const APP_BUILD = '1.10'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
+    const APP_BUILD = '1.11'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
     const LIVE_FX = { animSpeed: '30s' }; // Live theme's card border speed, kept so the FX throttle can restore it
     const DEFAULT_PROJECT_ID = 'default_onboarding';
     const DEFAULT_PROJECT_NAME = 'Client Onboarding';
@@ -799,13 +799,74 @@
             if (startTime) params.push('start=' + encodeURIComponent(startTime));
             const query = params.length > 0 ? ('?' + params.join('&')) : '';
 
-            if (videoId) {
-                return 'https://www.youtube.com/embed/' + videoId + query;
-            } else if (playlistId) {
-                return 'https://www.youtube.com/embed/videoseries' + query;
-            }
+            const embedUrl = videoId
+                ? ('https://www.youtube.com/embed/' + videoId + query)
+                : ('https://www.youtube.com/embed/videoseries' + query);
+
+            return {
+                embedUrl: embedUrl,
+                videoId: videoId || '',
+                // Poster frame for the lazy facade (i.ytimg.com is YouTube's public thumbnail CDN)
+                thumbUrl: videoId ? ('https://i.ytimg.com/vi/' + videoId + '/hqdefault.jpg') : ''
+            };
         }
         return null;
+    }
+
+    // =========================================================================
+    // LAZY YOUTUBE FACADE
+    // <<< REVERT: set LAZY_VIDEO_FACADE = false to restore the always-loaded iframe >>>
+    // Ported from the proven "GSheets To HTML Table" pattern: the YouTube player
+    // iframe is only created when the user clicks. A player that is created on
+    // demand never sits idle long enough for YouTube to drop it into the
+    // "click play -> ~20s black screen" state.
+    // =========================================================================
+    const LAZY_VIDEO_FACADE = true;
+
+    function buildVideoEmbedHtml(url, video) {
+        if (!LAZY_VIDEO_FACADE) {
+            return `<div class="media-video-container"><iframe class="media-video-frame" src="${video.embedUrl}" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe></div>`;
+        }
+
+        const poster = video.thumbUrl
+            ? `<img class="media-video-thumb" src="${video.thumbUrl}" alt="Video thumbnail" loading="lazy" onerror="this.style.display='none'" />`
+            : '';
+
+        return `<div class="media-video-container media-video-lazy" role="button" tabindex="0" data-video-embed="${video.embedUrl}" title="Click to load the YouTube player" onclick="loadLazyVideo(this)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();loadLazyVideo(this);}">${poster}<span class="media-video-play"><span class="media-video-play-icon">▶</span><span class="media-video-play-text">Click to play</span></span><span class="media-video-url">${escapeHtml(url)}</span></div>`;
+    }
+
+    // Hydrates a lazy facade into the real YouTube iframe (autoplay=1 so one click plays)
+    function loadLazyVideo(element) {
+        if (!element || element.classList.contains('is-loading')) return;
+        const embedUrl = element.getAttribute('data-video-embed');
+        if (!embedUrl) return;
+
+        element.classList.add('is-loading');
+        const label = element.querySelector('.media-video-play-text');
+        if (label) label.innerText = '⏳ Loading video...';
+
+        // Video-first FX throttle: freeze decorative card motion while the player boots
+        setFxPauseSource('media', true);
+
+        const separator = embedUrl.indexOf('?') === -1 ? '?' : '&';
+        const frame = document.createElement('iframe');
+        frame.className = 'media-video-frame';
+        frame.src = embedUrl + separator + 'autoplay=1&rel=0&playsinline=1';
+        frame.title = 'YouTube video player';
+        frame.setAttribute('frameborder', '0');
+        frame.setAttribute('allow', 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture');
+        frame.setAttribute('allowfullscreen', '');
+
+        element.classList.remove('media-video-lazy');
+        element.classList.add('media-video-live');
+        element.removeAttribute('onclick');
+        element.removeAttribute('onkeydown');
+        element.removeAttribute('data-video-embed');
+        element.removeAttribute('role');
+        element.removeAttribute('tabindex');
+        element.removeAttribute('title');
+        element.innerHTML = '';
+        element.appendChild(frame);
     }
 
     function convertURLsToMedia(text) {
@@ -830,9 +891,9 @@
             const newlineSuffix = followingNewline || '';
 
             if (isYouTubeURL(url)) {
-                const embedUrl = parseYouTubeEmbed(url);
-                if (embedUrl) {
-                    return `<div class="media-video-container"><iframe class="media-video-frame" src="${embedUrl}" title="YouTube video player" frameborder="0" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe></div>` + newlineSuffix;
+                const video = parseYouTubeEmbed(url);
+                if (video) {
+                    return buildVideoEmbedHtml(url, video) + newlineSuffix;
                 }
                 return `<a href="${url}" target="_blank" class="note-link" onclick="event.stopPropagation();">${url}</a>` + newlineSuffix;
             }
