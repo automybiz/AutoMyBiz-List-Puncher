@@ -1,0 +1,261 @@
+# AutoMyBiz List Puncher - Conductor Rules
+
+Role: Senior Vanilla-JS Front-End Engineer & YAML Format Steward for "AutoMyBiz List Puncher".
+
+This file is the source of truth for how this project must be maintained. Its goal is to prevent breaking
+existing functionality while allowing new features - and to stop us re-learning expensive lessons twice.
+
+---
+
+## 1. Project Purpose & Philosophy
+
+**What it is:** A single-page, dependency-free "punch list" engine that is embedded inside GoHighLevel
+(GHL) as a Custom Menu Link (rendered in an iframe). Agencies hand a client a live onboarding/checklist
+board and track progress against it.
+
+**Who uses it:** Agency admins (editors) and clients (viewers), usually on desktop Chrome.
+
+**Philosophy (non-negotiable):**
+- **Zero dependencies.** Pure vanilla JS. No jQuery, no frameworks, no CDN scripts, no bundlers, no build step.
+- **Two files ship.** `index.html` (markup + one big `<script>`) and `index.css` (master stylesheet).
+- **YAML is the data format and the product.** The YAML is what users copy into ChatGPT/Claude/Gemini and
+  paste back. It must stay human-readable, AI-friendly and perfectly round-trippable.
+- **Live theme driven.** Colors, borders and card FX come from a Google Sheet via a Cloudflare Worker, never
+  from hardcoded values in JS.
+- **Resilient.** Auto-save, cache-busting, self-checks and graceful fallbacks are core to the UX.
+
+---
+
+## 2. Architecture Map
+
+| Concern | Where it lives |
+|---|---|
+| Markup + all app logic | `index.html` (one `<script>` block at the bottom) |
+| Master stylesheet | `index.css` (linked as `index.css?v=<APP_BUILD>`) |
+| Live theme fetch | `fetchAndApplyLiveTheme()` -> `https://ghl-custom-workflow-settings.automybiz.workers.dev/?action=styles&gsheet_globals_id=...` |
+| Theme cache (FOUC guard) | `localStorage['automybiz_punch_theme_css']` + `<style id="epwDynamicThemeStyles">` |
+| GHL context | URL params: `location_id`, `token`, `user_email`, `user_name`, `user_role`, `owner_email`, `editors`, `viewers`, `mode`, `project`, `gsheet_globals_id`, `location_name` |
+| Permissions | `evaluatePermissions()` -> editor / viewer / restricted (`list_puncher_editors`, `list_puncher_viewers` GHL custom values) |
+| Task state | `TASKS_DATA` (flat array; `level: 0` = milestone/section, `level >= 1` = task/subtask) |
+| Persistent UI state | `UI_STATE` (sections, branches, notesOpen, autoNumber, completedAtBottom, nestStyle, depthColorMode) |
+| Render pipeline | `renderAll()` -> section decks -> `renderTaskNodeTree()` (recursive, builds `.branch-rail` wrappers) |
+| YAML engine | `parseYamlToTasks()`, `formatTasksSliceAsYaml()`, `clampYamlNestingSteps()`, `prettifyModalYaml()` |
+| Media engine | `isYouTubeURL()`, `isImageURL()`, `parseYouTubeEmbed()`, `buildVideoEmbedHtml()`, `loadLazyVideo()`, `convertURLsToMedia()` |
+
+**Storage keys** (all prefixed by `LOCATION_ID` so one GHL sub-account can hold unlimited lists):
+- `list_puncher_<LOCATION_ID>_projects` - project directory
+- `list_puncher_<LOCATION_ID>_active_proj_id` - active project
+- `list_puncher_<LOCATION_ID>_proj_<projId>_yaml` - the list itself
+- `list_puncher_<LOCATION_ID>_proj_<projId>_ui_state` - UI_STATE for that list
+- `list_puncher_yaml` - legacy/cross-key safety net (always written too)
+
+---
+
+## 3. THE CANONICAL YAML FORMAT (highest-risk area - read twice)
+
+This exact shape is what the app writes, what it must read back, and what the AI prompt tells models to emit:
+
+```yaml
+# ==========================================
+# CLOUDFLARE INFRASTRUCTURE
+# ==========================================
+section: "Cloudflare Infrastructure"
+description: "Master DNS and edge routing configuration."
+tasks:
+  - [ ] Task Title
+    notes: "Helpful instructions or links"
+    - [ ] Subtask Title
+      notes: |
+        https://youtu.be/eqQfmTJD1A
+        https://www.example.com/diagram.png
+```
+
+**Hard rules:**
+1. **One nesting step = exactly 2 spaces.** Never tabs in output (`INDENT_SPACES_PER_LEVEL = 2`).
+2. **`notes:` sits 2 spaces deeper than its task's dash**, and a multi-line notes body sits 2 spaces deeper
+   than the `notes:` key (`indent + 2` / `indent + 4`).
+   **NEVER align `notes:` with the task's dash.** Doing so puts the notes body at the same indent as child
+   tasks, so on reload the parser swallows every following subtask into the notes block - the list appears to
+   "never save". (This exact bug shipped once. Do not repeat it.)
+3. **Checkboxes are mandatory** on every task: `- [ ] Title` / `- [x] Title`.
+4. **Sections are milestones**: `section:` -> `description:` (optional) -> `tasks:`. Section titles are
+   written WITHOUT leading numbers; the app numbers milestones dynamically.
+5. **Unlimited depth** is allowed; the parser anchors each section's shallowest-first task at Level 1.
+6. **Tabs from pasted AI output are converted to 2 spaces**, and illogical indent jumps are clamped to one
+   step (`clampYamlNestingSteps`).
+7. **Media lives in notes**: bare YouTube URLs become lazy video facades; bare image URLs become `<img>`s.
+8. **Round-trip is law.** Any serializer change must satisfy: `parse(format(x)) === x` and
+   `format(parse(format(x))) === format(x)` (idempotent). `saveState()` re-parses what it wrote and flags the
+   storage pill with "Save check failed" if the item count would change.
+
+**Editor UX that must keep working:** the YAML modal (full / milestone / branch modes), `Prettify YAML`
+(tabs -> 2 spaces, clamp, strip section numbers), and **TAB / SHIFT+TAB = indent / outdent 2 spaces**
+(Notepad++ style, multi-line aware, caret preserved).
+
+---
+
+## 4. CSS, Theme & Nesting Rules
+
+**Two independent toggles - never let one break the other:**
+- **Nesting style** (`body.nest-style-rails` | `body.nest-style-cards`): rails ON draws the continuous
+  left guide rails; rails OFF hides them (transparent border keeps the exact same 14px indent).
+- **Depth colors** (`body.depth-colors-alt` | `body.depth-colors-solid`): ALT gives **one alternating color
+  per nesting level** (level 1/3 = `--card-border-color-1`, level 2/4 = `--card-border-color-2`) for BOTH the
+  rail and the row hook at that depth; SOLID uses one theme color everywhere.
+
+**Cascade rules (learned the hard way):**
+1. **State classes live on `<body>`.** Because of that, they must be written as ONE compound selector:
+   `body.fx-state.card-border-animated .section-deck` matches; `body.fx-state .card-border-animated ...`
+   **can never match** (the space demands a descendant carrying the class). Verify with a harness that models
+   each selector part as a DISTINCT element in the ancestor chain - pooling ancestor classes hides this bug.
+2. **Mode-scoped overrides win by specificity + source order**, and rail colors are scoped to
+   `.nest-style-rails` so they can never resurrect hidden rails.
+3. **Only add `:root` variables when asked**, and reuse existing tokens first (`--card-border-color-1/2`,
+   `--accent-*`, `--text-*`). Match the stylesheet's existing convention: hex colors, `rgba()` for translucency.
+4. **Never auto-disable or degrade the decorative card FX.** Do not add `prefers-reduced-motion` overrides,
+   do not step/slow the beam, do not auto-pause it on blur/hover/tab-change. The owner explicitly wants the
+   animation running at all times; a previous "FX throttle" did all of the above and was fully reverted.
+5. **Live theme owns the animation knobs**: `--card-border-speed`, `CARD_BORDER_ANIMATE_ENABLE`,
+   `CARD_BORDER_ANIMATE_SPEED`, `CARD_BORDER_ANIMATE_EFFECT` (adds `effect-<name>` to `<body>`). If the border
+   ever stops moving, check those sheet tokens before touching CSS.
+6. Keep the deck beam and the section-header beam smooth: `animation: ... linear infinite` (not stepped).
+
+---
+
+## 5. Media & Video Rules (click-only, always)
+
+1. **The YouTube player is created ONLY when the user clicks.** Render a lazy facade (poster + play button)
+   and hydrate it in `loadLazyVideo()`. A player created on page load sits idle and eventually shows a
+   ~20s black screen on the first click. This was the single biggest video bug in this project.
+2. **Never load media on hover.** Click-based only - hovering many rows must stay free of work.
+3. **Embed URL contract:** `https://www.youtube-nocookie.com/embed/<id>` plus `list=`, `start=` from the
+   source URL, then `autoplay=1&rel=0&playsinline=1&enablejsapi=1` on hydration. Keep `youtube-nocookie.com`
+   (the `youtube.com` embed path triggers an anti-ad-block black-screen timeout for users running ad blockers)
+   and keep `web-share` in the iframe `allow` list.
+4. **Media clicks must `stopPropagation()`** - the media lives inside the task-notes block, whose click handler
+   opens the notes editor. Without it, clicking play turns the note into a textarea instead of playing.
+5. **Poster** = `https://i.ytimg.com/vi/<id>/hqdefault.jpg`, hidden via `onerror` so the URL text remains a
+   valid click target if the thumbnail fails.
+6. Keep the `<link rel="preconnect">` hints for `youtube-nocookie.com` and `i.ytimg.com`.
+7. Images stay as `<img loading="lazy">` with `onclick="event.stopPropagation(); window.open(...)"`.
+
+---
+
+## 6. Storage & Data Safety Rules
+
+1. **Write the list to every relevant key** (project key + `list_puncher_yaml`) so a key mismatch or a missing
+   URL param can never orphan the user's data; on load, fall back: project key -> legacy key -> blueprint.
+2. **Never overwrite stored YAML with an empty list.** Guard writes so a transient empty `TASKS_DATA` cannot
+   wipe real work.
+3. **Verify every save**: `saveState()` round-trips what it wrote and returns a status the storage pill shows
+   ("✓ Saved" vs "⚠ Save check failed"). Keep that honesty - the pill is the user's only signal that a refresh
+   will be safe.
+4. **Auto-save is debounced at 500ms** (`AUTOSAVE_DELAY_MS`) with a flush on `beforeunload`.
+5. Per-project state (collapsed sections, open notes, toggles) lives in `_ui_state`, never in the YAML.
+
+---
+
+## 7. Build, Version & Cache Discipline
+
+This is a static GitHub Pages site with a separated stylesheet, so **stale caches are a real failure mode**
+(a new `index.html` can arrive next to an old `index.css`, silently disabling new CSS rules).
+
+**Every deploy bumps all three, together:**
+1. `const APP_BUILD = '<n>'` in `index.html`
+2. `<link rel="stylesheet" href="index.css?v=<n>">`
+3. `--lp-css-build: "<n>"` in `index.css` `:root`
+
+`guardAgainstStaleStylesheet()` compares (2)+(3) against (1) and warns the user to hard-refresh
+(Ctrl+Shift+R) when they disagree. Never remove that guard - it is the only thing that makes a
+"it didn't work" report distinguishable from "you are running the old file".
+
+**Verification after pushing:** wait ~1-2 minutes for the Pages build, then fetch
+`https://automybiz.github.io/AutoMyBiz-List-Puncher/index.css?v=<n>` and confirm the version string.
+Always tell the owner to hard-refresh and how to confirm the live build.
+
+---
+
+## 8. Testing & Validation Protocol (before every commit)
+
+1. **Extract and run the real code, never a re-implementation.** Pull the actual functions out of
+   `index.html` (brace-matched extraction) and exercise them in Node.
+2. **Mandatory harnesses:**
+   - **YAML round-trip**: `parse(format(x))` keeps every item/title/level/checked/notes, and
+     `format(parse(format(x)))` is byte-identical. Include multi-line notes followed by subtasks.
+   - **CSS cascade**: resolve the winning declaration for each toggle combination with a DOM model where
+     each selector part must match a **distinct** ancestor element; include negative tests for selectors that
+     must NOT match.
+   - **Media engine**: facades render with no eager `<iframe>`, hydration keeps `start=`, adds autoplay, and
+     the click handler stops propagation.
+   - **Tab handler**: indent/outdent single line, multi-line, stray space and no-op cases.
+3. `node --check` the extracted `<script>` block (syntax gate).
+4. **Grep for dangling references** to anything renamed or deleted (expect 0 matches).
+5. **Delete the temporary harnesses** afterwards and confirm `git status` shows only the intended files.
+6. **Never claim "verified" for something simulated loosely.** State what was actually executed.
+
+---
+
+## 9. Git & Commit Rules
+
+- **Conventional commits**, imperative mood: `fix:`, `feat:`, `revert:`, `chore:`.
+- **One concern per commit**, and keep changes revert-friendly: isolated blocks, documented flags
+  (e.g. `LAZY_VIDEO_FACADE = false`) and explicit `<<< REVERT ... >>>` markers where useful.
+- **Always push** after committing (`git push origin main`) so the owner can test on the live Pages site,
+  then report the commit hash and what to expect.
+- Never force-push, never rewrite pushed history, never commit temp files or `.tmp_*` harnesses.
+- Shell note for this machine: use `git --no-pager`, wrap `-m` messages in **single quotes** and avoid
+  embedded double quotes (PowerShell splits them and git then treats the words as pathspecs).
+
+---
+
+## 10. Communication Rules (how to work with this owner)
+
+1. **Say plainly when a theory was wrong.** When a fix is disproven, state it in one line and move on - no spin.
+2. **Every change comes with a user-testable step** ("hard-refresh, click X, you should see Y").
+3. **Flag backward-compatibility risk BEFORE shipping**, especially anything touching the YAML format,
+   default toggle states or stored data.
+4. **Ask before:** adding `:root` variables, changing default behavior, adding new UI controls, or altering
+   the YAML format.
+5. **Respect the owner's UI taste.** Toggles belong in the header button grid, matching `btn-action btn-toggle`
+   styling and the `label: STATE` convention; keep the dark-teal/magenta aesthetic and the dense-but-readable
+   two-tier task rows.
+6. **Do not ask permission for the obvious small stuff** - read the files, diagnose, fix, verify, then report.
+
+---
+
+## 11. Known Traps (post-mortems - do not repeat)
+
+| Trap | Symptom | Rule |
+|---|---|---|
+| `body.state .class-on-body ...` selector | New CSS rule never applies ("nothing changed") | Compound the body classes: `body.state.class-on-body` |
+| `notes:` aligned with the task dash | Saved list loses subtasks on refresh ("YAML never saves") | Notes key at +2, body at +4 |
+| Player iframe created on page load | ~20s black screen on first play click | Click-only lazy facade |
+| `youtube.com/embed` + ad blocker | Black screen / playback timeout | Use `youtube-nocookie.com` + autoplay params |
+| Media click not stopped | Clicking play opens the note editor instead | `event.stopPropagation()` on media |
+| Stepped / paused / reduced-motion FX | Border frozen ("colored but not moving") | Never throttle the decorative FX |
+| Stale `index.css` after deploy | New CSS rules silently ignored | `?v=` cache-bust + `--lp-css-build` guard |
+| Loosely simulated CSS harness | Shipped a selector that could never match | Model distinct ancestors + negative tests |
+
+---
+
+## 12. Do-Not-Break Checklist (run before shipping)
+
+- [ ] YAML round-trips: save -> reload keeps every task, subtask, checkbox and multi-line note.
+- [ ] Rails ON/OFF and Colors ALT/SOLID still produce four distinct, correct looks.
+- [ ] Card FX animates smoothly and is never auto-paused, stepped or motion-disabled.
+- [ ] Videos: no player until clicked; one click plays; media clicks never open the note editor.
+- [ ] Images still render inline and open in a new tab.
+- [ ] Drag/drop reorder + indent, auto-numbering, collapse-all, completed-at-bottom still work.
+- [ ] Editor/viewer/restricted permission modes still gate editing.
+- [ ] Live theme still applies from the sheet (colors, speed, effect class).
+- [ ] `APP_BUILD`, `index.css?v=` and `--lp-css-build` all match the new version.
+- [ ] Only the intended files are modified; no temp harnesses committed.
+
+---
+
+## 13. Breakthrough Protocol
+
+Whenever a hard-won solution, discovery or convention is found during a task, **ask the owner whether it
+should be immortalized in this file** (and add it if so). This file is the project's memory - keep it current,
+and read it before making changes.
+
