@@ -1,5 +1,5 @@
 /**
- * List Puncher - Master Stylesheet (v1.12 - Lazy Video Facade + Editor Tab Indent)
+ * List Puncher - Master Stylesheet (v1.13 - FX Throttle Removed, Original Animation Restored)
  * File: index.css
  * 
  * AutoMyBiz Core Engineering Standards:
@@ -7,7 +7,6 @@
  * - Unified Indentation: Exact same 14px rail spacing for both Rails ON and Rails OFF
  * - Rails OFF hides the continuous rails in BOTH color modes (rail colors are scoped to Rails ON)
  * - Color Depth Toggle: .depth-colors-alt (one alternating color per nesting level) & .depth-colors-solid (Unified)
- * - Video-First FX Throttle: .fx-paused / .fx-off freeze decorative motion so YouTube keeps its paint budget
  * - Two-tier task row architecture with full-width notes and responsive media embeds
  * - Dual top-right status pill cluster (Live Save Indicator + Permissions Mode)
  * - Milestone description banner at top of accordion body with media embeds
@@ -34,7 +33,7 @@
     --indent-step: 22px;
 
     /* Build marker: lets the app detect a stale cached stylesheet (compared against APP_BUILD in index.html) */
-    --lp-css-build: "1.12";
+    --lp-css-build: "1.13";
 
     --completed-opacity: 0.42;
 
@@ -517,13 +516,12 @@ body {
     border: 1.5px dashed var(--accent-cyan);
 }
 
-/* VIDEO-FIRST THROTTLE: an animated @property angle forces a full conic-gradient
-   re-raster of the whole card on every frame. Stepping the beam in 3deg increments
-   (~4 updates/sec instead of 60/sec) is visually identical at 1.5px border width,
-   but hands ~95% of the raster budget back to the YouTube player. */
+/* Original continuous beam restored (v1.13): the FX throttle that stepped and
+   auto-paused this animation has been removed, so the border animates exactly as
+   it always did - smooth rotation for the full --card-border-speed cycle. */
 .card-border-animated .section-deck:not(.is-collapsed) {
     border: 1.5px solid transparent !important;
-    animation: rotateBorderBeam var(--card-border-speed, 30s) steps(120, end) infinite !important;
+    animation: rotateBorderBeam var(--card-border-speed, 30s) linear infinite !important;
     box-shadow: 0 4px 25px rgba(0,0,0,0.5);
 }
 
@@ -576,46 +574,10 @@ body {
     pointer-events: none;
 }
 
-/* ==========================================================================
-   VIDEO-FRIENDLY FX THROTTLE (Never fight the YouTube player for paint time)
-   <<< REVERT: delete this whole block to restore the original card FX >>>
-   CRITICAL: .fx-off / .fx-paused live on the SAME element as .card-border-animated
-   (all three are <body> classes), so they MUST be written as ONE compound part:
-       body.fx-off.card-border-animated .section-deck      <- matches
-       body.fx-off .card-border-animated .section-deck     <- NEVER matches (that
-                                                              space asks for a
-                                                              descendant carrying
-                                                              the class)
-   The (0,4,1) / (0,6,1) specificity also beats the beam rules above, so these
-   always win over their `animation: ... !important` shorthand.
-   .fx-paused -> decorative motion frozen while a player holds focus / tab hidden
-   .fx-off    -> user switched the decorative card FX off (header toggle)
-   ========================================================================== */
-body.fx-paused.card-border-animated .section-deck:not(.is-collapsed),
-body.fx-paused.card-border-animated.effect-hue-sweep .section-deck:not(.is-collapsed) .section-header::after {
-    animation-play-state: paused !important;
-}
-
-body.fx-off.card-border-animated .section-deck:not(.is-collapsed),
-body.fx-off.card-border-animated.effect-hue-sweep .section-deck:not(.is-collapsed) {
-    animation: none !important;
-    /* Video-first mode: plain solid border, no conic gradient, no beam.
-       Also serves as the unmistakable "fresh CSS is live" indicator. */
-    border: 1.5px solid var(--card-border-color-1) !important;
-    background: var(--card-bg) !important;
-}
-
-body.fx-off.card-border-animated.effect-hue-sweep .section-deck:not(.is-collapsed) .section-header::after {
-    animation: none !important;
-    background: none !important;
-}
-
-@media (prefers-reduced-motion: reduce) {
-    .card-border-animated .section-deck:not(.is-collapsed),
-    .card-border-animated.effect-hue-sweep .section-deck:not(.is-collapsed) .section-header::after {
-        animation: none !important;
-    }
-}
+/* (FX throttle removed in v1.13: decorative motion is never auto-paused, never
+   stepped and never reduced-motion-disabled, so the card FX animates exactly as
+   it originally did. The .fx-off / .fx-paused rules and the FX header toggle are
+   gone - see git history if they are ever needed again.) */
 
 /* ==========================================================================
    Section Header, Dynamic Numbers & Action Icons

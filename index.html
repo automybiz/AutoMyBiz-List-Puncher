@@ -14,7 +14,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
     
     <!-- Separated Master Stylesheet (Zero Prism Crash) - version query busts the GitHub Pages 10min cache -->
-    <link rel="stylesheet" href="index.css?v=1.12">
+    <link rel="stylesheet" href="index.css?v=1.13">
 
     <script>
     /* Universal Dark Reader Kill Switch (Rule 9) */
@@ -165,10 +165,6 @@
                 <button type="button" class="btn-action btn-toggle" id="btnDepthColors" onclick="toggleDepthColors()" title="Toggle alternating color depths vs solid theme color">
                     🎨 Colors: ALT
                 </button>
-                <!-- Decorative FX Toggle (video-first escape hatch) -->
-                <button type="button" class="btn-action btn-toggle" id="btnFxToggle" onclick="toggleFxAnimations()" title="Toggle the animated card border FX (turn OFF for maximum YouTube playback performance)">
-                    ✨ FX: ON
-                </button>
                 <button type="button" class="btn-action" onclick="openYamlModal('full')" title="Open Full YAML Editor Overlay">
                     📝 YAML Editor
                 </button>
@@ -251,8 +247,7 @@
     // =========================================================================
     const AUTOSAVE_DELAY_MS = 500;
     const INDENT_SPACES_PER_LEVEL = 2;
-    const APP_BUILD = '1.12'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
-    const LIVE_FX = { animSpeed: '30s' }; // Live theme's card border speed, kept so the FX throttle can restore it
+    const APP_BUILD = '1.13'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
     const DEFAULT_PROJECT_ID = 'default_onboarding';
     const DEFAULT_PROJECT_NAME = 'Client Onboarding';
 
@@ -290,8 +285,7 @@
         autoNumber: true,
         completedAtBottom: false,
         nestStyle: 'cards', // 'cards' (Option 2) | 'rails' (Option 1)
-        depthColorMode: 'alt', // 'alt' (Staggered by level) | 'solid'
-        fxAnimations: true // true (animated card border FX) | false (video-first, FX off)
+        depthColorMode: 'alt' // 'alt' (Staggered by level) | 'solid'
     };
 
     // Live Auto-Save Debounce Timer
@@ -531,7 +525,6 @@
 
         applyNestingModeClass();
         applyDepthColorClass();
-        applyFxAnimationClass();
         updateHeaderToggleButtonsUI();
 
         // Load YAML content for this project
@@ -860,9 +853,6 @@
         const label = element.querySelector('.media-video-play-text');
         if (label) label.innerText = '⏳ Loading video...';
 
-        // Video-first FX throttle: freeze decorative card motion while the player boots
-        setFxPauseSource('media', true);
-
         const separator = embedUrl.indexOf('?') === -1 ? '?' : '&';
         const frame = document.createElement('iframe');
         frame.className = 'media-video-frame';
@@ -959,7 +949,6 @@
             const animSpeed = tokens['CARD_BORDER_ANIMATE_SPEED'] || '30s';
             const animEffect = String(tokens['CARD_BORDER_ANIMATE_EFFECT'] || 'Hue Sweep').toLowerCase().replace(/\s+/g, () => '-');
 
-            LIVE_FX.animSpeed = animSpeed;
             document.body.style.setProperty('--card-border-speed', animSpeed);
             document.body.classList.toggle('card-border-animated', isAnimateEnabled);
             document.body.classList.remove('effect-laser-comet', 'effect-dual-tone-blend', 'effect-hue-sweep', 'effect-fx-rainbow');
@@ -1035,7 +1024,6 @@
 
         fetchAndApplyLiveTheme();
         initModals();
-        initFxThrottle();
         guardAgainstStaleStylesheet();
 
         const perms = evaluatePermissions();
@@ -1070,119 +1058,10 @@
         document.body.classList.toggle('depth-colors-alt', !isSolid);
     }
 
-    // =========================================================================
-    // VIDEO-FRIENDLY FX THROTTLE
-    // <<< REVERT: delete this whole block + the matching block in index.css to
-    // fully restore the original (un-throttled) card FX. >>>
-    // Decorative card motion auto-freezes the moment a media player takes over
-    // (player focus, tab in background, or pointer entering a video container),
-    // so the YouTube player never has to compete for paint/compositor time.
-    // The result is verified with getComputedStyle and, if the stylesheet is
-    // stale or out of date, enforced with inline !important declarations.
-    // =========================================================================
-    const FX_PAUSE_SOURCES = { media: false, windowBlur: false, hidden: false };
+    // (FX throttle removed in v1.13 - the card FX now animates exactly as it originally did)
 
-    function isFxOff() {
-        return UI_STATE.fxAnimations === false;
-    }
 
-    function isFxPaused() {
-        return FX_PAUSE_SOURCES.media || FX_PAUSE_SOURCES.windowBlur || FX_PAUSE_SOURCES.hidden;
-    }
 
-    function applyFxAnimationClass() {
-        const fxOff = isFxOff();
-        const paused = isFxPaused();
-        document.body.classList.toggle('fx-off', fxOff);
-        document.body.classList.toggle('fx-paused', paused && !fxOff);
-        enforceFxVisualState(fxOff, paused);
-    }
-
-    // Self-verifying enforcement: read what the browser actually resolved and only
-    // fall back to inline !important styles when the stylesheet did not deliver.
-    function enforceFxVisualState(fxOff, paused) {
-        let cssMissed = false;
-
-        document.querySelectorAll('.section-deck').forEach(deck => {
-            const computed = getComputedStyle(deck);
-            const isAnimated = Boolean(computed.animationName) && computed.animationName !== 'none';
-
-            if (fxOff) {
-                deck.style.removeProperty('animation-play-state');
-                if (isAnimated) {
-                    cssMissed = true;
-                    deck.style.setProperty('animation', 'none', 'important');
-                    deck.style.setProperty('border', '1.5px solid var(--card-border-color-1)', 'important');
-                    deck.style.setProperty('background', 'var(--card-bg)', 'important');
-                }
-                return;
-            }
-
-            deck.style.removeProperty('animation');
-            deck.style.removeProperty('border');
-            deck.style.removeProperty('background');
-
-            if (!paused) {
-                deck.style.removeProperty('animation-play-state');
-            } else if (isAnimated && computed.animationPlayState !== 'paused') {
-                cssMissed = true;
-                deck.style.setProperty('animation-play-state', 'paused', 'important');
-            }
-        });
-
-        // The section-header beam is a ::after pseudo-element (inline styles cannot
-        // reach it), so freeze it through the animation speed variable instead.
-        if (cssMissed) {
-            document.body.style.setProperty('--card-border-speed', '0s', 'important');
-        } else if (document.body.style.getPropertyValue('--card-border-speed') === '0s') {
-            document.body.style.setProperty('--card-border-speed', LIVE_FX.animSpeed);
-        }
-    }
-
-    function setFxPauseSource(source, value) {
-        FX_PAUSE_SOURCES[source] = Boolean(value);
-        applyFxAnimationClass();
-    }
-
-    function toggleFxAnimations() {
-        UI_STATE.fxAnimations = (UI_STATE.fxAnimations === false);
-        saveState();
-        applyFxAnimationClass();
-        updateHeaderToggleButtonsUI();
-        showToast(UI_STATE.fxAnimations ? `✨ Card FX: ON (build ${APP_BUILD})` : `✨ Card FX: OFF — plain border, zero animation (build ${APP_BUILD})`);
-    }
-
-    function initFxThrottle() {
-        // 1. Background tabs never need decorative motion
-        document.addEventListener('visibilitychange', () => setFxPauseSource('hidden', document.hidden));
-        // 2. Clicking into the YouTube iframe blurs our window -> freeze the FX for the player
-        window.addEventListener('blur', () => setFxPauseSource('windowBlur', true));
-        window.addEventListener('focus', () => setFxPauseSource('windowBlur', false));
-
-        // 3. Belt & braces: focus landing on any embedded player also freezes the FX
-        document.addEventListener('focusin', () => setFxPauseSource('media', false));
-        document.addEventListener('focusout', () => {
-            setTimeout(() => {
-                const active = document.activeElement;
-                setFxPauseSource('media', Boolean(active && active.tagName === 'IFRAME'));
-            }, 0);
-        });
-
-        // 4. Pointer hovering a player freezes the FX too (resumes when it leaves)
-        const deckContainer = document.getElementById('deckContainer');
-        if (deckContainer) {
-            deckContainer.addEventListener('mouseover', (e) => {
-                if (e.target instanceof Element && e.target.closest('.media-video-container')) {
-                    setFxPauseSource('media', true);
-                }
-            });
-            deckContainer.addEventListener('mouseout', (e) => {
-                if (e.target instanceof Element && e.target.closest('.media-video-container')) {
-                    setFxPauseSource('media', false);
-                }
-            });
-        }
-    }
 
     // =========================================================================
     // STALE STYLESHEET GUARD
@@ -1629,9 +1508,6 @@
         });
 
         updateProgress();
-
-        // Re-apply the FX state: renderAll() recreates every .section-deck element
-        applyFxAnimationClass();
     }
 
     function toggleNestStyle() {
@@ -1742,13 +1618,6 @@
             const isAlt = (UI_STATE.depthColorMode !== 'solid');
             btnDepth.classList.toggle('active', isAlt);
             btnDepth.innerText = `🎨 Colors: ${isAlt ? 'ALT' : 'SOLID'}`;
-        }
-
-        const btnFx = document.getElementById('btnFxToggle');
-        if (btnFx) {
-            const isFxOn = (UI_STATE.fxAnimations !== false);
-            btnFx.classList.toggle('active', isFxOn);
-            btnFx.innerText = `✨ FX: ${isFxOn ? 'ON' : 'OFF'}`;
         }
     }
 
