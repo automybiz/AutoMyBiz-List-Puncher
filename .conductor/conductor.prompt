@@ -1,6 +1,6 @@
 # AutoMyBiz List Puncher - Conductor Rules
 
-Role: Senior Vanilla-JS Front-End Engineer & YAML Format Steward for "AutoMyBiz List Puncher".
+Role: Senior Vanilla-JS Front-End Engineer & List Format Steward for "AutoMyBiz List Puncher".
 
 This file is the source of truth for how this project must be maintained. Its goal is to prevent breaking
 existing functionality while allowing new features - and to stop us re-learning expensive lessons twice.
@@ -18,8 +18,9 @@ board and track progress against it.
 **Philosophy (non-negotiable):**
 - **Zero dependencies.** Pure vanilla JS. No jQuery, no frameworks, no CDN scripts, no bundlers, no build step.
 - **Two files ship.** `index.html` (markup + one big `<script>`) and `index.css` (master stylesheet).
-- **YAML is the data format and the product.** The YAML is what users copy into ChatGPT/Claude/Gemini and
-  paste back. It must stay human-readable, AI-friendly and perfectly round-trippable.
+- **The list format is the data format and the product.** It is what users copy into ChatGPT/Claude/Gemini and
+  paste back, so it must stay human-readable, AI-friendly and perfectly round-trippable. It is the List Puncher
+  list format (a Markdown checklist DSL) - **never call it YAML**, even though the reader accepts real YAML.
 - **Live theme driven.** Colors, borders and card FX come from a Google Sheet via a Cloudflare Worker, never
   from hardcoded values in JS.
 - **Resilient.** Auto-save, cache-busting, self-checks and graceful fallbacks are core to the UX.
@@ -39,7 +40,7 @@ board and track progress against it.
 | Task state | `TASKS_DATA` (flat array; `level: 0` = milestone/section, `level >= 1` = task/subtask) |
 | Persistent UI state | `UI_STATE` (sections, branches, notesOpen, autoNumber, completedAtBottom, nestStyle, depthColorMode) |
 | Render pipeline | `renderAll()` -> section decks -> `renderTaskNodeTree()` (recursive, builds `.branch-rail` wrappers) |
-| YAML engine | `parseYamlToTasks()` (dispatch) -> `parseStrictPuncherYaml()` / `parseLegacyShorthandYaml()`, `formatTasksSliceAsYaml()` + `yamlQuote()` / `pushYamlTextValue()`, `clampYamlNestingSteps()`, `prettifyModalYaml()` |
+| List format engine (also reads real YAML) | `parseYamlToTasks()` (dispatch) -> `parseStrictPuncherYaml()` / `parseLegacyShorthandYaml()`, `formatTasksSliceAsYaml()` + `yamlQuote()` / `pushYamlTextValue()`, `clampYamlNestingSteps()`, `prettifyModalYaml()` |
 | Media engine | `isYouTubeURL()`, `isImageURL()`, `parseYouTubeEmbed()`, `buildVideoEmbedHtml()`, `loadLazyVideo()`, `convertURLsToMedia()` |
 
 **Storage keys** (all prefixed by `LOCATION_ID` so one GHL sub-account can hold unlimited lists):
@@ -49,75 +50,76 @@ board and track progress against it.
 - `list_puncher_<LOCATION_ID>_proj_<projId>_ui_state` - UI_STATE for that list
 - `list_puncher_yaml` - legacy/cross-key safety net (always written too)
 
+The `_yaml` suffixes are historical - **never rename these keys**, they hold live user data.
+
 ---
 
-## 3. THE CANONICAL YAML FORMAT (highest-risk area - read twice)
+## 3. THE CANONICAL LIST FORMAT (highest-risk area - read twice)
+
+**It is NOT YAML - it is the List Puncher list format**: a Markdown checklist with metadata keys. Calling
+it "YAML" is what caused a whole format war (a linter, or an AI in fix-it mode, sees `- [ ] Title` plus
+`notes:` and rewrites the file). The UI labels say `LIST`, and nothing about this format claims YAML.
 
 This exact shape is what the app writes, what it must read back, and what the AI prompt tells models to emit:
 
-```yaml
+```text
 # ==========================================
 # CLOUDFLARE INFRASTRUCTURE
 # ==========================================
-- section: "Cloudflare Infrastructure"
-  description: "Master DNS and edge routing configuration."
-  tasks:
-    - task: "[ ] Task Title"
-      notes: "Helpful instructions or links"
-      tasks:
-        - task: "[x] Subtask Title"
-          notes: |
-            https://youtu.be/eqQfmTJD1A
-            https://www.example.com/diagram.png
+section: "Cloudflare Infrastructure"
+description: "Master DNS and edge routing configuration."
+tasks:
+  - [ ] Task Title
+    notes: "Helpful instructions or links"
+    - [x] Subtask Title
+      notes: |
+        https://youtu.be/eqQfmTJD1A
+        https://www.example.com/diagram.png
 ```
 
-**Why a milestone is a list item:** one list holds N milestones. Repeating a bare `section:` key at the
-document root is a *duplicate key* error in every real YAML parser (a regex reader would never notice).
-
-**Why the checkbox sits inside the value and children need a key:** `- task: "[ ] Title"` costs 2 lines per
-task (no `checked:` key) and keeps the `[ ]` / `[x]` state visible and greppable. Nesting is the one place
-the grammar forces a key - a block sequence may never sit inside a block mapping without one - so children
-hang off `tasks:`, the same name a milestone uses for its task list. That holds the vocabulary to 5 names:
-`section` / `description` / `tasks` / `task` / `notes`.
+**Why this shape won:** a task is ONE line (`- [ ] Title`), nesting is pure indentation (+2), and there is no
+per-task key to type or maintain - the fastest possible thing to write and edit by hand, in a shape every
+model already knows (Markdown checkboxes). 1.14/1.15 briefly wrote a strict-YAML mapping form
+(`- task: "[ ] X"` + `tasks:` children); that is now READ-ONLY legacy (rule 8). The document root holds
+`section:` blocks, and repeating `section:` is fine here - we are not bound by YAML's duplicate-key rule.
 
 **Hard rules:**
-1. **The output must be VALID STANDARD YAML.** The old shorthand `- [ ] Task Title` is NOT valid YAML
-   (PyYAML/js-yaml reject it: `[ ]` is an empty flow sequence, and a scalar list item can never also
-   carry mapping keys), so 1.14 replaced it and 1.15 condensed it. A task is a mapping `- task: "[ ] X"`;
-   a milestone is a root list item (`- section:`), never a repeated root key.
-2. **The checkbox is the value's prefix**: `- task: "[ ] Title"` / `- task: "[x] Title"`. The writer never
-   emits a `checked:` key (it is still READ, so an AI that adds one is harmless).
-3. **One nesting step = 2 spaces**: a task's own keys sit at `dash + 2`, its `tasks:` children at
-   `dash + 4`. Never tabs in output.
-4. **Children live under the parent's `tasks:` key.** A bare indented `- task:` is invalid YAML
-   (`expected <block end>, but found '-'`) because a sequence can never sit inside a mapping without a key.
-   Reusing `tasks:` keeps the vocabulary at 5 names: `section` / `description` / `tasks` / `task` / `notes`.
-5. **`notes:` / `description:` block bodies sit 2 spaces deeper than their key.** The value is trimmed
-   before it is written, so the first body line never starts with whitespace - that is what lets YAML
-   auto-detect the body indentation (no explicit `|2` indicator needed).
-   **NEVER align `notes:` with the task's dash.** Doing so puts the notes body at the same indent as child
-   tasks, so on reload the parser swallows every following subtask into the notes block - the list appears to
-   "never save". (This exact bug shipped once. Do not repeat it.)
-6. **Every scalar is double-quoted** (`yamlQuote()`), escaping backslashes BEFORE quotes - a Windows path
-   like `C:\Users\...` would otherwise be an illegal YAML escape sequence and break the whole document.
-7. **Milestones are root list items**: `- section:` -> `description:` (optional) -> `tasks:` (or `tasks: []`
-   when empty). Section titles are written WITHOUT leading numbers; the app numbers milestones dynamically.
-8. **Unlimited depth** is allowed; the strict reader nests by dash indentation, so any step width (even the
-   6/8/14-space mess a sloppy AI paste produces) still nests correctly.
-9. **Legacy shorthand is still READ, never written.** `parseYamlToTasks()` dispatches: text matching
-   `- task:` / `- title:` / `- section:` goes to `parseStrictPuncherYaml()` (which also accepts the 1.14
-   `- title:` + `checked:` spelling and the `subtasks:` alias), anything else to `parseLegacyShorthandYaml()`
-   (which still clamps depths). Old localStorage lists and old AI output keep loading; the next save rewrites
-   them in the condensed shape, and `Prettify YAML` is the manual upgrader.
-10. **Tabs used for indentation become 2 spaces** (`expandLeadingTabs()`); tabs inside a note stay (they are
-    content, not layout).
-11. **Media lives in notes**: bare YouTube URLs become lazy video facades; bare image URLs become `<img>`s.
-12. **Round-trip is law.** Any serializer change must satisfy: `parse(format(x)) === x` and
-    `format(parse(format(x))) === format(x)` (idempotent), AND `format(x)` must parse cleanly in a REAL YAML
-    parser (PyYAML/js-yaml). `saveState()` re-parses what it wrote and flags the
-    storage pill with "Save check failed" if the item count would change.
+1. **Never present this format AS YAML** - not in UI labels, prompts, tooltips, comments or docs. It is the
+   List Puncher list format. If a linter, validator or model calls the output "invalid YAML", that is correct
+   and irrelevant: do not "fix" the format because of it. (The reader still ACCEPTS real YAML on purpose, so
+   an AI that reformats a file cannot break the import. Names like `parseYamlToTasks()` / `yamlQuote()` are
+   historical and stay - they describe the YAML-compatibility layer.)
+2. **A task is ONE Markdown checkbox line**: `- [ ] Title` (to do) / `- [x] Title` (done). No `title:`, no
+   `task:`, no `checked:` key. The whole rest of the line is the title, unquoted.
+3. **Nesting = 2 spaces per level.** A child task sits exactly 2 spaces deeper than its parent's dash.
+   Never tabs in output.
+4. **Milestones are `section:` -> `description:` (optional) -> `tasks:` blocks at the document root.**
+   Section titles are written WITHOUT leading numbers; the app numbers milestones dynamically.
+5. **`notes:` sits 2 spaces deeper than its task's dash, and a multi-line body 2 spaces deeper again**
+   (`indent + 2` / `indent + 4`) - that is what keeps the body clear of child tasks, which sit at
+   `indent + 2`. **NEVER align `notes:` with the task's dash**: the body would then collide with child tasks,
+   the parser swallows every following subtask into the notes block, and the list "never saves". (This exact
+   bug shipped once. Do not repeat it.)
+6. **Single-line notes/descriptions are double-quoted with escapes** (`yamlQuote()` escapes backslashes
+   first, then quotes and tabs; `unquoteYamlScalar()` decodes on read) so a Windows path or a quote inside a
+   note round-trips exactly instead of coming back mangled.
+7. **Unlimited depth** is allowed; the checklist reader nests by dash indentation, so any step width (even the
+   6/8/14-space mess a sloppy AI paste produces) still nests correctly, and illogical jumps are clamped to one
+   step. Each section anchors Level 1 on its first task.
+8. **The strict-YAML shape is READ, never written.** `parseYamlToTasks()` dispatches: text made of
+   `- task:` / `- title:` / `- section:` list items goes to `parseStrictPuncherYaml()` (which also accepts
+   `checked:` and the `subtasks:` / `children:` aliases), everything else to `parseLegacyShorthandYaml()` -
+   the canonical checklist reader. Lists saved by 1.14/1.15 load unchanged and re-save as the checklist;
+   `Prettify LIST` is the manual upgrader. Keep BOTH readers: they are what makes an AI "fix" harmless.
+9. **Tabs used for indentation become 2 spaces** (`expandLeadingTabs()`); tabs inside a note stay (they are
+   content, not layout).
+10. **Media lives in notes**: bare YouTube URLs become lazy video facades; bare image URLs become `<img>`s.
+11. **Round-trip is law.** Any serializer change must satisfy: `parse(format(x)) === x` and
+    `format(parse(format(x))) === format(x)` (idempotent). `saveState()` re-parses what it wrote and flags the
+    storage pill with "Save check failed" if the item count would change. PyYAML/js-yaml are used to VALIDATE
+    what the strict reader must accept - never to police what the writer emits.
 
-**Editor UX that must keep working:** the YAML modal (full / milestone / branch modes), `Prettify YAML`
+**Editor UX that must keep working:** the LIST modal (full / milestone / branch modes), `Prettify LIST`
 (tabs -> 2 spaces, clamp, strip section numbers), and **TAB / SHIFT+TAB = indent / outdent 2 spaces**
 (Notepad++ style, multi-line aware, caret preserved).
 
@@ -174,13 +176,13 @@ hang off `tasks:`, the same name a milestone uses for its task list. That holds 
 
 1. **Write the list to every relevant key** (project key + `list_puncher_yaml`) so a key mismatch or a missing
    URL param can never orphan the user's data; on load, fall back: project key -> legacy key -> blueprint.
-2. **Never overwrite stored YAML with an empty list.** Guard writes so a transient empty `TASKS_DATA` cannot
+2. **Never overwrite the stored list with an empty one.** Guard writes so a transient empty `TASKS_DATA` cannot
    wipe real work.
 3. **Verify every save**: `saveState()` round-trips what it wrote and returns a status the storage pill shows
    ("✓ Saved" vs "⚠ Save check failed"). Keep that honesty - the pill is the user's only signal that a refresh
    will be safe.
 4. **Auto-save is debounced at 500ms** (`AUTOSAVE_DELAY_MS`) with a flush on `beforeunload`.
-5. Per-project state (collapsed sections, open notes, toggles) lives in `_ui_state`, never in the YAML.
+5. Per-project state (collapsed sections, open notes, toggles) lives in `_ui_state`, never in the list.
 
 ---
 
@@ -209,8 +211,11 @@ Always tell the owner to hard-refresh and how to confirm the live build.
 1. **Extract and run the real code, never a re-implementation.** Pull the actual functions out of
    `index.html` (brace-matched extraction) and exercise them in Node.
 2. **Mandatory harnesses:**
-   - **YAML round-trip**: `parse(format(x))` keeps every item/title/level/checked/notes, and
-     `format(parse(format(x)))` is byte-identical. Include multi-line notes followed by subtasks.
+   - **List round-trip**: `parse(format(x))` keeps every item/title/level/checked/notes, and
+     `format(parse(format(x)))` is byte-identical. Include multi-line notes followed by subtasks, notes with
+     quotes / backslashes / Windows paths, and deep nesting. Also prove the STRICT reader still imports every
+     1.14/1.15 document (validate those inputs with PyYAML/js-yaml) while the writer emits no `task:` /
+     `checked:` / `subtasks:` keys.
    - **CSS cascade**: resolve the winning declaration for each toggle combination with a DOM model where
      each selector part must match a **distinct** ancestor element; include negative tests for selectors that
      must NOT match.
@@ -241,10 +246,10 @@ Always tell the owner to hard-refresh and how to confirm the live build.
 
 1. **Say plainly when a theory was wrong.** When a fix is disproven, state it in one line and move on - no spin.
 2. **Every change comes with a user-testable step** ("hard-refresh, click X, you should see Y").
-3. **Flag backward-compatibility risk BEFORE shipping**, especially anything touching the YAML format,
+3. **Flag backward-compatibility risk BEFORE shipping**, especially anything touching the list format,
    default toggle states or stored data.
 4. **Ask before:** adding `:root` variables, changing default behavior, adding new UI controls, or altering
-   the YAML format.
+   the list format.
 5. **Respect the owner's UI taste.** Toggles belong in the header button grid, matching `btn-action btn-toggle`
    styling and the `label: STATE` convention; keep the dark-teal/magenta aesthetic and the dense-but-readable
    two-tier task rows.
@@ -258,9 +263,8 @@ Always tell the owner to hard-refresh and how to confirm the live build.
 |---|---|---|
 | `body.state .class-on-body ...` selector | New CSS rule never applies ("nothing changed") | Compound the body classes: `body.state.class-on-body` |
 | `notes:` aligned with the task dash | Saved list loses subtasks on refresh ("YAML never saves") | Notes key at +2, body at +4 |
-| Shorthand `- [ ] Title` written as output | Gemini/PyYAML/js-yaml report the whole document as invalid YAML | Emit `- task: "[ ] Title"` (mapping form); shorthand is read-only legacy |
-| Indented `- task:` with no children key above it | `expected <block end>, but found '-'` - the whole file is invalid | Children hang off `tasks:`; a sequence can never sit inside a mapping without a key |
-| Quoting a bare dash line (`- "[ ] Title"` + `notes:`) | Still invalid - a scalar item cannot also carry mapping keys | The quotes must sit on a `task:` value |
+| Calling the list format "YAML" (or letting a linter/AI drive the format) | Every validator "fixes" the file - the 1.14/1.15 strict-YAML output was the result of exactly this | It is the List Puncher list format. Never claim YAML; keep BOTH readers so an AI reformat still imports |
+| Re-introducing the 1.14/1.15 strict output | Tasks cost ~8 extra chars each plus a `tasks:` line per parent, and every task needs a redundant prefix | Strict shape is READ-ONLY legacy; the checklist is canonical |
 | Player iframe created on page load | ~20s black screen on first play click | Click-only lazy facade |
 | `youtube.com/embed` + ad blocker | Black screen / playback timeout | Use `youtube-nocookie.com` + autoplay params |
 | Media click not stopped | Clicking play opens the note editor instead | `event.stopPropagation()` on media |
@@ -272,7 +276,7 @@ Always tell the owner to hard-refresh and how to confirm the live build.
 
 ## 12. Do-Not-Break Checklist (run before shipping)
 
-- [ ] YAML round-trips: save -> reload keeps every task, subtask, checkbox and multi-line note.
+- [ ] List round-trips: save -> reload keeps every task, subtask, checkbox and multi-line note.
 - [ ] Rails ON/OFF and Colors ALT/SOLID still produce four distinct, correct looks.
 - [ ] Card FX animates smoothly and is never auto-paused, stepped or motion-disabled.
 - [ ] Videos: no player until clicked; one click plays; media clicks never open the note editor.
