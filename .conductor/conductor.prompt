@@ -181,14 +181,24 @@ model already knows (Markdown checkboxes). 1.14/1.15 briefly wrote a strict-YAML
 ## 6. Storage & Data Safety Rules
 
 1. **Write the list to every relevant key** (project key + `list_puncher_yaml`) so a key mismatch or a missing
-   URL param can never orphan the user's data; on load, fall back: project key -> legacy key -> blueprint.
-2. **Never overwrite the stored list with an empty one.** Guard writes so a transient empty `TASKS_DATA` cannot
-   wipe real work.
-3. **Verify every save**: `saveState()` round-trips what it wrote and returns a status the storage pill shows
-   ("✓ Saved" vs "⚠ Save check failed"). Keep that honesty - the pill is the user's only signal that a refresh
-   will be safe.
-4. **Auto-save is debounced at 500ms** (`AUTOSAVE_DELAY_MS`) with a flush on `beforeunload`.
-5. Per-project state (collapsed sections, open notes, toggles) lives in `_ui_state`, never in the list.
+   URL param can never orphan the user's data; on load, fall back: project key -> legacy key -> any
+   `list_puncher_*_yaml` key (`recoverStoredListFromAnyKey()`) -> blueprint.
+2. **The blueprint is a LOAD-time fallback, never an overwrite.** `seedOnboardingBlueprint()` runs only when
+   storage genuinely holds no list, and it first tries the recovery scan. **Never call it from `renderAll()`** -
+   an empty `TASKS_DATA` moment (a failed parse, a cleared list) must never write the demo list over real data.
+3. **A stored list that cannot be parsed is left on disk untouched** and the pill says "⚠ Stored list
+   unreadable" - never replace unreadable data with the blueprint.
+4. **Verify every save**: `saveState()` round-trips what it wrote and returns a status the storage pill shows
+   ("✓ Saved" vs "⚠ Save check failed" / "⚠ Storage blocked"). Storage writes are wrapped in try/catch - a quota
+   error or a blocked/sandboxed context must never fail silently. The pill is the user's only signal that a
+   refresh will be safe.
+5. **The storage pill tooltip shows the facts** (`describeStorage()`): the exact key, this project's byte size,
+   the legacy key's size and every list key found in the browser. That is how a "my list vanished" report gets
+   diagnosed instead of guessed at.
+6. **Project ids must be deterministic.** `loadProjectsDirectory()` may never build an id from `Date.now()` -
+   a refresh would then resolve to a brand-new empty project.
+7. **Auto-save is debounced at 500ms** (`AUTOSAVE_DELAY_MS`) with a flush on `beforeunload`.
+8. Per-project state (collapsed sections, open notes, toggles) lives in `_ui_state`, never in the list.
 
 ---
 
@@ -278,6 +288,9 @@ Always tell the owner to hard-refresh and how to confirm the live build.
 | Stepped / paused / reduced-motion FX | Border frozen ("colored but not moving") | Never throttle the decorative FX |
 | Stale `index.css` after deploy | New CSS rules silently ignored | `?v=` cache-bust + `--lp-css-build` guard |
 | Loosely simulated CSS harness | Shipped a selector that could never match | Model distinct ancestors + negative tests |
+| Seeding the blueprint from `renderAll()` | Any empty `TASKS_DATA` moment overwrote the saved list ("my list is gone after a refresh") | Seed on the load path only; never write over stored data |
+| `localStorage.setItem` throwing (quota, sandboxed iframe) | The save silently did nothing and the pill stayed green | Wrap writes in try/catch and show "⚠ Storage blocked" |
+| Project id built from `Date.now()` | Every refresh resolved to a new empty project | Deterministic ids derived from the name |
 
 ---
 

@@ -15,7 +15,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
     
     <!-- Separated Master Stylesheet (Zero Prism Crash) - version query busts the GitHub Pages 10min cache -->
-    <link rel="stylesheet" href="index.css?v=1.17">
+    <link rel="stylesheet" href="index.css?v=1.18">
 
     <script>
     /* Universal Dark Reader Kill Switch (Rule 9) */
@@ -100,7 +100,7 @@
                         <span>💾</span>
                         <span>List Puncher Storage Engine</span>
                     </div>
-                    <div id="tooltipStatusNotice">Auto-saved with 500ms live debounce.</div>
+                    <div id="tooltipStatusNotice">Auto-saved with 500ms live debounce. The line below shows the exact storage key, the size of this project's saved list and every list key found in this browser.</div>
                     <div class="tooltip-code-box" id="storageKeyBox">Key: list_puncher_yaml</div>
                     <span class="tooltip-footer-note">Click the pill to open the List Puncher list editor</span>
                 </div>
@@ -249,7 +249,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     // =========================================================================
     const AUTOSAVE_DELAY_MS = 500;
     const INDENT_SPACES_PER_LEVEL = 2;
-    const APP_BUILD = '1.17'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
+    const APP_BUILD = '1.18'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
     const DEFAULT_PROJECT_ID = 'default_onboarding';
     const DEFAULT_PROJECT_NAME = 'Client Onboarding';
 
@@ -333,6 +333,12 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         <line x1="5" y1="12" x2="19" y2="12"></line>
     </svg>`;
 
+    // Double-Check Icon (mark every task in a milestone complete)
+    const CHECK_ALL_SVG_ICON = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="1 13 5 17 12 9"></polyline>
+        <polyline points="10 17 14 21 23 11"></polyline>
+    </svg>`;
+
     // Deterministic slug generator
     function generateSlugId(prefix, title, index) {
         const slug = String(title || '')
@@ -380,7 +386,9 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
             if (found) {
                 ACTIVE_PROJECT_ID = found.id;
             } else {
-                ACTIVE_PROJECT_ID = generateSlugId('proj', URL_PROJECT, Date.now());
+                // Deterministic id: a refresh (or a second tab) must resolve to the SAME
+                // project, otherwise every load would create a fresh empty list.
+                ACTIVE_PROJECT_ID = generateSlugId('proj', URL_PROJECT, 0);
                 PROJECTS_LIST.push({ id: ACTIVE_PROJECT_ID, name: URL_PROJECT });
                 localStorage.setItem(key, JSON.stringify(PROJECTS_LIST));
             }
@@ -422,7 +430,27 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
 
         const storageBox = document.getElementById('storageKeyBox');
         if (storageBox) {
-            storageBox.innerText = `Key: list_puncher_${LOCATION_ID}_proj_${ACTIVE_PROJECT_ID}_yaml`;
+            storageBox.innerText = `Key: list_puncher_${LOCATION_ID}_proj_${ACTIVE_PROJECT_ID}_yaml` + describeStorage();
+        }
+    }
+
+    // Storage facts for the pill tooltip: the fastest way to diagnose a list that did
+    // not come back after a refresh (wrong key, empty key, blocked storage).
+    function describeStorage() {
+        try {
+            const projectKey = getProjectYamlKey(ACTIVE_PROJECT_ID);
+            const mine = localStorage.getItem(projectKey) || '';
+            const legacy = localStorage.getItem('list_puncher_yaml') || '';
+            const found = [];
+            for (let i = 0; i < localStorage.length; i++) {
+                const k = localStorage.key(i);
+                if (k && k.indexOf('list_puncher_') === 0 && k.indexOf('_yaml') !== -1) {
+                    found.push(k + ' (' + ((localStorage.getItem(k) || '').length) + 'b)');
+                }
+            }
+            return ` | this project: ${mine.length}b | legacy key: ${legacy.length}b | ${found.length} list key(s): ${found.join(', ')}`;
+        } catch (e) {
+            return ' | storage read failed: ' + e.message;
         }
     }
 
@@ -515,35 +543,59 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     }
 
     function loadCurrentProjectData() {
-        // Load UI state for this project
-        const rawUi = localStorage.getItem(getProjectUiKey(ACTIVE_PROJECT_ID));
-        if (rawUi) {
-            try { UI_STATE = Object.assign(UI_STATE, JSON.parse(rawUi)); } catch(e) {}
-        } else {
-            UI_STATE.sections = {};
-            UI_STATE.branches = {};
-            UI_STATE.notesOpen = {};
-        }
+        try {
+            // Load UI state for this project
+            const rawUi = localStorage.getItem(getProjectUiKey(ACTIVE_PROJECT_ID));
+            if (rawUi) {
+                try { UI_STATE = Object.assign(UI_STATE, JSON.parse(rawUi)); } catch(e) {}
+            } else {
+                UI_STATE.sections = {};
+                UI_STATE.branches = {};
+                UI_STATE.notesOpen = {};
+            }
 
-        applyNestingModeClass();
-        applyDepthColorClass();
-        updateHeaderToggleButtonsUI();
+            applyNestingModeClass();
+            applyDepthColorClass();
+            updateHeaderToggleButtonsUI();
 
-        // Load the list content for this project
-        const rawYaml = localStorage.getItem(getProjectYamlKey(ACTIVE_PROJECT_ID));
-        if (rawYaml && rawYaml.trim()) {
-            TASKS_DATA = parseYamlToTasks(rawYaml);
-            renderAll();
-        } else {
-            // Check legacy migration key once
+            // Load the list content for this project
+            const projectKey = getProjectYamlKey(ACTIVE_PROJECT_ID);
+            const rawYaml = localStorage.getItem(projectKey);
+            if (rawYaml && rawYaml.trim()) {
+                const parsed = parseYamlToTasks(rawYaml);
+                if (parsed.length) {
+                    TASKS_DATA = parsed;
+                    console.log('[List Puncher] Loaded ' + parsed.length + ' items from ' + projectKey);
+                    renderAll();
+                    return;
+                }
+                // Stored text that does not parse is NEVER overwritten - keep it on disk
+                // (it can still be recovered by hand) and say so in the storage pill.
+                console.warn('[List Puncher] Stored list in ' + projectKey + ' (' + rawYaml.length + ' chars) could not be parsed. Left untouched.');
+                TASKS_DATA = [];
+                setStoragePillStatus('restricted', '⚠ Stored list unreadable');
+                renderAll();
+                return;
+            }
+
+            // Fall back to the legacy cross-key, then to any key at all (recovery)
             const legacyYaml = localStorage.getItem('list_puncher_yaml');
             if (legacyYaml && legacyYaml.trim()) {
-                TASKS_DATA = parseYamlToTasks(legacyYaml);
-                saveState();
-                renderAll();
-            } else {
-                seedOnboardingBlueprint();
+                const parsedLegacy = parseYamlToTasks(legacyYaml);
+                if (parsedLegacy.length) {
+                    TASKS_DATA = parsedLegacy;
+                    console.log('[List Puncher] Loaded ' + parsedLegacy.length + ' items from the legacy key list_puncher_yaml');
+                    saveState();
+                    renderAll();
+                    return;
+                }
             }
+
+            console.log('[List Puncher] No stored list for ' + projectKey + ' - trying storage recovery, then the blueprint.');
+            seedOnboardingBlueprint();
+        } catch (e) {
+            console.warn('[List Puncher] Load failed:', e);
+            setStoragePillStatus('restricted', '⚠ Storage blocked');
         }
     }
 
@@ -579,23 +631,31 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     }
 
     function saveState() {
-        const fullYaml = formatTasksSliceAsYaml(TASKS_DATA);
-        localStorage.setItem(getProjectYamlKey(ACTIVE_PROJECT_ID), fullYaml);
-        localStorage.setItem(getProjectUiKey(ACTIVE_PROJECT_ID), JSON.stringify(UI_STATE));
-        localStorage.setItem('list_puncher_yaml', fullYaml); // Legacy backup + cross-key safety net
-
-        // Round-trip self check: if the list we just wrote cannot be read back into the same
-        // number of items, the saved list would silently lose tasks on refresh.
         try {
-            const reloaded = parseYamlToTasks(fullYaml);
-            if (TASKS_DATA.length && reloaded.length !== TASKS_DATA.length) {
-                console.warn('[List Puncher] Save round-trip mismatch: wrote ' + TASKS_DATA.length + ' items, reloaded ' + reloaded.length);
-                return false;
+            const fullYaml = formatTasksSliceAsYaml(TASKS_DATA);
+            localStorage.setItem(getProjectYamlKey(ACTIVE_PROJECT_ID), fullYaml);
+            localStorage.setItem(getProjectUiKey(ACTIVE_PROJECT_ID), JSON.stringify(UI_STATE));
+            localStorage.setItem('list_puncher_yaml', fullYaml); // Legacy backup + cross-key safety net
+
+            // Round-trip self check: if the list we just wrote cannot be read back into the same
+            // number of items, the saved list would silently lose tasks on refresh.
+            try {
+                const reloaded = parseYamlToTasks(fullYaml);
+                if (TASKS_DATA.length && reloaded.length !== TASKS_DATA.length) {
+                    console.warn('[List Puncher] Save round-trip mismatch: wrote ' + TASKS_DATA.length + ' items, reloaded ' + reloaded.length);
+                    return false;
+                }
+            } catch (e) {
+                console.warn('[List Puncher] Save round-trip check error:', e);
             }
+            return true;
         } catch (e) {
-            console.warn('[List Puncher] Save round-trip check error:', e);
+            // Storage writes can throw (quota, or a blocked / sandboxed context). Never
+            // fail silently: the pill is the user's only signal that a refresh is safe.
+            console.warn('[List Puncher] Storage write FAILED for key ' + getProjectYamlKey(ACTIVE_PROJECT_ID) + ':', e);
+            setStoragePillStatus('restricted', '⚠ Storage blocked');
+            return false;
         }
-        return true;
     }
 
     // =========================================================================
@@ -1175,7 +1235,53 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         document.querySelector('.header-actions').style.display = 'none';
     }
 
+    let STORAGE_RECOVERY_ATTEMPTED = false;
+
+    // Last-resort recovery for "my list was gone after a refresh": the list can be
+    // sitting under a DIFFERENT storage key (another LOCATION_ID or project param,
+    // or a key written by an older build). Adopt the richest list found and re-home
+    // it under the active project instead of showing an empty board.
+    function recoverStoredListFromAnyKey() {
+        const keys = [];
+        try {
+            for (let i = 0; i < localStorage.length; i++) keys.push(localStorage.key(i));
+        } catch (e) {
+            console.warn('[List Puncher] Storage read failed:', e);
+            return false;
+        }
+
+        const candidates = [];
+        keys.forEach(key => {
+            if (!key || key.indexOf('list_puncher_') !== 0 || key.indexOf('_yaml') === -1) return;
+            let raw = null;
+            try { raw = localStorage.getItem(key); } catch (e) { return; }
+            if (!raw || !raw.trim()) return;
+            const items = parseYamlToTasks(raw);
+            if (items.length) candidates.push({ key: key, items: items });
+        });
+
+        if (!candidates.length) return false;
+
+        candidates.sort((a, b) => b.items.length - a.items.length);
+        const best = candidates[0];
+        console.warn('[List Puncher] Recovered ' + best.items.length + ' items from storage key "' + best.key + '"');
+        TASKS_DATA = best.items;
+        saveState();
+        return true;
+    }
+
     function seedOnboardingBlueprint() {
+        // The blueprint is a FALLBACK, never an overwrite. Before seeding the demo
+        // list, try to adopt a list stored under another key (the "I lost my list on
+        // refresh" case) and only seed when storage really is empty.
+        if (!STORAGE_RECOVERY_ATTEMPTED) {
+            STORAGE_RECOVERY_ATTEMPTED = true;
+            if (recoverStoredListFromAnyKey()) {
+                renderAll();
+                showToast('↩️ Recovered your saved list from local storage');
+                return;
+            }
+        }
         TASKS_DATA = JSON.parse(JSON.stringify(ONBOARDING_BLUEPRINT));
         saveState();
         renderAll();
@@ -1215,8 +1321,10 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         const deckContainer = document.getElementById('deckContainer');
         deckContainer.innerHTML = '';
 
+        // An empty list renders as an empty board. Seeding the demo blueprint is a
+        // LOAD-time fallback only - doing it here could overwrite a saved list.
         if (!TASKS_DATA.length) {
-            seedOnboardingBlueprint();
+            deckContainer.innerHTML = '<div style="padding:28px;text-align:center;color:var(--text-secondary);font-size:0.9rem;">No tasks yet &mdash; paste your list into the <strong>LIST Editor</strong>, or add a milestone with <strong>+ New Section</strong>.</div>';
             return;
         }
 
@@ -1309,12 +1417,10 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
                         <button type="button" class="btn-icon sec-action-btn" title="Paste tasks into this milestone (List Puncher format)" onclick="openYamlModal('section', ${sIdx})">
                             ${PASTE_SUBTASKS_SVG_ICON}
                         </button>
-                        <button type="button" class="btn-icon sec-action-btn delete-btn" title="Delete milestone and all its tasks" onclick="confirmDeleteSection(${sIdx})">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                                <line x1="18" y1="6" x2="18" y2="18"></line>
-                                <line x1="6" y1="6" x2="18" y2="18"></line>
-                            </svg>
+                        <button type="button" class="btn-icon sec-action-btn check-all-btn" title="Mark every task in this milestone complete (click again to clear them)" onclick="toggleSectionComplete(${sIdx})">
+                            ${CHECK_ALL_SVG_ICON}
                         </button>
+                        <button type="button" class="btn-icon sec-action-btn delete-btn" title="Delete milestone and all its tasks" onclick="confirmDeleteSection(${sIdx})">✕</button>
                     </div>
 
                     <span class="section-counter-badge ${allDone ? 'all-done' : ''}">
@@ -1908,6 +2014,36 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
                 }
             }
         }, 60);
+    }
+
+    // Mark every task in a milestone complete (click again to clear them all).
+    // Milestones themselves are not stored as checked - their state is derived from
+    // the tasks inside them, so this only touches the tasks.
+    function toggleSectionComplete(sectionIndex) {
+        const sectionHeaderIndices = [];
+        TASKS_DATA.forEach((t, i) => {
+            if (t.level === 0) sectionHeaderIndices.push(i);
+        });
+
+        const headerIdx = sectionHeaderIndices[sectionIndex];
+        if (headerIdx === undefined) return;
+
+        const range = getSectionRange(headerIdx);
+        const tasks = TASKS_DATA.slice(range.start, range.start + range.count).filter(t => t.level > 0);
+        if (!tasks.length) {
+            showToast('This milestone has no tasks to complete.');
+            return;
+        }
+
+        const secTitle = TASKS_DATA[headerIdx].title;
+        const allDone = tasks.every(t => t.checked);
+        tasks.forEach(t => { t.checked = !allDone; });
+
+        executeAutoSave();
+        renderAll();
+        showToast(allDone
+            ? `↩️ Cleared ${tasks.length} task(s) in "${secTitle}"`
+            : `✓ Completed ${tasks.length} task(s) in "${secTitle}"`);
     }
 
     function copySectionAsYaml(sectionIndex) {

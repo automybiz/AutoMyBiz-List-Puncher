@@ -33,7 +33,7 @@
     --indent-step: 22px;
 
     /* Build marker: lets the app detect a stale cached stylesheet (compared against APP_BUILD in index.html) */
-    --lp-css-build: "1.17";
+    --lp-css-build: "1.18";
 
     --completed-opacity: 0.42;
 
@@ -631,12 +631,12 @@ body {
 }
 
 .drag-handle {
-    color: var(--text-muted);
+    color: var(--text-muted);   /* same base color as the action icons */
     cursor: grab;
     font-size: 14px;
     padding: 2px 4px;
     user-select: none;
-    opacity: 0.5;
+    opacity: 1;                 /* was 0.5, which made the grip nearly invisible */
     transition: opacity 0.2s, color 0.2s, transform 0.15s ease;
     flex-shrink: 0;
     display: inline-flex;
