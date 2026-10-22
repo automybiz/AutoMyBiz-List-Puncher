@@ -38,7 +38,7 @@ board and track progress against it.
 | GHL context | URL params: `location_id`, `token`, `user_email`, `user_name`, `user_role`, `owner_email`, `editors`, `viewers`, `mode`, `project`, `gsheet_globals_id`, `location_name` |
 | Permissions | `evaluatePermissions()` -> editor / viewer / restricted (`list_puncher_editors`, `list_puncher_viewers` GHL custom values) |
 | Task state | `TASKS_DATA` (flat array; `level: 0` = milestone/section, `level >= 1` = task/subtask) |
-| Persistent UI state | `UI_STATE` (sections, branches, notesOpen, autoNumber, completedAtBottom, nestStyle, depthColorMode) |
+| Persistent UI state | `UI_STATE` (sections, branches, notesOpen, autoNumber, completedAtBottom, nestStyle, depthColorMode, defaultsVersion) - always built by `createDefaultUiState()` |
 | Render pipeline | `renderAll()` -> section decks -> `renderTaskNodeTree()` (recursive, builds `.branch-rail` wrappers) |
 | List format engine (also reads real YAML) | `parseYamlToTasks()` (dispatch) -> `parseStrictPuncherYaml()` / `parseLegacyShorthandYaml()`, `formatTasksSliceAsYaml()` + `yamlQuote()` / `pushYamlTextValue()`, `clampYamlNestingSteps()`, `prettifyModalYaml()` |
 | Media engine | `isYouTubeURL()`, `isImageURL()`, `parseYouTubeEmbed()`, `buildVideoEmbedHtml()`, `loadLazyVideo()`, `convertURLsToMedia()` |
@@ -148,6 +148,16 @@ model already knows (Markdown checkboxes). 1.14/1.15 briefly wrote a strict-YAML
   completed deck, and the completed group's `#` badge numbering **restarts at 1** (`displayNumber` = render index
   minus `completedGroupStart` + 1). If every milestone is complete there is no reorder, so no rule and continuous
   1..N numbering. The `data-header-index` on the decks always stays the DATA index regardless of the grouping.
+- **Shipped toggle defaults** live in exactly one place, `createDefaultUiState()`: Bottom: ON, Rails: ON,
+  Auto-Number: ON, Colors: ALT. `UI_STATE_DEFAULTS_VERSION` (currently 2) stamps them, so a state saved under
+  older defaults adopts the new Bottom/Rails values **once** (`saveUiStateOnly()`, which never touches the list
+  key); after that the user's own toggles win. Bump that constant whenever a default changes.
+- **Bulk Check All exists at two levels**, and both ask first through the same modal (`openConfirmModal` with
+  `accent: true`), name the scope and the current progress, and flip to "Uncheck All" when the scope is already
+  complete: the milestone button in the section header (`confirmSectionCheckAll(headerIdx)`, keyed by the
+  section's DATA index) and a per-branch button on every task row that HAS sub-tasks
+  (`confirmBranchCheckAll(realIdx)`, keyed by the task's DATA index, covering the task itself plus all
+  descendants through `getSubtreeRange`). Leaves get no button on purpose - their checkbox is the toggle.
 
 **Cascade rules (learned the hard way):**
 1. **State classes live on `<body>`.** Because of that, they must be written as ONE compound selector:
@@ -308,6 +318,8 @@ Always tell the owner to hard-refresh and how to confirm the live build.
 | A bulk action with no confirmation | One stray click rewrites a long mixed list, and the user has to remember what was checked | Bulk actions confirm first through the shared modal (`openConfirmModal`), naming the count and the current progress |
 | Calling a helper that does not exist (e.g. a renamed permission check) inside `initApp` | The `ReferenceError` aborts `initApp` **before** the load path, so the saved list is never read back and the app looks like it "never saves" (the data is in `localStorage` the whole time - see the `save OK` trace lines) | Evaluate permissions once (`const perms = evaluatePermissions()`) and use `perms.*`; keep a static "no calls to undeclared functions" check in the harness |
 | Grouping the completed milestones without a visual + numbering boundary | Completed milestones under the active ones read as a continuation of the list, and the numbers look wrong ("#1 became #13") | One `<hr class="section-group-separator">` between the groups and restart the `#` badges at 1 inside the completed group |
+| Changing a shipped default (Bottom/Rails) without a version stamp | Users who already have a saved `_ui_state` never see the new default and report the change as "not applied" | Defaults live only in `createDefaultUiState()`; bump `UI_STATE_DEFAULTS_VERSION` so old states migrate ONCE - never on every load, that would fight the user's own toggles |
+| Migrating UI state on the load path with `saveState()` | `saveState()` also writes `TASKS_DATA`, which at that moment can still be the PREVIOUS project's list, so the wrong list lands in this project's key | UI-state-only writer `saveUiStateOnly()`; the list is only written after it has been parsed |
 
 ---
 
@@ -319,6 +331,8 @@ Always tell the owner to hard-refresh and how to confirm the live build.
 - [ ] Videos: no player until clicked; one click plays; media clicks never open the note editor.
 - [ ] Images still render inline and open in a new tab.
 - [ ] Drag/drop reorder + indent, auto-numbering, collapse-all, completed-at-bottom still work.
+- [ ] Milestone Check All AND per-branch Check All: both confirm first, both toggle back to Uncheck All, and neither touches a sibling branch.
+- [ ] Defaults still come from `createDefaultUiState()`; an old `_ui_state` migrates exactly once, a current one is left alone, and no migration ever rewrites the list key.
 - [ ] Editor/viewer/restricted permission modes still gate editing.
 - [ ] Live theme still applies from the sheet (colors, speed, effect class).
 - [ ] `APP_BUILD`, `index.css?v=` and `--lp-css-build` all match the new version.

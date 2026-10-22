@@ -33,7 +33,7 @@
     --indent-step: 22px;
 
     /* Build marker: lets the app detect a stale cached stylesheet (compared against APP_BUILD in index.html) */
-    --lp-css-build: "1.22";
+    --lp-css-build: "1.23";
 
     --completed-opacity: 0.42;
 
@@ -1285,6 +1285,12 @@ body {
 .btn-icon.delete-btn:hover {
     background: rgba(239, 68, 68, 0.2);
     color: var(--accent-red);
+}
+
+/* Check/Uncheck All (milestone header button AND per-branch task row button) */
+.btn-icon.check-all-btn:hover {
+    background: rgba(0, 255, 136, 0.18);
+    color: var(--accent-green);
 }
 
 /* ==========================================================================

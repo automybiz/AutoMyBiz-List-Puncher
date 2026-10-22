@@ -15,7 +15,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
     
     <!-- Separated Master Stylesheet (Zero Prism Crash) - version query busts the GitHub Pages 10min cache -->
-    <link rel="stylesheet" href="index.css?v=1.22">
+    <link rel="stylesheet" href="index.css?v=1.23">
 
     <script>
     /* Universal Dark Reader Kill Switch (Rule 9) */
@@ -153,14 +153,14 @@
                     ⏳ To-Do
                 </button>
                 <button type="button" class="btn-action btn-toggle" id="btnCompletedBottom" onclick="toggleCompletedAtBottom()" title="Toggle auto-moving completed milestones to the bottom">
-                    ⬇️ Bottom: OFF
+                    ⬇️ Bottom: ON
                 </button>
                 <button type="button" class="btn-action btn-toggle" id="btnAutoNumber" onclick="toggleAutoNumber()" title="Toggle dynamic #1, #2, #3 milestone numbering">
                     🔢 Auto-Number: ON
                 </button>
                 <!-- Dual-Engine Nesting Style Toggle (Option 2 Cards vs Option 1 Rails) -->
                 <button type="button" class="btn-action btn-toggle" id="btnNestStyle" onclick="toggleNestStyle()" title="Toggle between clean card brackets and continuous scope guide rails">
-                    🎋 Rails: OFF
+                    🎋 Rails: ON
                 </button>
                 <!-- Alternating Depth Colors Toggle -->
                 <button type="button" class="btn-action btn-toggle" id="btnDepthColors" onclick="toggleDepthColors()" title="Toggle alternating color depths vs solid theme color">
@@ -249,7 +249,10 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     // =========================================================================
     const AUTOSAVE_DELAY_MS = 500;
     const INDENT_SPACES_PER_LEVEL = 2;
-    const APP_BUILD = '1.22'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
+    const APP_BUILD = '1.23'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
+    // Bump whenever the UI_STATE defaults below change: a saved state older than this gets
+    // the new defaults applied exactly ONCE (afterwards the user's own toggles win).
+    const UI_STATE_DEFAULTS_VERSION = 2;
     const DEFAULT_PROJECT_ID = 'default_onboarding';
     const DEFAULT_PROJECT_NAME = 'Client Onboarding';
 
@@ -280,15 +283,22 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
 
     // In-memory Task State & Persistent UI State
     let TASKS_DATA = [];
-    let UI_STATE = {
-        sections: {},
-        branches: {},
-        notesOpen: {},
-        autoNumber: true,
-        completedAtBottom: false,
-        nestStyle: 'cards', // 'cards' (Option 2) | 'rails' (Option 1)
-        depthColorMode: 'alt' // 'alt' (Staggered by level) | 'solid'
-    };
+    // Single source of truth for the shipped UI defaults. Bump UI_STATE_DEFAULTS_VERSION when
+    // anything here changes, so existing saved states adopt the new defaults exactly once.
+    function createDefaultUiState() {
+        return {
+            sections: {},
+            branches: {},
+            notesOpen: {},
+            autoNumber: true,
+            completedAtBottom: true, // v1.23: completed milestones group at the bottom
+            nestStyle: 'rails', // 'cards' (Option 2) | 'rails' (Option 1) - v1.23: rails
+            depthColorMode: 'alt', // 'alt' (Staggered by level) | 'solid'
+            defaultsVersion: UI_STATE_DEFAULTS_VERSION // see the migration in loadCurrentProjectData()
+        };
+    }
+
+    let UI_STATE = createDefaultUiState();
 
     // Live Auto-Save Debounce Timer
     let AUTOSAVE_TIMER = null;
@@ -307,7 +317,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
 
     // Modal Contexts
     let MODAL_CONTEXT = { mode: 'full', targetIndex: null };
-    let CONFIRM_CONTEXT = { type: null, targetIndex: null, headerIdx: null, range: null };
+    let CONFIRM_CONTEXT = { type: null, targetIndex: null, headerIdx: null, branchIdx: null, range: null };
 
     // 16x16 Double Chevron Icon
     const DOUBLE_CHEVRON_SVG = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -548,12 +558,30 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         try {
             // Load UI state for this project
             const rawUi = localStorage.getItem(getProjectUiKey(ACTIVE_PROJECT_ID));
+            let parsedUi = null;
             if (rawUi) {
-                try { UI_STATE = Object.assign(UI_STATE, JSON.parse(rawUi)); } catch(e) {}
+                try { parsedUi = JSON.parse(rawUi); } catch (e) { parsedUi = null; }
+            }
+
+            if (parsedUi && typeof parsedUi === 'object') {
+                // Start from the shipped defaults so a project can never inherit another
+                // project's toggles, then layer this project's saved state on top.
+                UI_STATE = Object.assign(createDefaultUiState(), parsedUi);
+
+                // One-time defaults migration: when the shipped defaults change (v1.23 made
+                // Bottom: ON and Rails: ON the defaults) a state saved under older defaults
+                // adopts them ONCE. From then on the user's own toggles are respected, and
+                // this only ever writes the UI state key - never the list.
+                if (!(parsedUi.defaultsVersion >= UI_STATE_DEFAULTS_VERSION)) {
+                    const shipped = createDefaultUiState();
+                    UI_STATE.completedAtBottom = shipped.completedAtBottom;
+                    UI_STATE.nestStyle = shipped.nestStyle;
+                    UI_STATE.defaultsVersion = shipped.defaultsVersion;
+                    saveUiStateOnly();
+                    lpTrace('ui state migrated', 'defaults v' + UI_STATE_DEFAULTS_VERSION + ': Bottom ON, Rails ON');
+                }
             } else {
-                UI_STATE.sections = {};
-                UI_STATE.branches = {};
-                UI_STATE.notesOpen = {};
+                UI_STATE = createDefaultUiState();
             }
 
             applyNestingModeClass();
@@ -699,6 +727,17 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     }
 
     window.lpStorageReport = lpStorageReport;
+
+    // Writes ONLY the per-project UI state key. Used on the LOAD path, where TASKS_DATA may
+    // still hold another project's tasks - calling saveState() there would write those tasks
+    // into this project's list key.
+    function saveUiStateOnly() {
+        try {
+            localStorage.setItem(getProjectUiKey(ACTIVE_PROJECT_ID), JSON.stringify(UI_STATE));
+        } catch (e) {
+            console.warn('[List Puncher] UI state save failed:', e);
+        }
+    }
 
     function saveState() {
         try {
@@ -1674,6 +1713,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
                                 <button type="button" class="btn-icon" title="Outdent (Shift Left)" onclick="changeSubtreeLevel(${realIdx}, -1)">⇤</button>
                                 <button type="button" class="btn-icon" title="Indent (Nest Right)" onclick="changeSubtreeLevel(${realIdx}, 1)">⇥</button>
                                 <button type="button" class="btn-icon add-btn" title="Add subtask under this item" onclick="addSubtaskToBranch(${realIdx})">${PLUS_ADD_SVG_ICON}</button>
+                                ${hasChildren ? `<button type="button" class="btn-icon check-all-btn" title="Check this task and all ${childCount} sub-task(s) in its branch (asks first; click again to clear them)" onclick="confirmBranchCheckAll(${realIdx})">${CHECK_ALL_SVG_ICON}</button>` : ''}
                                 <button type="button" class="btn-icon copy-btn" title="Copy this task and its branch (List Puncher format)" onclick="copyTaskBranch(${realIdx})">${COPY_SVG_ICON}</button>
                                 <button type="button" class="btn-icon paste-btn" title="Paste subtasks into this branch (List Puncher format)" onclick="openYamlModal('branch', ${realIdx})">${PASTE_SUBTASKS_SVG_ICON}</button>
                                 <button type="button" class="btn-icon delete-btn" title="Delete task and branch" onclick="confirmDeleteTask(${realIdx})">✕</button>
@@ -2159,6 +2199,49 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
             : `✓ Completed ${tasks.length} task(s) in "${secTitle}"${movedToBottom ? ' - moved to the bottom' : ''}`);
     }
 
+    // True when every task of the milestone that owns taskIdx is checked (used only to word
+    // the toast after a branch Check All - the milestone may have jumped to the bottom).
+    function isMilestoneCompleteFor(taskIdx) {
+        for (let i = taskIdx; i >= 0; i--) {
+            if (TASKS_DATA[i].level === 0) {
+                const range = getSectionRange(i);
+                return TASKS_DATA.slice(range.start + 1, range.start + range.count).every(t => t.checked);
+            }
+        }
+        return false;
+    }
+
+    // Performs the branch change the user confirmed. Mirrors applySectionCheckAll: the
+    // milestone Check All and the branch Check All share the same toggle semantics
+    // (none/some checked -> check all; all checked -> clear all).
+    function applyBranchCheckAll(branchIdx) {
+        const task = TASKS_DATA[branchIdx];
+        if (!task || task.level === 0) return;
+
+        const range = getSubtreeRange(branchIdx);
+        const branchTasks = TASKS_DATA.slice(range.start, range.start + range.count);
+        if (!branchTasks.length) return;
+
+        const allDone = branchTasks.every(t => t.checked);
+        branchTasks.forEach(t => { t.checked = !allDone; });
+
+        executeAutoSave();
+        renderAll();
+
+        // Follow the branch: with "Bottom: ON" the whole milestone jumps to the end of the
+        // deck when this branch was its last incomplete piece, so scroll to the row itself
+        // (it lives inside whichever deck the milestone now occupies).
+        const row = document.querySelector(`.task-row[data-index="${branchIdx}"]`);
+        if (row && typeof row.scrollIntoView === 'function') {
+            row.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        }
+
+        const movedToBottom = !allDone && Boolean(UI_STATE.completedAtBottom) && isMilestoneCompleteFor(branchIdx);
+        showToast(allDone
+            ? `↩️ Cleared ${branchTasks.length} task(s) in "${task.title}"`
+            : `✓ Completed ${branchTasks.length} task(s) in "${task.title}"${movedToBottom ? ' - milestone moved to the bottom' : ''}`);
+    }
+
     function copySectionAsYaml(headerIdx) {
         if (!TASKS_DATA[headerIdx] || TASKS_DATA[headerIdx].level !== 0) return;
 
@@ -2279,9 +2362,40 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         });
     }
 
+    // Branch-level Check/Uncheck All: the clicked task ITSELF plus every sub-task nested
+    // under it (getSubtreeRange covers both). Same contract as the milestone button - it
+    // asks first, names the counts, and the confirm button flips to "Uncheck All" when the
+    // whole branch is already complete.
+    function confirmBranchCheckAll(branchIdx) {
+        const task = TASKS_DATA[branchIdx];
+        if (!task || task.level === 0) return;
+
+        const range = getSubtreeRange(branchIdx);
+        const branchTasks = TASKS_DATA.slice(range.start, range.start + range.count);
+        if (branchTasks.length < 2) {
+            showToast('This task has no sub-tasks - use its checkbox.');
+            return;
+        }
+
+        const completed = branchTasks.filter(t => t.checked).length;
+        const allDone = (completed === branchTasks.length);
+        const progress = `<br><span style="color:var(--text-secondary);">${completed} of ${branchTasks.length} task(s) in this branch are currently complete.</span>`;
+
+        CONFIRM_CONTEXT = { type: 'checkallbranch', branchIdx };
+
+        openConfirmModal({
+            title: allDone ? '↩️ Confirm Uncheck All' : '✓ Confirm Check All',
+            bodyHtml: (allDone
+                ? `Uncheck <strong>this task and its ${branchTasks.length - 1} sub-task(s)</strong> under <strong>"${escapeHtml(task.title)}"</strong>?`
+                : `Check <strong>this task and its ${branchTasks.length - 1} sub-task(s)</strong> under <strong>"${escapeHtml(task.title)}"</strong> as complete?`) + progress,
+            confirmLabel: allDone ? '↩️ Uncheck All' : '✓ Check All',
+            accent: true
+        });
+    }
+
     function closeConfirmModal() {
         document.getElementById('deleteModal').classList.remove('open');
-        CONFIRM_CONTEXT = { type: null, targetIndex: null, headerIdx: null, range: null };
+        CONFIRM_CONTEXT = { type: null, targetIndex: null, headerIdx: null, branchIdx: null, range: null };
     }
 
     function executeConfirmedAction() {
@@ -2305,6 +2419,11 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
             const headerIdx = ctx.headerIdx;
             closeConfirmModal();
             applySectionCheckAll(headerIdx);
+            return;
+        } else if (ctx.type === 'checkallbranch') {
+            const branchIdx = ctx.branchIdx;
+            closeConfirmModal();
+            applyBranchCheckAll(branchIdx);
             return;
         }
 
