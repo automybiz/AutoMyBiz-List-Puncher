@@ -144,6 +144,10 @@ model already knows (Markdown checkboxes). 1.14/1.15 briefly wrote a strict-YAML
   task checkbox) must FOLLOW the section it moved (`scrollIntoView`), otherwise the section looks like it vanished.
   **Because the render order can differ from `TASKS_DATA` order, every section action and the section drag/drop
   take the section's DATA index (`sec.headerIndex` / `data-header-index`) - never the render position (`sIdx`).**
+  When BOTH groups exist, `renderAll()` draws a single `<hr class="section-group-separator">` before the first
+  completed deck, and the completed group's `#` badge numbering **restarts at 1** (`displayNumber` = render index
+  minus `completedGroupStart` + 1). If every milestone is complete there is no reorder, so no rule and continuous
+  1..N numbering. The `data-header-index` on the decks always stays the DATA index regardless of the grouping.
 
 **Cascade rules (learned the hard way):**
 1. **State classes live on `<body>`.** Because of that, they must be written as ONE compound selector:
@@ -302,6 +306,8 @@ Always tell the owner to hard-refresh and how to confirm the live build.
 | Completing a milestone with Bottom: ON | It jumps to the end of the deck and is renumbered, so it looks like the section vanished (and a follow-up click can land on a different section) | Follow it with `scrollIntoView()` and say "moved to the bottom" in the toast |
 | Passing the RENDER position (`sIdx`) to a section action | With Bottom: ON the render order no longer matches `TASKS_DATA`, so the action hits a different milestone (Check All cleared the wrong section) | Section actions + section drag/drop take `sec.headerIndex` / `data-header-index`; never `sIdx` |
 | A bulk action with no confirmation | One stray click rewrites a long mixed list, and the user has to remember what was checked | Bulk actions confirm first through the shared modal (`openConfirmModal`), naming the count and the current progress |
+| Calling a helper that does not exist (e.g. a renamed permission check) inside `initApp` | The `ReferenceError` aborts `initApp` **before** the load path, so the saved list is never read back and the app looks like it "never saves" (the data is in `localStorage` the whole time - see the `save OK` trace lines) | Evaluate permissions once (`const perms = evaluatePermissions()`) and use `perms.*`; keep a static "no calls to undeclared functions" check in the harness |
+| Grouping the completed milestones without a visual + numbering boundary | Completed milestones under the active ones read as a continuation of the list, and the numbers look wrong ("#1 became #13") | One `<hr class="section-group-separator">` between the groups and restart the `#` badges at 1 inside the completed group |
 
 ---
 

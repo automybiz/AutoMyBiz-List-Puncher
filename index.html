@@ -15,7 +15,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
     
     <!-- Separated Master Stylesheet (Zero Prism Crash) - version query busts the GitHub Pages 10min cache -->
-    <link rel="stylesheet" href="index.css?v=1.21">
+    <link rel="stylesheet" href="index.css?v=1.22">
 
     <script>
     /* Universal Dark Reader Kill Switch (Rule 9) */
@@ -249,7 +249,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     // =========================================================================
     const AUTOSAVE_DELAY_MS = 500;
     const INDENT_SPACES_PER_LEVEL = 2;
-    const APP_BUILD = '1.21'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
+    const APP_BUILD = '1.22'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
     const DEFAULT_PROJECT_ID = 'default_onboarding';
     const DEFAULT_PROJECT_NAME = 'Client Onboarding';
 
@@ -1183,7 +1183,12 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     async function initApp() {
         document.getElementById('clientBadge').innerText = CLIENT_NAME;
 
-        if (!checkIsEditor()) {
+        // Evaluate permissions ONCE, up front. (This used to call a permission
+        // helper that no longer exists, which threw and aborted initApp before the
+        // saved list was ever loaded - the app then looked like it "never saves".)
+        const perms = evaluatePermissions();
+
+        if (!perms.isEditor) {
             document.body.classList.add('is-viewer-mode');
             document.getElementById('clientBadge').innerText = `${CLIENT_NAME} (Viewer Mode)`;
         }
@@ -1192,7 +1197,6 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         initModals();
         guardAgainstStaleStylesheet();
 
-        const perms = evaluatePermissions();
         updatePermissionsUI(perms);
 
         if (!perms.isViewer) {
@@ -1430,7 +1434,9 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
             }
         });
 
-        // Completed to Bottom Engine
+        // Completed to Bottom Engine. Completed milestones are grouped at the end,
+        // separated by a rule, and their #numbering RESTARTS at 1 for the group.
+        let completedGroupStart = -1;
         if (UI_STATE.completedAtBottom) {
             const activeSections = [];
             const completedSections = [];
@@ -1447,9 +1453,22 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
             });
 
             sections = [...activeSections, ...completedSections];
+
+            // Only worth a separator when BOTH groups exist.
+            if (activeSections.length && completedSections.length) {
+                completedGroupStart = activeSections.length;
+            }
         }
 
         sections.forEach((sec, sIdx) => {
+            const inCompletedGroup = (completedGroupStart !== -1 && sIdx >= completedGroupStart);
+
+            if (sIdx === completedGroupStart) {
+                const groupRule = document.createElement('hr');
+                groupRule.className = 'section-group-separator';
+                groupRule.title = 'Completed milestones below';
+                deckContainer.appendChild(groupRule);
+            }
             const secId = sec.header.id || generateSlugId('sec', sec.header.title, sec.headerIndex);
             sec.header.id = secId;
 
@@ -1467,9 +1486,11 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
             deck.addEventListener('dragleave', handleSectionDragLeave);
             deck.addEventListener('drop', handleSectionDrop);
 
-            // Dynamic Milestone Number Badge (#1, #2, #3)
+            // Dynamic Milestone Number Badge (#1, #2, #3). The completed group shown
+            // under the separator restarts its numbering at #1.
+            const displayNumber = inCompletedGroup ? (sIdx - completedGroupStart + 1) : (sIdx + 1);
             const autoNumberBadgeHtml = UI_STATE.autoNumber 
-                ? `<span class="section-number-badge">#${sIdx + 1}</span>` 
+                ? `<span class="section-number-badge">#${displayNumber}</span>` 
                 : '';
 
             // Accordion Section Header

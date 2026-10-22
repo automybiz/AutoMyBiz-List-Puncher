@@ -33,7 +33,7 @@
     --indent-step: 22px;
 
     /* Build marker: lets the app detect a stale cached stylesheet (compared against APP_BUILD in index.html) */
-    --lp-css-build: "1.21";
+    --lp-css-build: "1.22";
 
     --completed-opacity: 0.42;
 
@@ -518,6 +518,14 @@ body {
 .section-deck.section-dragging {
     opacity: 0.35;
     border: 1.5px dashed var(--accent-cyan);
+}
+
+/* Rule that separates the active milestones from the completed group (Bottom: ON) */
+.section-group-separator {
+    border: none;
+    border-top: 1px dashed var(--border-color);
+    margin: 18px 0 12px;
+    opacity: 0.75;
 }
 
 /* Original continuous beam restored (v1.13): the FX throttle that stepped and
