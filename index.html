@@ -15,7 +15,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
     
     <!-- Separated Master Stylesheet (Zero Prism Crash) - version query busts the GitHub Pages 10min cache -->
-    <link rel="stylesheet" href="index.css?v=1.19">
+    <link rel="stylesheet" href="index.css?v=1.20">
 
     <script>
     /* Universal Dark Reader Kill Switch (Rule 9) */
@@ -249,7 +249,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     // =========================================================================
     const AUTOSAVE_DELAY_MS = 500;
     const INDENT_SPACES_PER_LEVEL = 2;
-    const APP_BUILD = '1.19'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
+    const APP_BUILD = '1.20'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
     const DEFAULT_PROJECT_ID = 'default_onboarding';
     const DEFAULT_PROJECT_NAME = 'Client Onboarding';
 
@@ -1364,7 +1364,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         }
 
         sections.forEach((sec, sIdx) => {
-            const secId = sec.header.id || generateSlugId('sec', sec.header.title, sIdx);
+            const secId = sec.header.id || generateSlugId('sec', sec.header.title, sec.headerIndex);
             sec.header.id = secId;
 
             const isCollapsed = Boolean(UI_STATE.sections[secId]);
@@ -1375,7 +1375,6 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
             const deck = document.createElement('div');
             deck.className = 'section-deck ' + (isCollapsed ? 'is-collapsed ' : '') + (allDone ? 'all-tasks-completed' : '');
             deck.id = `deck_${secId}`;
-            deck.dataset.sectionIndex = sIdx;
             deck.dataset.headerIndex = sec.headerIndex;
 
             deck.addEventListener('dragover', handleSectionDragOver);
@@ -1400,7 +1399,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
                     <span class="drag-handle section-drag-handle" 
                           draggable="true" 
                           title="Drag to reorder section card" 
-                          data-section-index="${sIdx}">⋮⋮</span>
+                          data-header-index="${sec.headerIndex}">⋮⋮</span>
                     ${autoNumberBadgeHtml}
                     <input type="text" class="section-title" value="${escapeHtml(sec.header.title)}" 
                            oninput="updateSectionTitle(${sec.headerIndex}, this.value)" 
@@ -1408,19 +1407,23 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
                 </div>
                 <div class="section-meta-right">
                     <div class="section-header-actions" onclick="event.stopPropagation();">
-                        <button type="button" class="btn-icon sec-action-btn" title="Add task to this milestone" onclick="quickAddTaskToSection(${sIdx})">
+                        <!-- Every section action gets the section's TASKS_DATA header index
+                             (sec.headerIndex), NEVER the render position (sIdx): with
+                             "Bottom: ON" completed milestones are re-rendered at the end,
+                             so the render position no longer matches the data order. -->
+                        <button type="button" class="btn-icon sec-action-btn" title="Add task to this milestone" onclick="quickAddTaskToSection(${sec.headerIndex})">
                             ${PLUS_ADD_SVG_ICON}
                         </button>
-                        <button type="button" class="btn-icon sec-action-btn" title="Copy this milestone (List Puncher format)" onclick="copySectionAsYaml(${sIdx})">
+                        <button type="button" class="btn-icon sec-action-btn" title="Copy this milestone (List Puncher format)" onclick="copySectionAsYaml(${sec.headerIndex})">
                             ${COPY_SVG_ICON}
                         </button>
-                        <button type="button" class="btn-icon sec-action-btn" title="Paste tasks into this milestone (List Puncher format)" onclick="openYamlModal('section', ${sIdx})">
+                        <button type="button" class="btn-icon sec-action-btn" title="Paste tasks into this milestone (List Puncher format)" onclick="openYamlModal('section', ${sec.headerIndex})">
                             ${PASTE_SUBTASKS_SVG_ICON}
                         </button>
-                        <button type="button" class="btn-icon sec-action-btn check-all-btn" title="Check all tasks in this milestone (click again to clear them all)" onclick="toggleSectionComplete(${sIdx})">
+                        <button type="button" class="btn-icon sec-action-btn check-all-btn" title="Check all tasks in this milestone (click again to clear them all)" onclick="toggleSectionComplete(${sec.headerIndex})">
                             ${CHECK_ALL_SVG_ICON}
                         </button>
-                        <button type="button" class="btn-icon sec-action-btn delete-btn" title="Delete milestone and all its tasks" onclick="confirmDeleteSection(${sIdx})">✕</button>
+                        <button type="button" class="btn-icon sec-action-btn delete-btn" title="Delete milestone and all its tasks" onclick="confirmDeleteSection(${sec.headerIndex})">✕</button>
                     </div>
 
                     <span class="section-counter-badge ${allDone ? 'all-done' : ''}">
@@ -1468,7 +1471,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
 
             const list = document.createElement('div');
             list.className = 'task-list';
-            list.dataset.sectionIndex = sIdx;
+            list.dataset.headerIndex = sec.headerIndex;
 
             // Build hierarchical tree for unified indentation
             const rootNodes = [];
@@ -1937,7 +1940,10 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         }
     }
 
-    function quickAddTaskToSection(sectionIndex) {
+    // headerIdx = the section's index in TASKS_DATA (stable), never a render position.
+    function quickAddTaskToSection(headerIdx) {
+        if (!TASKS_DATA[headerIdx] || TASKS_DATA[headerIdx].level !== 0) return;
+
         const newTask = {
             visible: true,
             id: generateSlugId('task', 'New Task', TASKS_DATA.length + 1),
@@ -1949,17 +1955,8 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
             notes: ''
         };
 
-        let insertAt = TASKS_DATA.length;
-        let currentSec = 0;
-        for (let i = 0; i < TASKS_DATA.length; i++) {
-            if (TASKS_DATA[i].level === 0) {
-                if (currentSec === sectionIndex + 1) {
-                    insertAt = i;
-                    break;
-                }
-                currentSec++;
-            }
-        }
+        const range = getSectionRange(headerIdx);
+        const insertAt = range.start + range.count;   // end of that milestone
 
         TASKS_DATA.splice(insertAt, 0, newTask);
         executeAutoSave();
@@ -2021,14 +2018,8 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     // the tasks inside them, so this only touches the tasks of THIS milestone:
     //   none or some checked -> check them all
     //   all checked          -> clear them all
-    function toggleSectionComplete(sectionIndex) {
-        const sectionHeaderIndices = [];
-        TASKS_DATA.forEach((t, i) => {
-            if (t.level === 0) sectionHeaderIndices.push(i);
-        });
-
-        const headerIdx = sectionHeaderIndices[sectionIndex];
-        if (headerIdx === undefined) return;
+    function toggleSectionComplete(headerIdx) {
+        if (!TASKS_DATA[headerIdx] || TASKS_DATA[headerIdx].level !== 0) return;
 
         const range = getSectionRange(headerIdx);
         const tasks = TASKS_DATA.slice(range.start, range.start + range.count).filter(t => t.level > 0);
@@ -2061,13 +2052,9 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
             : `✓ Completed ${tasks.length} task(s) in "${secTitle}"${movedToBottom ? ' - moved to the bottom' : ''}`);
     }
 
-    function copySectionAsYaml(sectionIndex) {
-        const sectionHeaderIndices = [];
-        TASKS_DATA.forEach((t, i) => {
-            if (t.level === 0) sectionHeaderIndices.push(i);
-        });
+    function copySectionAsYaml(headerIdx) {
+        if (!TASKS_DATA[headerIdx] || TASKS_DATA[headerIdx].level !== 0) return;
 
-        const headerIdx = sectionHeaderIndices[sectionIndex];
         const range = getSectionRange(headerIdx);
         const sectionSlice = TASKS_DATA.slice(range.start, range.start + range.count);
         const yamlStr = formatTasksSliceAsYaml(sectionSlice);
@@ -2122,17 +2109,13 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         document.getElementById('deleteModal').classList.add('open');
     }
 
-    function confirmDeleteSection(sectionIndex) {
-        const sectionHeaderIndices = [];
-        TASKS_DATA.forEach((t, i) => {
-            if (t.level === 0) sectionHeaderIndices.push(i);
-        });
+    function confirmDeleteSection(headerIdx) {
+        if (!TASKS_DATA[headerIdx] || TASKS_DATA[headerIdx].level !== 0) return;
 
-        const headerIdx = sectionHeaderIndices[sectionIndex];
         const secTitle = TASKS_DATA[headerIdx].title;
         const range = getSectionRange(headerIdx);
 
-        DELETE_CONTEXT = { type: 'section', targetIndex: sectionIndex, headerIdx, range };
+        DELETE_CONTEXT = { type: 'section', headerIdx, range };
 
         const bodyEl = document.getElementById('deleteModalBody');
         bodyEl.innerHTML = `Are you sure you want to permanently delete milestone <strong>"${escapeHtml(secTitle)}"</strong> and all <strong>${range.count - 1} tasks</strong>?`;
@@ -2171,7 +2154,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     // =========================================================================
     function handleSectionDragStart(e) {
         IS_DRAGGING_SECTION = true;
-        DRAGGED_SECTION_INDEX = parseInt(this.dataset.sectionIndex, 10);
+        DRAGGED_SECTION_INDEX = parseInt(this.dataset.headerIndex, 10);
 
         const deck = this.closest('.section-deck');
         if (deck) deck.classList.add('section-dragging');
@@ -2186,7 +2169,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         e.preventDefault();
         e.dataTransfer.dropEffect = 'move';
 
-        const hoverSectionIdx = parseInt(this.dataset.sectionIndex, 10);
+        const hoverSectionIdx = parseInt(this.dataset.headerIndex, 10);
         if (isNaN(hoverSectionIdx) || hoverSectionIdx === DRAGGED_SECTION_INDEX) {
             removeSectionDropIndicator();
             return;
@@ -2229,35 +2212,27 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         e.preventDefault();
         removeSectionDropIndicator();
 
-        const hoverSectionIdx = parseInt(this.dataset.sectionIndex, 10);
-        if (isNaN(hoverSectionIdx) || hoverSectionIdx === DRAGGED_SECTION_INDEX) return;
+        const targetHeaderIdx = parseInt(this.dataset.headerIndex, 10);
+        if (isNaN(targetHeaderIdx) || targetHeaderIdx === DRAGGED_SECTION_INDEX) return;
 
         const rect = this.getBoundingClientRect();
         const midY = rect.top + rect.height / 2;
         const position = (e.clientY < midY) ? 'before' : 'after';
 
-        const sectionHeaderIndices = [];
-        TASKS_DATA.forEach((t, i) => {
-            if (t.level === 0) sectionHeaderIndices.push(i);
-        });
-
-        const sourceHeaderIdx = sectionHeaderIndices[DRAGGED_SECTION_INDEX];
-        const sourceRange = getSectionRange(sourceHeaderIdx);
-
+        // Both values are TASKS_DATA indices, but they shift once the dragged section is
+        // spliced out - so track the drop target by its stable id instead of by position.
+        const targetId = (TASKS_DATA[targetHeaderIdx] || {}).id;
+        const sourceRange = getSectionRange(DRAGGED_SECTION_INDEX);
         const movingSectionTasks = TASKS_DATA.splice(sourceRange.start, sourceRange.count);
 
-        const newHeaderIndices = [];
-        TASKS_DATA.forEach((t, i) => {
-            if (t.level === 0) newHeaderIndices.push(i);
-        });
+        let newTargetIdx = TASKS_DATA.findIndex(t => t.level === 0 && t.id === targetId);
+        if (newTargetIdx === -1) newTargetIdx = Math.max(0, Math.min(targetHeaderIdx, TASKS_DATA.length - 1));
 
-        let targetHeaderIdx = newHeaderIndices[hoverSectionIdx > DRAGGED_SECTION_INDEX ? hoverSectionIdx - 1 : hoverSectionIdx];
-        let insertAt = 0;
-
+        let insertAt;
         if (position === 'before') {
-            insertAt = targetHeaderIdx;
+            insertAt = newTargetIdx;
         } else {
-            const targetRange = getSectionRange(targetHeaderIdx);
+            const targetRange = getSectionRange(newTargetIdx);
             insertAt = targetRange.start + targetRange.count;
         }
 
@@ -3182,17 +3157,13 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
             const tasksOnly = parsed.filter(t => t.level > 0);
 
             if (tasksOnly.length > 0) {
-                let insertAt = TASKS_DATA.length;
-                let currentSec = 0;
-                for (let i = 0; i < TASKS_DATA.length; i++) {
-                    if (TASKS_DATA[i].level === 0) {
-                        if (currentSec === targetIndex + 1) {
-                            insertAt = i;
-                            break;
-                        }
-                        currentSec++;
-                    }
-                }
+                // targetIndex is the milestone's TASKS_DATA header index (stable), so the
+                // new tasks go at the END of that milestone's own range.
+                const hasTarget = (targetIndex !== null && targetIndex !== undefined
+                    && TASKS_DATA[targetIndex] && TASKS_DATA[targetIndex].level === 0);
+                const targetRange = hasTarget ? getSectionRange(targetIndex) : null;
+                const insertAt = targetRange ? targetRange.start + targetRange.count : TASKS_DATA.length;
+
                 TASKS_DATA.splice(insertAt, 0, ...tasksOnly);
                 executeAutoSave();
                 renderAll();
