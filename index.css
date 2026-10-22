@@ -1307,7 +1307,7 @@ body {
     border: 1.5px solid var(--border-color);
     border-radius: 12px;
     width: 100%;
-    max-width: 820px;
+    max-width: 1033px;
     height: 82vh;
     display: flex;
     flex-direction: column;
@@ -1409,7 +1409,7 @@ body {
 }
 
 .modal-hint {
-    font-size: 0.75rem;
+    font-size: 1rem;
     color: var(--text-muted);
 }
 
