@@ -15,7 +15,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
     
     <!-- Separated Master Stylesheet (Zero Prism Crash) - version query busts the GitHub Pages 10min cache -->
-    <link rel="stylesheet" href="index.css?v=1.23">
+    <link rel="stylesheet" href="index.css?v=1.24">
 
     <script>
     /* Universal Dark Reader Kill Switch (Rule 9) */
@@ -61,11 +61,34 @@
 
     <!-- Header Control Bar -->
     <div class="header-card">
-        <!-- Dual Status Badges Cluster (Live Auto-Save & Mode Pill) -->
+        <!-- Top-right cluster: project dropdown, then the mode pill, then the storage pill.
+             Right-aligned as one flex row (anchored to the card's top-right corner). -->
         <div class="header-pills-cluster">
+            <!-- Multi-Project Switcher Dropdown (Unlimited Lists per Business) -->
+            <div class="project-switcher-wrap">
+                <button type="button" class="project-select-btn" id="btnProjectSelect" onclick="toggleProjectDropdown()" title="Switch or manage project lists">
+                    <span>📁</span>
+                    <span class="project-select-label" id="currentProjectLabel">Client Onboarding</span>
+                    <span style="font-size: 10px; margin-left: 2px;">▾</span>
+                </button>
+                <div class="project-dropdown-menu" id="projectDropdownMenu">
+                    <div id="projectItemsList"></div>
+                    <div class="project-menu-divider"></div>
+                    <div class="project-action-item" onclick="promptCreateProject()">
+                        <span>➕</span> <span>New Project List...</span>
+                    </div>
+                    <div class="project-action-item" onclick="promptRenameProject()">
+                        <span>✏️</span> <span>Rename Active List...</span>
+                    </div>
+                    <div class="project-action-item delete-proj" onclick="promptDeleteProject()">
+                        <span>✕</span> <span>Delete Active List</span>
+                    </div>
+                </div>
+            </div>
+
             <!-- Mode Status Pill -->
             <div class="header-pill-wrap">
-                <button id="modeStatusPill" class="status-pill status-editor" onclick="openYamlModal('full')" title="Click to view permissions &amp; rules">
+                <button id="modeStatusPill" class="status-pill status-editor" onclick="openYamlModal('full')" aria-label="Click to view permissions and rules">
                     <span id="modeIcon">✏️</span>
                     <span id="modeText">Editor Mode</span>
                 </button>
@@ -91,7 +114,7 @@
 
             <!-- Live Auto-Save Storage Pill -->
             <div class="header-pill-wrap">
-                <button id="storageStatusPill" class="status-pill status-saved" onclick="openYamlModal('full')" title="Click to view &amp; edit the full list">
+                <button id="storageStatusPill" class="status-pill status-saved" onclick="openYamlModal('full')" aria-label="Click to view and edit the full list">
                     <span id="pillIcon">💾</span>
                     <span id="pillText">LIST Storage</span>
                 </button>
@@ -111,28 +134,6 @@
             <div class="brand-title-wrap">
                 <div class="brand-title">
                     ⚡ List Puncher <span class="cyan">// Client Onboarding</span>
-                </div>
-                
-                <!-- Multi-Project Switcher Dropdown (Unlimited Lists per Business) -->
-                <div class="project-switcher-wrap">
-                    <button type="button" class="project-select-btn" id="btnProjectSelect" onclick="toggleProjectDropdown()" title="Switch or manage project lists">
-                        <span>📁</span>
-                        <span class="project-select-label" id="currentProjectLabel">Client Onboarding</span>
-                        <span style="font-size: 10px; margin-left: 2px;">▾</span>
-                    </button>
-                    <div class="project-dropdown-menu" id="projectDropdownMenu">
-                        <div id="projectItemsList"></div>
-                        <div class="project-menu-divider"></div>
-                        <div class="project-action-item" onclick="promptCreateProject()">
-                            <span>➕</span> <span>New Project List...</span>
-                        </div>
-                        <div class="project-action-item" onclick="promptRenameProject()">
-                            <span>✏️</span> <span>Rename Active List...</span>
-                        </div>
-                        <div class="project-action-item delete-proj" onclick="promptDeleteProject()">
-                            <span>✕</span> <span>Delete Active List</span>
-                        </div>
-                    </div>
                 </div>
 
                 <span class="client-badge" id="clientBadge">Client Workspace</span>
@@ -186,6 +187,25 @@
             <div class="progress-track">
                 <div class="progress-fill" id="progressFill"></div>
             </div>
+        </div>
+
+        <!-- Container width: the ⇔ grip on this card's right edge is the primary control; this
+             readout + reset is the companion one (and the discoverable one). -->
+        <div class="width-control">
+            <span class="width-control-label">⇔ Container Width</span>
+            <span class="width-readout" id="widthReadout">980px</span>
+            <button type="button" class="btn-action btn-sm" onclick="resetContainerWidth()" title="Reset the container width to 980px">↺ Reset</button>
+            <span class="width-control-hint">Drag the ⇔ grip on the right edge of this card to resize (double-click the grip to reset)</span>
+        </div>
+
+        <!-- Container width drag grip. Attached to the header card, which has no animated border,
+             so it can never interfere with the deck border animations. -->
+        <div class="container-resize-handle" id="containerResizeHandle" role="separator" aria-orientation="vertical" tabindex="0"
+             aria-label="Drag to resize the container width. Double-click to reset."
+             onpointerdown="handleContainerResizeStart(event)"
+             onkeydown="handleContainerResizeKeydown(event)"
+             ondblclick="resetContainerWidth()">
+            <span class="container-resize-grip">⇔</span>
         </div>
     </div>
 
@@ -249,10 +269,18 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     // =========================================================================
     const AUTOSAVE_DELAY_MS = 500;
     const INDENT_SPACES_PER_LEVEL = 2;
-    const APP_BUILD = '1.23'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
+    const APP_BUILD = '1.24'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
     // Bump whenever the UI_STATE defaults below change: a saved state older than this gets
     // the new defaults applied exactly ONCE (afterwards the user's own toggles win).
     const UI_STATE_DEFAULTS_VERSION = 2;
+    // Browser-local VIEW preferences: the top-settings toggle values + the container width.
+    // Deliberately NOT per-project state - this is how *you* like to look at the app, so it
+    // follows you between project lists and can never change anyone else's layout.
+    const VIEW_PREFS_VERSION = 1;
+    // Container width. The grip on the header card's right edge writes this as a CSS variable,
+    // so resizing never re-renders the list.
+    const CONTAINER_MIN_WIDTH = 600;
+    const CONTAINER_DEFAULT_WIDTH = 980;
     const DEFAULT_PROJECT_ID = 'default_onboarding';
     const DEFAULT_PROJECT_NAME = 'Client Onboarding';
 
@@ -283,22 +311,34 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
 
     // In-memory Task State & Persistent UI State
     let TASKS_DATA = [];
-    // Single source of truth for the shipped UI defaults. Bump UI_STATE_DEFAULTS_VERSION when
-    // anything here changes, so existing saved states adopt the new defaults exactly once.
-    function createDefaultUiState() {
+    // Single source of truth for the shipped VIEW defaults (browser-local, shared by every list).
+    function createDefaultViewPrefs() {
         return {
-            sections: {},
-            branches: {},
-            notesOpen: {},
+            viewPrefsVersion: VIEW_PREFS_VERSION,
+            completedAtBottom: true, // v1.23
             autoNumber: true,
-            completedAtBottom: true, // v1.23: completed milestones group at the bottom
-            nestStyle: 'rails', // 'cards' (Option 2) | 'rails' (Option 1) - v1.23: rails
-            depthColorMode: 'alt', // 'alt' (Staggered by level) | 'solid'
-            defaultsVersion: UI_STATE_DEFAULTS_VERSION // see the migration in loadCurrentProjectData()
+            nestStyle: 'rails', // v1.23
+            depthColorMode: 'alt',
+            containerWidth: null // null = the stylesheet default (980px)
         };
     }
 
+    // Single source of truth for the LIST-shaped UI state (per project). The toggle values come
+    // from the view prefs because every render reads them off UI_STATE - but
+    // projectUiStateSnapshot() strips them again before anything is written to the project key.
+    function createDefaultUiState() {
+        return Object.assign(createDefaultViewPrefs(), {
+            sections: {},
+            branches: {},
+            notesOpen: {},
+            defaultsVersion: UI_STATE_DEFAULTS_VERSION // see loadViewPrefs() for the migration
+        });
+    }
+
     let UI_STATE = createDefaultUiState();
+
+    // Runtime mirror of the browser-local container width (null = stylesheet default).
+    let CONTAINER_WIDTH = null;
 
     // Live Auto-Save Debounce Timer
     let AUTOSAVE_TIMER = null;
@@ -376,6 +416,12 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
 
     function getProjectUiKey(projId) {
         return `list_puncher_${LOCATION_ID}_proj_${projId}_ui_state`;
+    }
+
+    // Browser-local view prefs (toggles + container width) - one record per GHL location,
+    // shared by every project list in this browser.
+    function getViewPrefsKey() {
+        return `list_puncher_${LOCATION_ID}_view_prefs`;
     }
 
     function loadProjectsDirectory() {
@@ -564,29 +610,21 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
             }
 
             if (parsedUi && typeof parsedUi === 'object') {
-                // Start from the shipped defaults so a project can never inherit another
-                // project's toggles, then layer this project's saved state on top.
+                // Start from the shipped defaults so a project can never inherit another project's
+                // collapsed milestones, then layer this project's saved list state on top.
                 UI_STATE = Object.assign(createDefaultUiState(), parsedUi);
-
-                // One-time defaults migration: when the shipped defaults change (v1.23 made
-                // Bottom: ON and Rails: ON the defaults) a state saved under older defaults
-                // adopts them ONCE. From then on the user's own toggles are respected, and
-                // this only ever writes the UI state key - never the list.
-                if (!(parsedUi.defaultsVersion >= UI_STATE_DEFAULTS_VERSION)) {
-                    const shipped = createDefaultUiState();
-                    UI_STATE.completedAtBottom = shipped.completedAtBottom;
-                    UI_STATE.nestStyle = shipped.nestStyle;
-                    UI_STATE.defaultsVersion = shipped.defaultsVersion;
-                    saveUiStateOnly();
-                    lpTrace('ui state migrated', 'defaults v' + UI_STATE_DEFAULTS_VERSION + ': Bottom ON, Rails ON');
-                }
             } else {
                 UI_STATE = createDefaultUiState();
             }
 
+            // The top-settings toggles + container width are browser-local VIEW prefs (shared by
+            // every list), so they are applied on top - and seeded exactly once on first run.
+            loadViewPrefs(parsedUi);
+
             applyNestingModeClass();
             applyDepthColorClass();
             updateHeaderToggleButtonsUI();
+            applyContainerWidth();
 
             // Load the list content for this project
             const projectKey = getProjectYamlKey(ACTIVE_PROJECT_ID);
@@ -728,14 +766,76 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
 
     window.lpStorageReport = lpStorageReport;
 
-    // Writes ONLY the per-project UI state key. Used on the LOAD path, where TASKS_DATA may
-    // still hold another project's tasks - calling saveState() there would write those tasks
-    // into this project's list key.
-    function saveUiStateOnly() {
+    // The per-project key holds ONLY list-shaped state (collapsed milestones, open branches and
+    // notes). The top-settings toggles live in the browser-local view prefs instead, so one
+    // person's layout choice can never change what everybody else sees.
+    function projectUiStateSnapshot() {
+        return {
+            sections: UI_STATE.sections,
+            branches: UI_STATE.branches,
+            notesOpen: UI_STATE.notesOpen,
+            defaultsVersion: UI_STATE_DEFAULTS_VERSION
+        };
+    }
+
+    function readViewPrefs() {
         try {
-            localStorage.setItem(getProjectUiKey(ACTIVE_PROJECT_ID), JSON.stringify(UI_STATE));
+            const raw = localStorage.getItem(getViewPrefsKey());
+            if (!raw) return null;
+            const parsed = JSON.parse(raw);
+            return (parsed && typeof parsed === 'object') ? parsed : null;
         } catch (e) {
-            console.warn('[List Puncher] UI state save failed:', e);
+            return null;
+        }
+    }
+
+    // Writes ONLY the browser-local view prefs record - never the list, never the project state.
+    function saveViewPrefs() {
+        try {
+            localStorage.setItem(getViewPrefsKey(), JSON.stringify({
+                viewPrefsVersion: VIEW_PREFS_VERSION,
+                completedAtBottom: Boolean(UI_STATE.completedAtBottom),
+                autoNumber: Boolean(UI_STATE.autoNumber),
+                nestStyle: UI_STATE.nestStyle,
+                depthColorMode: UI_STATE.depthColorMode,
+                containerWidth: CONTAINER_WIDTH
+            }));
+        } catch (e) {
+            console.warn('[List Puncher] View prefs save failed:', e);
+        }
+    }
+
+    // Applies the browser-local view prefs on top of the per-project state. The first time it runs
+    // for a location it SEEDS the record: from this project's saved toggles when they were already
+    // stamped with the current defaults version (a deliberate choice is carried over), otherwise
+    // from the shipped defaults (so an upgrade to new defaults still happens exactly once).
+    function loadViewPrefs(projectUiState) {
+        const shipped = createDefaultViewPrefs();
+        let prefs = readViewPrefs();
+        let seeded = false;
+
+        if (!prefs) {
+            const hasCurrentToggles = Boolean(projectUiState && projectUiState.defaultsVersion >= UI_STATE_DEFAULTS_VERSION);
+            prefs = Object.assign(shipped, hasCurrentToggles ? {
+                completedAtBottom: Boolean(projectUiState.completedAtBottom),
+                autoNumber: Boolean(projectUiState.autoNumber),
+                nestStyle: projectUiState.nestStyle || shipped.nestStyle,
+                depthColorMode: projectUiState.depthColorMode || shipped.depthColorMode
+            } : {});
+            seeded = true;
+        }
+
+        UI_STATE.completedAtBottom = prefs.completedAtBottom !== undefined ? Boolean(prefs.completedAtBottom) : shipped.completedAtBottom;
+        UI_STATE.autoNumber = prefs.autoNumber !== undefined ? Boolean(prefs.autoNumber) : shipped.autoNumber;
+        UI_STATE.nestStyle = prefs.nestStyle || shipped.nestStyle;
+        UI_STATE.depthColorMode = prefs.depthColorMode || shipped.depthColorMode;
+        CONTAINER_WIDTH = clampContainerWidth(prefs.containerWidth);
+
+        if (seeded) {
+            saveViewPrefs();
+            lpTrace('view prefs seeded', 'key=' + getViewPrefsKey() + '  Bottom=' + UI_STATE.completedAtBottom
+                + '  Rails=' + (UI_STATE.nestStyle === 'rails' ? 'ON' : 'OFF')
+                + '  width=' + (CONTAINER_WIDTH ? CONTAINER_WIDTH + 'px' : 'default'));
         }
     }
 
@@ -743,7 +843,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         try {
             const fullYaml = formatTasksSliceAsYaml(TASKS_DATA);
             localStorage.setItem(getProjectYamlKey(ACTIVE_PROJECT_ID), fullYaml);
-            localStorage.setItem(getProjectUiKey(ACTIVE_PROJECT_ID), JSON.stringify(UI_STATE));
+            localStorage.setItem(getProjectUiKey(ACTIVE_PROJECT_ID), JSON.stringify(projectUiStateSnapshot()));
             localStorage.setItem('list_puncher_yaml', fullYaml); // Legacy backup + cross-key safety net
 
             // Only trace real changes - autosave runs on every keystroke (debounced).
@@ -1234,6 +1334,8 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
 
         fetchAndApplyLiveTheme();
         initModals();
+        initContainerResize();
+        initTooltips();
         guardAgainstStaleStylesheet();
 
         updatePermissionsUI(perms);
@@ -1275,8 +1377,225 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
 
     // (FX throttle removed in v1.13 - the card FX now animates exactly as it originally did)
 
+    // =========================================================================
+    // CONTAINER WIDTH ENGINE (drag the grip on the header card's right edge)
+    // =========================================================================
+    // The width is applied as ONE CSS variable on <html>, so dragging never re-renders the list.
+    // The container is centred, which means its right edge moves at half the rate of its width:
+    // dragging the edge by D px widens the card by 2D px. That is exactly why a drag handle feels
+    // 1:1 while a slider whose own track grows with the value it controls does not.
+    let RESIZE_DRAG = null;
+
+    function maxContainerWidth() {
+        // body keeps 16px of padding on each side, so the widest a card can be is the viewport
+        // minus both gutters. clientWidth excludes the scrollbar (100vw would not).
+        const viewport = document.documentElement.clientWidth || window.innerWidth || CONTAINER_DEFAULT_WIDTH;
+        return Math.max(CONTAINER_MIN_WIDTH, viewport - 32);
+    }
+
+    function clampContainerWidth(px) {
+        const n = Number(px);
+        if (px === null || px === undefined || px === '' || !isFinite(n) || n <= 0) return null;
+        return Math.round(Math.min(maxContainerWidth(), Math.max(CONTAINER_MIN_WIDTH, n)));
+    }
+
+    function applyContainerWidth() {
+        const root = document.documentElement;
+        if (CONTAINER_WIDTH) {
+            root.style.setProperty('--lp-container-max', CONTAINER_WIDTH + 'px');
+        } else {
+            root.style.removeProperty('--lp-container-max'); // stylesheet default (980px)
+        }
+
+        const readout = document.getElementById('widthReadout');
+        if (readout) readout.innerText = (CONTAINER_WIDTH || CONTAINER_DEFAULT_WIDTH) + 'px';
+
+        const handle = document.getElementById('containerResizeHandle');
+        if (handle) handle.style.display = (maxContainerWidth() > CONTAINER_MIN_WIDTH) ? '' : 'none';
+    }
+
+    function setContainerWidth(px, persist) {
+        CONTAINER_WIDTH = clampContainerWidth(px);
+        applyContainerWidth(); // CSS variable only - never renderAll(): resizing must not re-render
+        if (persist) saveViewPrefs();
+    }
+
+    function resetContainerWidth() {
+        CONTAINER_WIDTH = null;
+        applyContainerWidth();
+        saveViewPrefs();
+        showToast(`↺ Container width reset to ${CONTAINER_DEFAULT_WIDTH}px`);
+    }
+
+    function initContainerResize() {
+        const handle = document.getElementById('containerResizeHandle');
+        if (!handle) return;
+
+        handle.addEventListener('pointerdown', handleContainerResizeStart);
+        handle.addEventListener('pointermove', handleContainerResizeMove);
+        handle.addEventListener('pointerup', handleContainerResizeEnd);
+        handle.addEventListener('pointercancel', handleContainerResizeEnd);
+        handle.addEventListener('dblclick', resetContainerWidth);
+
+        // A window resize can shrink the viewport under a stored width, so re-clamp it (and
+        // recompute whether the grip is usable at all) without touching the stored preference.
+        window.addEventListener('resize', () => {
+            if (RESIZE_DRAG) return;
+            if (CONTAINER_WIDTH) CONTAINER_WIDTH = clampContainerWidth(CONTAINER_WIDTH);
+            applyContainerWidth();
+        });
+    }
+
+    function handleContainerResizeStart(e) {
+        if (e.button !== undefined && e.button !== 0) return;
+        RESIZE_DRAG = {
+            startX: e.clientX,
+            startWidth: CONTAINER_WIDTH || Math.min(CONTAINER_DEFAULT_WIDTH, maxContainerWidth())
+        };
+        document.body.classList.add('is-resizing');
+        if (e.target && e.target.setPointerCapture && e.pointerId !== undefined) {
+            try { e.target.setPointerCapture(e.pointerId); } catch (err) {}
+        }
+        e.preventDefault();
+    }
+
+    // pointermove is already aligned to the animation frame by the browser, so no extra throttle.
+    function handleContainerResizeMove(e) {
+        if (!RESIZE_DRAG) return;
+        setContainerWidth(RESIZE_DRAG.startWidth + (e.clientX - RESIZE_DRAG.startX) * 2, false);
+    }
+
+    function handleContainerResizeEnd() {
+        if (!RESIZE_DRAG) return;
+        RESIZE_DRAG = null;
+        document.body.classList.remove('is-resizing');
+        saveViewPrefs();
+    }
+
+    function handleContainerResizeKeydown(e) {
+        if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+        const step = e.shiftKey ? 100 : 20;
+        const current = CONTAINER_WIDTH || CONTAINER_DEFAULT_WIDTH;
+        setContainerWidth(current + (e.key === 'ArrowRight' ? step : -step), true);
+        e.preventDefault();
+    }
 
 
+
+
+    // =========================================================================
+    // CUSTOM TOOLTIPS (every title="..." attribute becomes a themed JS tooltip)
+    // =========================================================================
+    // No markup had to change: on first hover the native title is migrated to data-tip (plus
+    // aria-label for icon-only controls, so screen readers still get the text) and REMOVED - which
+    // is what stops the browser's plain tooltip from ever appearing. Rows that renderAll() builds
+    // are covered automatically because the handler works on the live DOM.
+    const TOOLTIP_SELECTOR = '[data-tip], [title]';
+    const TOOLTIP_DELAY_MS = 220;
+    let TOOLTIP_TIMER = null;
+    let TOOLTIP_TARGET = null;
+
+    function initTooltips() {
+        if (document.getElementById('lpTooltip')) return;
+
+        const tip = document.createElement('div');
+        tip.id = 'lpTooltip';
+        tip.className = 'lp-tooltip';
+        tip.setAttribute('role', 'tooltip');
+        document.body.appendChild(tip);
+
+        // Convert everything that already exists, so no native tooltip can ever fire.
+        document.querySelectorAll('[title]').forEach(migrateTooltipTitle);
+
+        document.addEventListener('mouseover', handleTooltipEnter, true);
+        document.addEventListener('mouseout', handleTooltipLeave, true);
+        document.addEventListener('focusin', handleTooltipFocus, true);
+        document.addEventListener('focusout', hideTooltip, true);
+        document.addEventListener('pointerdown', hideTooltip, true);
+        window.addEventListener('scroll', hideTooltip, true);
+    }
+
+    function migrateTooltipTitle(el) {
+        if (!el || !el.getAttribute) return '';
+        if (el.hasAttribute('title')) {
+            const text = el.getAttribute('title') || '';
+            el.removeAttribute('title');
+            if (text && !el.hasAttribute('data-tip')) el.setAttribute('data-tip', text);
+            // Only take over the accessible name when the control has no visible text of its own.
+            if (text && !el.hasAttribute('aria-label') && !(el.textContent || '').trim()) {
+                el.setAttribute('aria-label', text);
+            }
+        }
+        return el.getAttribute('data-tip') || '';
+    }
+
+    function tooltipTargetFromEvent(e) {
+        const target = e.target;
+        if (!target || !target.closest) return null;
+        const el = target.closest(TOOLTIP_SELECTOR);
+        // The two header pills already open their own rich popover on hover - leave those alone.
+        if (!el || el.closest('.header-pill-wrap')) return null;
+        return el;
+    }
+
+    function handleTooltipEnter(e) {
+        const el = tooltipTargetFromEvent(e);
+        if (!el || el === TOOLTIP_TARGET) return;
+        clearTimeout(TOOLTIP_TIMER);
+        TOOLTIP_TIMER = setTimeout(() => showTooltip(el), TOOLTIP_DELAY_MS);
+    }
+
+    function handleTooltipLeave(e) {
+        const el = tooltipTargetFromEvent(e);
+        if (!el) return;
+        // Moving between children of the same titled control must not flicker the tooltip.
+        if (e.relatedTarget && el.contains && el.contains(e.relatedTarget)) return;
+        clearTimeout(TOOLTIP_TIMER);
+        hideTooltip();
+    }
+
+    function handleTooltipFocus(e) {
+        const el = tooltipTargetFromEvent(e);
+        if (!el) return;
+        clearTimeout(TOOLTIP_TIMER);
+        showTooltip(el);
+    }
+
+    function showTooltip(el) {
+        const tip = document.getElementById('lpTooltip');
+        const text = migrateTooltipTitle(el);
+        if (!tip || !text) return;
+
+        TOOLTIP_TARGET = el;
+        tip.innerText = text;
+        tip.classList.add('show');
+
+        // Measure, then place: above by default, flipped below when there is no room up top, and
+        // clamped horizontally so a tooltip on an edge control never leaves the viewport.
+        const rect = el.getBoundingClientRect();
+        const box = tip.getBoundingClientRect();
+        const gap = 10;
+        let top = rect.top - box.height - gap;
+        let below = false;
+        if (top < 8) { top = rect.bottom + gap; below = true; }
+
+        const viewportWidth = document.documentElement.clientWidth || window.innerWidth || 0;
+        let left = rect.left + (rect.width / 2) - (box.width / 2);
+        left = Math.max(8, Math.min(left, Math.max(8, viewportWidth - box.width - 8)));
+
+        tip.style.top = Math.round(top) + 'px';
+        tip.style.left = Math.round(left) + 'px';
+        tip.style.setProperty('--lp-tip-arrow-x',
+            Math.round(Math.max(14, Math.min(rect.left + (rect.width / 2) - left, box.width - 14))) + 'px');
+        tip.classList.toggle('below', below);
+    }
+
+    function hideTooltip() {
+        clearTimeout(TOOLTIP_TIMER);
+        TOOLTIP_TARGET = null;
+        const tip = document.getElementById('lpTooltip');
+        if (tip) tip.classList.remove('show');
+    }
 
     // =========================================================================
     // STALE STYLESHEET GUARD
@@ -1447,6 +1766,9 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     // DUAL-ENGINE RENDERER: CARDS (OPTION 2) & RAILS (OPTION 1)
     // =========================================================================
     function renderAll() {
+        // Any open tooltip belongs to a row we are about to replace.
+        hideTooltip();
+
         const deckContainer = document.getElementById('deckContainer');
         deckContainer.innerHTML = '';
 
@@ -1796,7 +2118,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
 
     function toggleNestStyle() {
         UI_STATE.nestStyle = (UI_STATE.nestStyle === 'rails') ? 'cards' : 'rails';
-        saveState();
+        saveViewPrefs();
         applyNestingModeClass();
         updateHeaderToggleButtonsUI();
         renderAll();
@@ -1805,7 +2127,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
 
     function toggleDepthColors() {
         UI_STATE.depthColorMode = (UI_STATE.depthColorMode === 'solid') ? 'alt' : 'solid';
-        saveState();
+        saveViewPrefs();
         applyDepthColorClass();
         updateHeaderToggleButtonsUI();
         renderAll();
@@ -1865,14 +2187,14 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
 
     function toggleCompletedAtBottom() {
         UI_STATE.completedAtBottom = !UI_STATE.completedAtBottom;
-        saveState();
+        saveViewPrefs();
         updateHeaderToggleButtonsUI();
         renderAll();
     }
 
     function toggleAutoNumber() {
         UI_STATE.autoNumber = !UI_STATE.autoNumber;
-        saveState();
+        saveViewPrefs();
         updateHeaderToggleButtonsUI();
         renderAll();
     }

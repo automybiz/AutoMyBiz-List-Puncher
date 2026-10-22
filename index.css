@@ -33,9 +33,12 @@
     --indent-step: 22px;
 
     /* Build marker: lets the app detect a stale cached stylesheet (compared against APP_BUILD in index.html) */
-    --lp-css-build: "1.23";
+    --lp-css-build: "1.24";
 
     --completed-opacity: 0.42;
+
+    /* Container width - the drag grip on the header card writes this (see the width engine) */
+    --lp-container-max: 980px;
 
     /* Staggering colors strictly between Card Border Colors 1 and 2 */
     --card-border-color-1: #0FF;
@@ -67,7 +70,7 @@ body {
 }
 
 .container {
-    max-width: 980px;
+    max-width: var(--lp-container-max, 980px);
     margin: 0 auto;
 }
 
@@ -92,7 +95,7 @@ body {
     gap: 12px;
     border-bottom: 1px solid var(--border-color);
     padding-bottom: 16px;
-    padding-right: 340px; /* Space for top-right status badges */
+    padding-right: 560px; /* Space for the top-right cluster (dropdown + both pills) */
 }
 
 .brand-title-wrap {
@@ -234,6 +237,8 @@ body {
     right: 24px;
     display: flex;
     align-items: center;
+    justify-content: flex-end;
+    flex-wrap: wrap;
     gap: 8px;
     z-index: 10;
 }
@@ -1593,6 +1598,140 @@ body.is-viewer-mode .section-description-view {
     opacity: 1;
 }
 
+/* ==========================================================================
+   Container Width Control (drag grip on the header card + readout/reset row)
+   ========================================================================== */
+.width-control {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px dashed rgba(0, 229, 255, 0.28);
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+}
+
+.width-control-label {
+    font-weight: 700;
+}
+
+.width-readout {
+    font-family: var(--font-mono);
+    font-weight: 700;
+    color: var(--accent-cyan);
+    min-width: 56px;
+}
+
+.width-control-hint {
+    color: var(--text-muted);
+    font-size: 0.72rem;
+}
+
+/* The grip lives on the header card's right edge, so it can never touch the animated deck borders. */
+.container-resize-handle {
+    position: absolute;
+    top: 50%;
+    right: -8px;
+    transform: translateY(-50%);
+    width: 16px;
+    height: 72px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    border: 1px solid transparent;
+    background: rgba(0, 229, 255, 0.05);
+    color: var(--text-muted);
+    cursor: col-resize;
+    opacity: 0.5;
+    touch-action: none;
+    user-select: none;
+    z-index: 20;
+    transition: opacity 0.15s ease, background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.container-resize-grip {
+    font-size: 12px;
+    line-height: 1;
+    pointer-events: none;
+}
+
+.header-card:hover .container-resize-handle,
+.container-resize-handle:hover,
+.container-resize-handle:focus-visible {
+    opacity: 1;
+    border-color: var(--accent-cyan);
+    background: rgba(0, 229, 255, 0.18);
+    color: var(--accent-cyan);
+    outline: none;
+}
+
+body.is-resizing {
+    cursor: col-resize;
+    user-select: none;
+}
+
+body.is-resizing .container-resize-handle {
+    opacity: 1;
+    border-color: var(--accent-cyan);
+    background: rgba(0, 229, 255, 0.24);
+    color: var(--accent-cyan);
+}
+
+/* ==========================================================================
+   Custom JS Tooltips (replaces every native title="..." tooltip)
+   ========================================================================== */
+.lp-tooltip {
+    position: fixed;
+    top: 0;
+    left: 0;
+    max-width: 340px;
+    background: #06181c;
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 8px 11px;
+    font-family: var(--font-family);
+    font-size: 0.78rem;
+    line-height: 1.45;
+    text-align: left;
+    white-space: normal;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(0, 229, 255, 0.08);
+    opacity: 0;
+    transform: translateY(4px);
+    transition: opacity 0.14s ease, transform 0.14s ease;
+    pointer-events: none;
+    z-index: 12000;
+}
+
+.lp-tooltip.show {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.lp-tooltip::after {
+    content: '';
+    position: absolute;
+    left: var(--lp-tip-arrow-x, 50%);
+    bottom: -5px;
+    width: 8px;
+    height: 8px;
+    background: #06181c;
+    border-right: 1px solid var(--border-color);
+    border-bottom: 1px solid var(--border-color);
+    transform: translateX(-50%) rotate(45deg);
+}
+
+.lp-tooltip.below::after {
+    bottom: auto;
+    top: -5px;
+    border: none;
+    border-left: 1px solid var(--border-color);
+    border-top: 1px solid var(--border-color);
+}
+
 @media (max-width: 860px) {
     .header-top {
         padding-right: 0;
@@ -1600,8 +1739,14 @@ body.is-viewer-mode .section-description-view {
     .header-pills-cluster {
         position: static;
         margin-top: 10px;
+        justify-content: flex-start;
     }
     .task-notes-block {
         padding-left: 28px;
+    }
+    /* Meaningless when the viewport is already narrower than the minimum container width */
+    .container-resize-handle,
+    .width-control {
+        display: none;
     }
 }

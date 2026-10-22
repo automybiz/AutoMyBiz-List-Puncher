@@ -42,12 +42,16 @@ board and track progress against it.
 | Render pipeline | `renderAll()` -> section decks -> `renderTaskNodeTree()` (recursive, builds `.branch-rail` wrappers) |
 | List format engine (also reads real YAML) | `parseYamlToTasks()` (dispatch) -> `parseStrictPuncherYaml()` / `parseLegacyShorthandYaml()`, `formatTasksSliceAsYaml()` + `yamlQuote()` / `pushYamlTextValue()`, `clampYamlNestingSteps()`, `prettifyModalYaml()` |
 | Media engine | `isYouTubeURL()`, `isImageURL()`, `parseYouTubeEmbed()`, `buildVideoEmbedHtml()`, `loadLazyVideo()`, `convertURLsToMedia()` |
+| View preferences (browser-local) | `createDefaultViewPrefs()`, `readViewPrefs()` / `saveViewPrefs()` / `loadViewPrefs()`, `getViewPrefsKey()` |
+| Container width engine | `maxContainerWidth()`, `clampContainerWidth()`, `applyContainerWidth()`, `setContainerWidth()`, `resetContainerWidth()`, `handleContainerResize*()`, CSS var `--lp-container-max` |
+| Custom tooltips | `initTooltips()`, `migrateTooltipTitle()`, `tooltipTargetFromEvent()`, `showTooltip()` / `hideTooltip()`, `#lpTooltip` (`.lp-tooltip`) |
 
 **Storage keys** (all prefixed by `LOCATION_ID` so one GHL sub-account can hold unlimited lists):
 - `list_puncher_<LOCATION_ID>_projects` - project directory
 - `list_puncher_<LOCATION_ID>_active_proj_id` - active project
 - `list_puncher_<LOCATION_ID>_proj_<projId>_yaml` - the list itself
-- `list_puncher_<LOCATION_ID>_proj_<projId>_ui_state` - UI_STATE for that list
+- `list_puncher_<LOCATION_ID>_proj_<projId>_ui_state` - LIST-shaped UI_STATE only (collapsed milestones, open branches, open notes)
+- `list_puncher_<LOCATION_ID>_view_prefs` - **browser-local view prefs**: the four top-settings toggles + the container width (shared by every list, never written by `saveState()`)
 - `list_puncher_yaml` - legacy/cross-key safety net (always written too)
 
 The `_yaml` suffixes are historical - **never rename these keys**, they hold live user data.
@@ -148,10 +152,23 @@ model already knows (Markdown checkboxes). 1.14/1.15 briefly wrote a strict-YAML
   completed deck, and the completed group's `#` badge numbering **restarts at 1** (`displayNumber` = render index
   minus `completedGroupStart` + 1). If every milestone is complete there is no reorder, so no rule and continuous
   1..N numbering. The `data-header-index` on the decks always stays the DATA index regardless of the grouping.
-- **Shipped toggle defaults** live in exactly one place, `createDefaultUiState()`: Bottom: ON, Rails: ON,
-  Auto-Number: ON, Colors: ALT. `UI_STATE_DEFAULTS_VERSION` (currently 2) stamps them, so a state saved under
-  older defaults adopts the new Bottom/Rails values **once** (`saveUiStateOnly()`, which never touches the list
-  key); after that the user's own toggles win. Bump that constant whenever a default changes.
+- **Two storage scopes - never mix them.** `createDefaultViewPrefs()` (single source of truth for Bottom ON,
+  Rails ON, Auto-Number ON, Colors ALT, `containerWidth: null`) is **browser-local and shared by every list**:
+  it lives in `_view_prefs` and is written only by `saveViewPrefs()`. `createDefaultUiState()` layers the
+  view prefs on top of the LIST-shaped state (`sections` / `branches` / `notesOpen`) that belongs to one project,
+  and `projectUiStateSnapshot()` strips the toggles back out before `saveState()` writes the project key.
+  `loadViewPrefs(projectUiState)` seeds `_view_prefs` **once** (from the project's toggles when they already
+  carry the current `UI_STATE_DEFAULTS_VERSION` stamp, otherwise from the shipped defaults) and never re-seeds.
+  Net effect: toggling Bottom/Rails follows the user between lists and can never change anyone else's layout.
+- **Container width** (`CONTAINER_WIDTH`, `--lp-container-max` on `<html>`, applied by `applyContainerWidth()`)
+  is dragged with the `⇔` grip on the header card's right edge (`handleContainerResize*`) or reset from the
+  readout row. `Min = 600`, `Max = clientWidth - 32`; the grip hides itself below the minimum. **Resizing must
+  never call `renderAll()`** - it is a CSS variable change only, so a 100+ task list stays smooth.
+- **Custom JS tooltips**: every `title="..."` (static markup AND rows built by `renderAll()`) is migrated on
+  first hover by `migrateTooltipTitle()` into `data-tip` + (icon-only controls) `aria-label`, with the native
+  `title` **removed** - that removal is what stops the browser's plain tooltip from appearing. One delegated
+  `#lpTooltip` bubble, positioned above (flipped below near the top) and clamped to the viewport. Elements
+  inside `.header-pill-wrap` are excluded because those pills already own a hover popover.
 - **Bulk Check All exists at two levels**, and both ask first through the same modal (`openConfirmModal` with
   `accent: true`), name the scope and the current progress, and flip to "Uncheck All" when the scope is already
   complete: the milestone button in the section header (`confirmSectionCheckAll(headerIdx)`, keyed by the
@@ -320,6 +337,11 @@ Always tell the owner to hard-refresh and how to confirm the live build.
 | Grouping the completed milestones without a visual + numbering boundary | Completed milestones under the active ones read as a continuation of the list, and the numbers look wrong ("#1 became #13") | One `<hr class="section-group-separator">` between the groups and restart the `#` badges at 1 inside the completed group |
 | Changing a shipped default (Bottom/Rails) without a version stamp | Users who already have a saved `_ui_state` never see the new default and report the change as "not applied" | Defaults live only in `createDefaultUiState()`; bump `UI_STATE_DEFAULTS_VERSION` so old states migrate ONCE - never on every load, that would fight the user's own toggles |
 | Migrating UI state on the load path with `saveState()` | `saveState()` also writes `TASKS_DATA`, which at that moment can still be the PREVIOUS project's list, so the wrong list lands in this project's key | UI-state-only writer `saveUiStateOnly()`; the list is only written after it has been parsed |
+| Mixing view prefs into the per-project UI state | A layout preference saved per project changes for everyone on that GHL location, and switching lists resets the toggles | Toggles + width live in `_view_prefs` (`saveViewPrefs()`); the project key holds only collapsed/open state (`projectUiStateSnapshot()`) |
+| A control whose geometry depends on the value it controls | A width slider inside the container it resizes: its track grows as the width grows, so the thumb outruns the cursor and the value collapses back - jitter, impossible to land | Drag the container's edge instead (pointer delta == width delta), or give any slider a FIXED pixel track. The grip doubles the delta because a centred container's edge moves at half the rate of its width |
+| Leaving the native `title` attribute beside a JS tooltip | Both fire - the browser's plain bubble appears ~1s later | `migrateTooltipTitle()` removes `title` on first hover (text moves to `data-tip`); sweep `[title]` once at init |
+| A hover tooltip on a control that already owns a hover popover | Two overlapping bubbles | `tooltipTargetFromEvent()` skips anything inside `.header-pill-wrap` |
+| Asserting on a function body without stripping comments | A comment merely mentioning `renderAll()` satisfies a "never calls renderAll" check | Strip comments before matching (`stripComments` in the harness) |
 
 ---
 
@@ -333,6 +355,10 @@ Always tell the owner to hard-refresh and how to confirm the live build.
 - [ ] Drag/drop reorder + indent, auto-numbering, collapse-all, completed-at-bottom still work.
 - [ ] Milestone Check All AND per-branch Check All: both confirm first, both toggle back to Uncheck All, and neither touches a sibling branch.
 - [ ] Defaults still come from `createDefaultUiState()`; an old `_ui_state` migrates exactly once, a current one is left alone, and no migration ever rewrites the list key.
+- [ ] Width grip: drags the edge (2x pointer delta), clamps 600..viewport-32, persists in `_view_prefs`, hides below the minimum, and NEVER re-renders the list.
+- [ ] Toggles follow the user between lists (browser-local `_view_prefs`) while the project key holds only list-shaped state.
+- [ ] Tooltips: no native bubble anywhere, `data-tip` on every former title, icon-only controls keep an `aria-label`, the two header pills are excluded.
+- [ ] Header cluster stays right-aligned in the order dropdown -> mode pill -> storage pill, and wraps cleanly below 860px.
 - [ ] Editor/viewer/restricted permission modes still gate editing.
 - [ ] Live theme still applies from the sheet (colors, speed, effect class).
 - [ ] `APP_BUILD`, `index.css?v=` and `--lp-css-build` all match the new version.
