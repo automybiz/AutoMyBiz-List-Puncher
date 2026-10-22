@@ -33,7 +33,7 @@
     --indent-step: 22px;
 
     /* Build marker: lets the app detect a stale cached stylesheet (compared against APP_BUILD in index.html) */
-    --lp-css-build: "1.20";
+    --lp-css-build: "1.21";
 
     --completed-opacity: 0.42;
 
@@ -1451,6 +1451,32 @@ body {
 .btn-delete-confirm:hover {
     background: #700;
     border-color: #f66;
+}
+
+/* Non-destructive confirmation variant (bulk Check / Uncheck All on a milestone) */
+.delete-modal-card.confirm-accent {
+    border-color: var(--accent-cyan);
+}
+
+.delete-modal-card.confirm-accent .delete-modal-header {
+    background: var(--card-header-bg);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.delete-modal-card.confirm-accent .delete-modal-header .modal-title {
+    color: var(--accent-cyan);
+}
+
+.btn-delete-confirm.confirm-accent {
+    background: var(--card-header-bg);
+    border-color: var(--accent-cyan);
+    color: var(--accent-cyan);
+}
+
+.btn-delete-confirm.confirm-accent:hover {
+    background: rgba(0, 229, 255, 0.15);
+    border-color: var(--accent-cyan);
+    color: #fff;
 }
 
 /* ==========================================================================

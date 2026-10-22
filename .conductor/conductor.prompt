@@ -198,8 +198,11 @@ model already knows (Markdown checkboxes). 1.14/1.15 briefly wrote a strict-YAML
    error or a blocked/sandboxed context must never fail silently. The pill is the user's only signal that a
    refresh will be safe.
 5. **The storage pill tooltip shows the facts** (`describeStorage()`): the exact key, this project's byte size,
-   the legacy key's size and every list key found in the browser. That is how a "my list vanished" report gets
-   diagnosed instead of guessed at.
+   the legacy key's size and every list key found in the browser. On top of that `lpStorageReport()` (also exposed
+   as `window.lpStorageReport`) dumps origin, iframe state, the storage probe result, every `list_puncher_*` key
+   with size + item count, and the last 80 `lpTrace()` lines. `lpTrace()` records every load/save decision
+   (a `save OK` line only when the payload actually changed, `save FAILED` with the error otherwise). That is how
+   a "my list vanished" report gets diagnosed instead of guessed at.
 6. **Project ids must be deterministic.** `loadProjectsDirectory()` may never build an id from `Date.now()` -
    a refresh would then resolve to a brand-new empty project.
 7. **Auto-save is debounced at 500ms** (`AUTOSAVE_DELAY_MS`) with a flush on `beforeunload`.
@@ -298,6 +301,7 @@ Always tell the owner to hard-refresh and how to confirm the live build.
 | Project id built from `Date.now()` | Every refresh resolved to a new empty project | Deterministic ids derived from the name |
 | Completing a milestone with Bottom: ON | It jumps to the end of the deck and is renumbered, so it looks like the section vanished (and a follow-up click can land on a different section) | Follow it with `scrollIntoView()` and say "moved to the bottom" in the toast |
 | Passing the RENDER position (`sIdx`) to a section action | With Bottom: ON the render order no longer matches `TASKS_DATA`, so the action hits a different milestone (Check All cleared the wrong section) | Section actions + section drag/drop take `sec.headerIndex` / `data-header-index`; never `sIdx` |
+| A bulk action with no confirmation | One stray click rewrites a long mixed list, and the user has to remember what was checked | Bulk actions confirm first through the shared modal (`openConfirmModal`), naming the count and the current progress |
 
 ---
 

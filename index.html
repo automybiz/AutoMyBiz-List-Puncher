@@ -15,7 +15,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
     
     <!-- Separated Master Stylesheet (Zero Prism Crash) - version query busts the GitHub Pages 10min cache -->
-    <link rel="stylesheet" href="index.css?v=1.20">
+    <link rel="stylesheet" href="index.css?v=1.21">
 
     <script>
     /* Universal Dark Reader Kill Switch (Rule 9) */
@@ -102,7 +102,7 @@
                     </div>
                     <div id="tooltipStatusNotice">Auto-saved with 500ms live debounce. The line below shows the exact storage key, the size of this project's saved list and every list key found in this browser.</div>
                     <div class="tooltip-code-box" id="storageKeyBox">Key: list_puncher_yaml</div>
-                    <span class="tooltip-footer-note">Click the pill to open the List Puncher list editor</span>
+                    <span class="tooltip-footer-note">Click the pill to open the List Puncher list editor. Console: lpStorageReport() dumps every storage key.</span>
                 </div>
             </div>
         </div>
@@ -223,19 +223,19 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     </div>
 </div>
 
-<!-- Delete Confirmation Modal Overlay -->
+<!-- Confirmation Modal Overlay (deletions + bulk Check/Uncheck All) -->
 <div id="deleteModal" class="modal-overlay">
-    <div class="modal-card delete-modal-card">
+    <div class="modal-card delete-modal-card" id="confirmModalCard">
         <div class="modal-header delete-modal-header">
-            <div class="modal-title">✕ Confirm Deletion</div>
-            <button type="button" class="modal-close-btn" onclick="closeDeleteModal()">✕</button>
+            <div class="modal-title" id="confirmModalTitle">✕ Confirm Deletion</div>
+            <button type="button" class="modal-close-btn" onclick="closeConfirmModal()">✕</button>
         </div>
         <div class="delete-modal-body" id="deleteModalBody">
             Are you sure you want to delete this item?
         </div>
         <div class="modal-footer">
-            <button type="button" class="btn-action" onclick="closeDeleteModal()">Cancel</button>
-            <button type="button" class="btn-action btn-delete-confirm" id="btnConfirmDelete" onclick="executeDelete()">✕ Delete</button>
+            <button type="button" class="btn-action" onclick="closeConfirmModal()">Cancel</button>
+            <button type="button" class="btn-action btn-delete-confirm" id="btnConfirmDelete" onclick="executeConfirmedAction()">✕ Delete</button>
         </div>
     </div>
 </div>
@@ -249,7 +249,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     // =========================================================================
     const AUTOSAVE_DELAY_MS = 500;
     const INDENT_SPACES_PER_LEVEL = 2;
-    const APP_BUILD = '1.20'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
+    const APP_BUILD = '1.21'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
     const DEFAULT_PROJECT_ID = 'default_onboarding';
     const DEFAULT_PROJECT_NAME = 'Client Onboarding';
 
@@ -307,7 +307,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
 
     // Modal Contexts
     let MODAL_CONTEXT = { mode: 'full', targetIndex: null };
-    let DELETE_CONTEXT = { type: null, targetIndex: null };
+    let CONFIRM_CONTEXT = { type: null, targetIndex: null, headerIdx: null, range: null };
 
     // 16x16 Double Chevron Icon
     const DOUBLE_CHEVRON_SVG = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -402,6 +402,8 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         }
 
         localStorage.setItem(getActiveProjectStorageKey(), ACTIVE_PROJECT_ID);
+        lpTrace('projects', 'location=' + LOCATION_ID + '  known=' + PROJECTS_LIST.length
+            + '  active=' + ACTIVE_PROJECT_ID + '  urlProject=' + (URL_PROJECT || 'none'));
         renderProjectDropdownUI();
     }
 
@@ -565,12 +567,13 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
                 const parsed = parseYamlToTasks(rawYaml);
                 if (parsed.length) {
                     TASKS_DATA = parsed;
-                    console.log('[List Puncher] Loaded ' + parsed.length + ' items from ' + projectKey);
+                    lpTrace('load OK', 'key=' + projectKey + '  items=' + parsed.length + '  bytes=' + rawYaml.length);
                     renderAll();
                     return;
                 }
                 // Stored text that does not parse is NEVER overwritten - keep it on disk
                 // (it can still be recovered by hand) and say so in the storage pill.
+                lpTrace('load UNREADABLE', 'key=' + projectKey + '  bytes=' + rawYaml.length + '  -> left untouched');
                 console.warn('[List Puncher] Stored list in ' + projectKey + ' (' + rawYaml.length + ' chars) could not be parsed. Left untouched.');
                 TASKS_DATA = [];
                 setStoragePillStatus('restricted', '⚠ Stored list unreadable');
@@ -584,14 +587,14 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
                 const parsedLegacy = parseYamlToTasks(legacyYaml);
                 if (parsedLegacy.length) {
                     TASKS_DATA = parsedLegacy;
-                    console.log('[List Puncher] Loaded ' + parsedLegacy.length + ' items from the legacy key list_puncher_yaml');
+                    lpTrace('load LEGACY KEY', 'key=list_puncher_yaml  items=' + parsedLegacy.length + '  -> re-homed to ' + projectKey);
                     saveState();
                     renderAll();
                     return;
                 }
             }
 
-            console.log('[List Puncher] No stored list for ' + projectKey + ' - trying storage recovery, then the blueprint.');
+            lpTrace('load EMPTY', 'no list at ' + projectKey + ' and none at list_puncher_yaml -> recovery, then blueprint');
             seedOnboardingBlueprint();
         } catch (e) {
             console.warn('[List Puncher] Load failed:', e);
@@ -630,12 +633,86 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         }
     }
 
+    // =========================================================================
+    // STORAGE TRACE - a readable breadcrumb of every load/save decision.
+    // A "my list did not come back after a refresh" report is impossible to
+    // diagnose without this. In the browser console run:
+    //     lpStorageReport()          -> full dump of keys, sizes, items, trace
+    //     copy(lpStorageReport())    -> copies that dump to the clipboard
+    // =========================================================================
+    const LP_TRACE = [];
+    let LAST_SAVED_YAML = null;
+
+    function lpTrace(tag, detail) {
+        const stamp = new Date().toTimeString().slice(0, 8);
+        const line = stamp + '  ' + tag + (detail === undefined ? '' : '  ' + detail);
+        LP_TRACE.push(line);
+        while (LP_TRACE.length > 80) LP_TRACE.shift();
+        console.log('%c[List Puncher]%c ' + line, 'color:#0FF;font-weight:bold', 'color:inherit');
+    }
+
+    // Is localStorage actually usable in this browser context (not blocked/partitioned)?
+    function probeStorage() {
+        try {
+            const probeKey = '__lp_probe__';
+            localStorage.setItem(probeKey, '1');
+            const readBack = localStorage.getItem(probeKey) === '1';
+            localStorage.removeItem(probeKey);
+            return readBack ? 'writable' : 'write-not-verifiable';
+        } catch (e) {
+            return 'BLOCKED (' + e.name + ': ' + e.message + ')';
+        }
+    }
+
+    function lpStorageReport() {
+        const lines = [];
+        lines.push('===== LIST PUNCHER STORAGE REPORT =====');
+        lines.push('when:            ' + new Date().toString());
+        lines.push('origin:          ' + location.origin + location.pathname);
+        lines.push('in iframe:       ' + (window.top !== window.self));
+        lines.push('storage:         ' + probeStorage());
+        lines.push('LOCATION_ID:     ' + LOCATION_ID + '   (URL location_id: ' + (urlParams.get('location_id') || 'none') + ')');
+        lines.push('URL project:     ' + (URL_PROJECT || '(none)'));
+        lines.push('ACTIVE_PROJECT:  ' + ACTIVE_PROJECT_ID);
+        lines.push('project key:     ' + getProjectYamlKey(ACTIVE_PROJECT_ID));
+        lines.push('items in memory: ' + TASKS_DATA.length);
+        try {
+            const rows = [];
+            for (let i = 0; i < localStorage.length; i++) {
+                const k = localStorage.key(i);
+                if (!k || k.indexOf('list_puncher_') !== 0) continue;
+                const v = localStorage.getItem(k) || '';
+                const isList = k.indexOf('_yaml') !== -1;
+                rows.push('  ' + k + '  [' + v.length + ' bytes' + (isList ? ', ' + parseYamlToTasks(v).length + ' items' : '') + ']');
+            }
+            lines.push('list_puncher_* keys (' + rows.length + '):');
+            lines.push(rows.length ? rows.join('\n') : '  (none found)');
+        } catch (e) {
+            lines.push('key scan FAILED: ' + e.message);
+        }
+        lines.push('last ' + LP_TRACE.length + ' trace line(s):');
+        lines.push(LP_TRACE.length ? LP_TRACE.map(l => '  ' + l).join('\n') : '  (empty)');
+        lines.push('=======================================');
+        const report = lines.join('\n');
+        console.log(report);
+        return report;
+    }
+
+    window.lpStorageReport = lpStorageReport;
+
     function saveState() {
         try {
             const fullYaml = formatTasksSliceAsYaml(TASKS_DATA);
             localStorage.setItem(getProjectYamlKey(ACTIVE_PROJECT_ID), fullYaml);
             localStorage.setItem(getProjectUiKey(ACTIVE_PROJECT_ID), JSON.stringify(UI_STATE));
             localStorage.setItem('list_puncher_yaml', fullYaml); // Legacy backup + cross-key safety net
+
+            // Only trace real changes - autosave runs on every keystroke (debounced).
+            if (fullYaml !== LAST_SAVED_YAML) {
+                LAST_SAVED_YAML = fullYaml;
+                lpTrace('save OK', 'key=' + getProjectYamlKey(ACTIVE_PROJECT_ID)
+                    + '  items=' + TASKS_DATA.length + '  bytes=' + fullYaml.length);
+            }
 
             // Round-trip self check: if the list we just wrote cannot be read back into the same
             // number of items, the saved list would silently lose tasks on refresh.
@@ -652,6 +729,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         } catch (e) {
             // Storage writes can throw (quota, or a blocked / sandboxed context). Never
             // fail silently: the pill is the user's only signal that a refresh is safe.
+            lpTrace('save FAILED', 'key=' + getProjectYamlKey(ACTIVE_PROJECT_ID) + '  ' + e.name + ': ' + e.message);
             console.warn('[List Puncher] Storage write FAILED for key ' + getProjectYamlKey(ACTIVE_PROJECT_ID) + ':', e);
             setStoragePillStatus('restricted', '⚠ Storage blocked');
             return false;
@@ -1126,6 +1204,12 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         loadProjectsDirectory();
         loadCurrentProjectData();
 
+        lpTrace('init', 'origin=' + location.origin + '  iframe=' + (window.top !== window.self)
+            + '  storage=' + probeStorage() + '  location=' + LOCATION_ID
+            + '  project=' + ACTIVE_PROJECT_ID + '  items=' + TASKS_DATA.length);
+        console.log('%c[List Puncher]%c Storage trace is ON. Type lpStorageReport() - or copy(lpStorageReport()) - for a full storage dump.',
+            'color:#0FF;font-weight:bold', 'color:inherit');
+
         checkAndProvisionGHL();
 
         // Flush auto-save on page exit
@@ -1264,6 +1348,8 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
 
         candidates.sort((a, b) => b.items.length - a.items.length);
         const best = candidates[0];
+        lpTrace('RECOVERY', 'adopted ' + best.items.length + ' items from "' + best.key + '" -> re-homed to '
+            + getProjectYamlKey(ACTIVE_PROJECT_ID));
         console.warn('[List Puncher] Recovered ' + best.items.length + ' items from storage key "' + best.key + '"');
         TASKS_DATA = best.items;
         saveState();
@@ -1420,7 +1506,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
                         <button type="button" class="btn-icon sec-action-btn" title="Paste tasks into this milestone (List Puncher format)" onclick="openYamlModal('section', ${sec.headerIndex})">
                             ${PASTE_SUBTASKS_SVG_ICON}
                         </button>
-                        <button type="button" class="btn-icon sec-action-btn check-all-btn" title="Check all tasks in this milestone (click again to clear them all)" onclick="toggleSectionComplete(${sec.headerIndex})">
+                        <button type="button" class="btn-icon sec-action-btn check-all-btn" title="Check all tasks in this milestone (asks first; click again to clear them all)" onclick="confirmSectionCheckAll(${sec.headerIndex})">
                             ${CHECK_ALL_SVG_ICON}
                         </button>
                         <button type="button" class="btn-icon sec-action-btn delete-btn" title="Delete milestone and all its tasks" onclick="confirmDeleteSection(${sec.headerIndex})">✕</button>
@@ -2013,12 +2099,12 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         }, 60);
     }
 
-    // Mark every task in a milestone complete / clear them (toggle).
-    // Milestones themselves are not stored as checked - their state is derived from
-    // the tasks inside them, so this only touches the tasks of THIS milestone:
+    // Performs the bulk change the user confirmed. Milestones themselves are not stored
+    // as checked - their state is derived from the tasks inside them, so this only
+    // touches the tasks of THIS milestone:
     //   none or some checked -> check them all
     //   all checked          -> clear them all
-    function toggleSectionComplete(headerIdx) {
+    function applySectionCheckAll(headerIdx) {
         if (!TASKS_DATA[headerIdx] || TASKS_DATA[headerIdx].level !== 0) return;
 
         const range = getSectionRange(headerIdx);
@@ -2093,20 +2179,38 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     // =========================================================================
     // DELETE CONFIRMATION OVERLAY MODAL
     // =========================================================================
+    // Shared confirmation overlay. Used by the delete flows AND by the milestone
+    // Check/Uncheck All button: bulk-changing a long mixed list by accident is
+    // exactly the kind of edit nobody wants to reconstruct by hand.
+    function openConfirmModal(opts) {
+        const card = document.getElementById('confirmModalCard');
+        const titleEl = document.getElementById('confirmModalTitle');
+        const bodyEl = document.getElementById('deleteModalBody');
+        const btn = document.getElementById('btnConfirmDelete');
+
+        if (titleEl) titleEl.innerText = opts.title || 'Please confirm';
+        if (bodyEl) bodyEl.innerHTML = opts.bodyHtml || '';
+        if (btn) btn.innerText = opts.confirmLabel || '✓ Confirm';
+        if (card) card.classList.toggle('confirm-accent', Boolean(opts.accent));
+        if (btn) btn.classList.toggle('confirm-accent', Boolean(opts.accent));
+
+        document.getElementById('deleteModal').classList.add('open');
+    }
+
     function confirmDeleteTask(parentIdx) {
         const task = TASKS_DATA[parentIdx];
         if (!task) return;
         const range = getSubtreeRange(parentIdx);
-        DELETE_CONTEXT = { type: 'task', targetIndex: parentIdx };
+        CONFIRM_CONTEXT = { type: 'task', targetIndex: parentIdx };
 
-        const bodyEl = document.getElementById('deleteModalBody');
-        if (range.count > 1) {
-            bodyEl.innerHTML = `Are you sure you want to delete <strong>"${escapeHtml(task.title)}"</strong> and all <strong>${range.count - 1} nested subtask(s)</strong>?`;
-        } else {
-            bodyEl.innerHTML = `Are you sure you want to delete task <strong>"${escapeHtml(task.title)}"</strong>?`;
-        }
-
-        document.getElementById('deleteModal').classList.add('open');
+        openConfirmModal({
+            title: '✕ Confirm Deletion',
+            bodyHtml: range.count > 1
+                ? `Are you sure you want to delete <strong>"${escapeHtml(task.title)}"</strong> and all <strong>${range.count - 1} nested subtask(s)</strong>?`
+                : `Are you sure you want to delete task <strong>"${escapeHtml(task.title)}"</strong>?`,
+            confirmLabel: '✕ Delete',
+            accent: false
+        });
     }
 
     function confirmDeleteSection(headerIdx) {
@@ -2115,38 +2219,75 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         const secTitle = TASKS_DATA[headerIdx].title;
         const range = getSectionRange(headerIdx);
 
-        DELETE_CONTEXT = { type: 'section', headerIdx, range };
+        CONFIRM_CONTEXT = { type: 'section', headerIdx, range };
 
-        const bodyEl = document.getElementById('deleteModalBody');
-        bodyEl.innerHTML = `Are you sure you want to permanently delete milestone <strong>"${escapeHtml(secTitle)}"</strong> and all <strong>${range.count - 1} tasks</strong>?`;
-
-        document.getElementById('deleteModal').classList.add('open');
+        openConfirmModal({
+            title: '✕ Confirm Deletion',
+            bodyHtml: `Are you sure you want to permanently delete milestone <strong>"${escapeHtml(secTitle)}"</strong> and all <strong>${range.count - 1} tasks</strong>?`,
+            confirmLabel: '✕ Delete',
+            accent: false
+        });
     }
 
-    function closeDeleteModal() {
+    // The milestone Check/Uncheck All button asks first and says exactly what will
+    // happen (how many tasks, and how many are already complete).
+    function confirmSectionCheckAll(headerIdx) {
+        if (!TASKS_DATA[headerIdx] || TASKS_DATA[headerIdx].level !== 0) return;
+
+        const range = getSectionRange(headerIdx);
+        const tasks = TASKS_DATA.slice(range.start, range.start + range.count).filter(t => t.level > 0);
+        if (!tasks.length) {
+            showToast('This milestone has no tasks to check.');
+            return;
+        }
+
+        const secTitle = TASKS_DATA[headerIdx].title;
+        const completed = tasks.filter(t => t.checked).length;
+        const allDone = completed === tasks.length;
+        const progress = `<br><span style="color:var(--text-secondary);">${completed} of ${tasks.length} task(s) are currently complete.</span>`;
+
+        CONFIRM_CONTEXT = { type: 'checkall', headerIdx };
+
+        openConfirmModal({
+            title: allDone ? '↩️ Confirm Uncheck All' : '✓ Confirm Check All',
+            bodyHtml: (allDone
+                ? `Uncheck <strong>all ${tasks.length} task(s)</strong> in milestone <strong>"${escapeHtml(secTitle)}"</strong>?`
+                : `Check <strong>all ${tasks.length} task(s)</strong> in milestone <strong>"${escapeHtml(secTitle)}"</strong> as complete?`) + progress,
+            confirmLabel: allDone ? '↩️ Uncheck All' : '✓ Check All',
+            accent: true
+        });
+    }
+
+    function closeConfirmModal() {
         document.getElementById('deleteModal').classList.remove('open');
-        DELETE_CONTEXT = { type: null, targetIndex: null };
+        CONFIRM_CONTEXT = { type: null, targetIndex: null, headerIdx: null, range: null };
     }
 
-    function executeDelete() {
-        if (!DELETE_CONTEXT.type) return;
+    function executeConfirmedAction() {
+        const ctx = CONFIRM_CONTEXT;
+        if (!ctx.type) return;
 
-        if (DELETE_CONTEXT.type === 'task') {
-            const range = getSubtreeRange(DELETE_CONTEXT.targetIndex);
+        if (ctx.type === 'task') {
+            const range = getSubtreeRange(ctx.targetIndex);
             TASKS_DATA.splice(range.start, range.count);
             executeAutoSave();
             renderAll();
             showToast(range.count > 1 ? (`Deleted task and ${range.count - 1} subtask(s)`) : 'Task removed');
-        } else if (DELETE_CONTEXT.type === 'section') {
-            const { range, headerIdx } = DELETE_CONTEXT;
+        } else if (ctx.type === 'section') {
+            const { range, headerIdx } = ctx;
             const secTitle = TASKS_DATA[headerIdx].title;
             TASKS_DATA.splice(range.start, range.count);
             executeAutoSave();
             renderAll();
             showToast(`Deleted milestone "${secTitle}"`);
+        } else if (ctx.type === 'checkall') {
+            const headerIdx = ctx.headerIdx;
+            closeConfirmModal();
+            applySectionCheckAll(headerIdx);
+            return;
         }
 
-        closeDeleteModal();
+        closeConfirmModal();
     }
 
     // =========================================================================
@@ -3300,7 +3441,7 @@ tasks:
         const deleteModal = document.getElementById('deleteModal');
         if (deleteModal) {
             deleteModal.addEventListener('click', (e) => {
-                if (e.target === deleteModal) closeDeleteModal();
+                if (e.target === deleteModal) closeConfirmModal();
             });
         }
         // Close project menu on outside click
@@ -3315,7 +3456,7 @@ tasks:
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
             closeYamlModal();
-            closeDeleteModal();
+            closeConfirmModal();
             const menu = document.getElementById('projectDropdownMenu');
             if (menu) menu.classList.remove('open');
         }
