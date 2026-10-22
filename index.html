@@ -3504,7 +3504,11 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
 
     // Context-friendly AI Prompt Copier
     function copyAiPromptToClipboard() {
-        const aiPromptText = `Convert the goals, tasks and milestones from our discussion above into List Puncher list format (a Markdown checklist with metadata). Please publish your results in a code block for safe copy/paste into the List Puncher app.
+        const aiPromptText = `Convert the milestones/goals and tasks from our discussion above into List Puncher list format (a Markdown checklist with metadata). Please publish your results in a code block for safe copy/paste into the List Puncher app.
+
+I'd like you to merge, refine, dedup and logistically order the step by step parts of the list to make it easy for me to go through everything while I'm completing all the tasks on the check lists your generating.
+
+Please check all exisitng tasks you know are already completed and mark them as finished in the list. Please also add any subtasks you think are necessary to complete the main tasks.
 
 Format rules:
 - Output the list as clean plain text only - no conversational preamble.
