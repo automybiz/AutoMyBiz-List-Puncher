@@ -3110,18 +3110,18 @@ Format rules:
 - Write tasks as standard Markdown checkboxes: "- [ ] Unfinished task" and "- [x] Finished task".
 - Nest subtasks exactly 2 additional spaces deeper than their parent task, one step per nesting level.
 - Each milestone uses metadata keys:
-``` 
+\`\`\` 
     section: "Goal/Milestone Name"
     description: "Overview, objectives and prerequisites..."
     tasks:
-```
+\`\`\`
 
 - Notes sit under their task as "notes: "..."", or as a multi-line block:
-``` 
+\`\`\` 
     notes: |
       line one
       line two
-```
+\`\`\`
 
   The notes: key sits 2 spaces deeper than its task's "- ", and a multi-line body sits 2 spaces deeper again (never aligned with the "- ").
 - Use clean section names WITHOUT numbers (e.g. section: "Cloudflare Infrastructure") because List Puncher automatically numbers milestones dynamically.
@@ -3130,7 +3130,7 @@ Format rules:
 - Nesting depth limit doesn't exist. Nest the tasks as deep as needed.
 
 List Structure:
-```
+\`\`\`
 section: "Goal/Milestone Name"
 description: |
   Multi-line overview of this goal/milestone...
@@ -3141,7 +3141,7 @@ tasks:
       notes: |
         Diagram Example:
         https://www.example.com/diagram.png
-````;
+\`\`\``;
 
         navigator.clipboard.writeText(aiPromptText).then(() => {
             showToast('🤖 AI Prompt copied! Paste into ChatGPT, Claude, or Gemini.');
