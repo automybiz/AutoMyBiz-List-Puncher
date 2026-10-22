@@ -15,7 +15,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
     
     <!-- Separated Master Stylesheet (Zero Prism Crash) - version query busts the GitHub Pages 10min cache -->
-    <link rel="stylesheet" href="index.css?v=1.16">
+    <link rel="stylesheet" href="index.css?v=1.17">
 
     <script>
     /* Universal Dark Reader Kill Switch (Rule 9) */
@@ -249,7 +249,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     // =========================================================================
     const AUTOSAVE_DELAY_MS = 500;
     const INDENT_SPACES_PER_LEVEL = 2;
-    const APP_BUILD = '1.16'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
+    const APP_BUILD = '1.17'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
     const DEFAULT_PROJECT_ID = 'default_onboarding';
     const DEFAULT_PROJECT_NAME = 'Client Onboarding';
 
@@ -2289,16 +2289,20 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     }
 
     // Pushes "key: value" lines for free text: one quoted line, or a literal
-    // block ("|") when the value spans multiple lines. The value is trimmed so the
-    // block body never starts with whitespace and always reads back whole.
+    // block ("|") when the value spans multiple lines. A note containing a checkbox
+    // line is written as a QUOTED scalar instead, because inside a block such a line
+    // is ambiguous (note text vs a mis-indented child task) - quoting removes the
+    // ambiguity and still round-trips exactly (yamlQuote escapes, unquoteYamlScalar
+    // decodes).
     function pushYamlTextValue(lines, keyIndent, key, value) {
         const text = String(value || '').trim();
         if (!text) return;
         const pad = ' '.repeat(keyIndent);
         const textLines = text.split(/\r?\n/);
+        const hasCheckboxLine = textLines.some(l => /^\s*-\s*\[[ xX]\]/.test(l));
 
-        if (textLines.length === 1) {
-            lines.push(`${pad}${key}: ${yamlQuote(textLines[0])}`);
+        if (textLines.length === 1 || hasCheckboxLine) {
+            lines.push(`${pad}${key}: ${yamlQuote(text)}`);
             return;
         }
 
@@ -2389,14 +2393,27 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     }
 
     // Clamps illogical jump steps (max +2 spaces deeper than the previous task).
-    // Block scalar bodies are CONTENT: re-indenting a note line that looks like a
-    // task ("- [ ] Buy the domain") turns note text into a phantom task, so the
-    // clamp skips everything inside a notes: / description: block.
+    //
+    // A notes: / description: body is CONTENT, so note text is never re-indented
+    // (a bullet or checklist line in a note has to stay a note line). The one
+    // ambiguous case is the AI style that indents a child task from the notes: KEY
+    // instead of from the task's dash, which lands the child exactly ON the body
+    // indent:
+    //
+    //   - [ ] Parent            (dash 2)
+    //     notes: |              (key  4)
+    //       https://url         (body 6, content)
+    //       - [ ] Child         (6 = the body indent -> a TASK, re-clamped to 4)
+    //
+    // So a CHECKBOX line at the body indent closes the block and is clamped as a
+    // task. A block that OPENS with a checkbox line is a checklist note and stays
+    // content in full; plain "- " bullets are always content.
     function clampYamlNestingSteps(yamlText) {
         const lines = yamlText.split(/\r?\n/);
         const clampedLines = [];
         let prevTaskIndent = -1;
-        let blockBodyIndent = -1; // > -1 while inside a notes: / description: block
+        let blockBodyIndent = -1;         // > -1 while inside a notes: / description: block
+        let blockOpensWithCheckbox = null; // null = first body line not seen yet
 
         for (let i = 0; i < lines.length; i++) {
             const line = lines[i];
@@ -2404,16 +2421,26 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
 
             if (blockBodyIndent !== -1) {
                 const bodyIndent = line.match(/^( *)/)[1].length;
-                if (trimmed === '' || bodyIndent >= blockBodyIndent) {
+                const isCheckboxLine = /^-\s*\[[ xX]\]/.test(trimmed);
+
+                if (trimmed === '') {
                     clampedLines.push(line);
                     continue;
                 }
-                blockBodyIndent = -1;
+                if (blockOpensWithCheckbox === null) {
+                    blockOpensWithCheckbox = isCheckboxLine;
+                }
+                if (bodyIndent > blockBodyIndent || !isCheckboxLine || blockOpensWithCheckbox) {
+                    clampedLines.push(line);
+                    continue;
+                }
+                blockBodyIndent = -1; // checkbox at the body indent -> a child task
             }
 
             const blockKeyMatch = line.match(/^(\s*)(?:notes|description)\s*:\s*[|>][-+]?\d*\s*$/i);
             if (blockKeyMatch) {
                 blockBodyIndent = blockKeyMatch[1].length + INDENT_SPACES_PER_LEVEL;
+                blockOpensWithCheckbox = null;
                 clampedLines.push(line);
                 continue;
             }

@@ -100,6 +100,12 @@ model already knows (Markdown checkboxes). 1.14/1.15 briefly wrote a strict-YAML
    `indent + 2`. **NEVER align `notes:` with the task's dash**: the body would then collide with child tasks,
    the parser swallows every following subtask into the notes block, and the list "never saves". (This exact
    bug shipped once. Do not repeat it.)
+   **Reading tolerance (1.17):** AI output often indents a child task relative to the `notes:` KEY instead of
+   the task's dash, which lands the child exactly ON the body indent. `clampYamlNestingSteps()` therefore
+   treats a **checkbox line** (`- [ ] ` / `- [x] `) at the body indent as a child task: it closes the block
+   and re-clamps the line to `parent dash + 2`. Plain `- ` bullets, URLs and text stay content, and a block
+   that OPENS with a checkbox line is a checklist note, so it stays content in full. The writer never leans on
+   this heuristic: a note containing a checkbox line is written as a quoted scalar (`notes: "a\n- [ ] b"`).
 6. **Single-line notes/descriptions are double-quoted with escapes** (`yamlQuote()` escapes backslashes
    first, then quotes and tabs; `unquoteYamlScalar()` decodes on read) so a Windows path or a quote inside a
    note round-trips exactly instead of coming back mangled.
@@ -263,6 +269,7 @@ Always tell the owner to hard-refresh and how to confirm the live build.
 |---|---|---|
 | `body.state .class-on-body ...` selector | New CSS rule never applies ("nothing changed") | Compound the body classes: `body.state.class-on-body` |
 | `notes:` aligned with the task dash | Saved list loses subtasks on refresh ("YAML never saves") | Notes key at +2, body at +4 |
+| AI indents a child task from the `notes:` key | The child lands on the body indent and is swallowed into the note (looks like raw list text in the render) | Checkbox lines at the body indent close the block and are re-clamped (1.17); plain bullets stay content; the writer quotes notes containing checkboxes |
 | Calling the list format "YAML" (or letting a linter/AI drive the format) | Every validator "fixes" the file - the 1.14/1.15 strict-YAML output was the result of exactly this | It is the List Puncher list format. Never claim YAML; keep BOTH readers so an AI reformat still imports |
 | Re-introducing the 1.14/1.15 strict output | Tasks cost ~8 extra chars each plus a `tasks:` line per parent, and every task needs a redundant prefix | Strict shape is READ-ONLY legacy; the checklist is canonical |
 | Player iframe created on page load | ~20s black screen on first play click | Click-only lazy facade |
