@@ -15,7 +15,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
     
     <!-- Separated Master Stylesheet (Zero Prism Crash) - version query busts the GitHub Pages 10min cache -->
-    <link rel="stylesheet" href="index.css?v=1.18">
+    <link rel="stylesheet" href="index.css?v=1.19">
 
     <script>
     /* Universal Dark Reader Kill Switch (Rule 9) */
@@ -249,7 +249,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     // =========================================================================
     const AUTOSAVE_DELAY_MS = 500;
     const INDENT_SPACES_PER_LEVEL = 2;
-    const APP_BUILD = '1.18'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
+    const APP_BUILD = '1.19'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
     const DEFAULT_PROJECT_ID = 'default_onboarding';
     const DEFAULT_PROJECT_NAME = 'Client Onboarding';
 
@@ -1417,7 +1417,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
                         <button type="button" class="btn-icon sec-action-btn" title="Paste tasks into this milestone (List Puncher format)" onclick="openYamlModal('section', ${sIdx})">
                             ${PASTE_SUBTASKS_SVG_ICON}
                         </button>
-                        <button type="button" class="btn-icon sec-action-btn check-all-btn" title="Mark every task in this milestone complete (click again to clear them)" onclick="toggleSectionComplete(${sIdx})">
+                        <button type="button" class="btn-icon sec-action-btn check-all-btn" title="Check all tasks in this milestone (click again to clear them all)" onclick="toggleSectionComplete(${sIdx})">
                             ${CHECK_ALL_SVG_ICON}
                         </button>
                         <button type="button" class="btn-icon sec-action-btn delete-btn" title="Delete milestone and all its tasks" onclick="confirmDeleteSection(${sIdx})">✕</button>
@@ -2016,9 +2016,11 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         }, 60);
     }
 
-    // Mark every task in a milestone complete (click again to clear them all).
+    // Mark every task in a milestone complete / clear them (toggle).
     // Milestones themselves are not stored as checked - their state is derived from
-    // the tasks inside them, so this only touches the tasks.
+    // the tasks inside them, so this only touches the tasks of THIS milestone:
+    //   none or some checked -> check them all
+    //   all checked          -> clear them all
     function toggleSectionComplete(sectionIndex) {
         const sectionHeaderIndices = [];
         TASKS_DATA.forEach((t, i) => {
@@ -2036,14 +2038,27 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         }
 
         const secTitle = TASKS_DATA[headerIdx].title;
+        const secId = TASKS_DATA[headerIdx].id;
+        // Toggle: none/some checked -> check them all; all checked -> clear them all.
         const allDone = tasks.every(t => t.checked);
         tasks.forEach(t => { t.checked = !allDone; });
 
         executeAutoSave();
         renderAll();
+
+        // With "Bottom: ON" a milestone that just hit 100% jumps to the bottom of the
+        // deck and gets renumbered, which looks like the section vanished. Follow it.
+        const movedToBottom = !allDone && Boolean(UI_STATE.completedAtBottom);
+        if (secId) {
+            const deck = document.getElementById('deck_' + secId);
+            if (deck && typeof deck.scrollIntoView === 'function') {
+                deck.scrollIntoView({ block: 'center', behavior: 'smooth' });
+            }
+        }
+
         showToast(allDone
             ? `↩️ Cleared ${tasks.length} task(s) in "${secTitle}"`
-            : `✓ Completed ${tasks.length} task(s) in "${secTitle}"`);
+            : `✓ Completed ${tasks.length} task(s) in "${secTitle}"${movedToBottom ? ' - moved to the bottom' : ''}`);
     }
 
     function copySectionAsYaml(sectionIndex) {

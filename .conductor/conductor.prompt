@@ -139,6 +139,9 @@ model already knows (Markdown checkboxes). 1.14/1.15 briefly wrote a strict-YAML
 - **Depth colors** (`body.depth-colors-alt` | `body.depth-colors-solid`): ALT gives **one alternating color
   per nesting level** (level 1/3 = `--card-border-color-1`, level 2/4 = `--card-border-color-2`) for BOTH the
   rail and the row hook at that depth; SOLID uses one theme color everywhere.
+- **Completed to bottom** (`UI_STATE.completedAtBottom`): with it ON, a milestone that hits 100% moves to the end
+  of the deck and is renumbered. Anything that can complete a whole milestone (the Check All button, the last
+  task checkbox) must FOLLOW the section it moved (`scrollIntoView`), otherwise the section looks like it vanished.
 
 **Cascade rules (learned the hard way):**
 1. **State classes live on `<body>`.** Because of that, they must be written as ONE compound selector:
@@ -291,6 +294,7 @@ Always tell the owner to hard-refresh and how to confirm the live build.
 | Seeding the blueprint from `renderAll()` | Any empty `TASKS_DATA` moment overwrote the saved list ("my list is gone after a refresh") | Seed on the load path only; never write over stored data |
 | `localStorage.setItem` throwing (quota, sandboxed iframe) | The save silently did nothing and the pill stayed green | Wrap writes in try/catch and show "⚠ Storage blocked" |
 | Project id built from `Date.now()` | Every refresh resolved to a new empty project | Deterministic ids derived from the name |
+| Completing a milestone with Bottom: ON | It jumps to the end of the deck and is renumbered, so it looks like the section vanished (and a follow-up click can land on a different section) | Follow it with `scrollIntoView()` and say "moved to the bottom" in the toast |
 
 ---
 
