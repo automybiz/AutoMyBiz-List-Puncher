@@ -158,3 +158,123 @@ commit;
 --     from information_schema.role_table_grants
 --    where table_schema = 'list_puncher' order by table_name, grantee;
 
+
+-- =============================================================================
+-- PHASE 1B - SECURITY FIX (run AFTER Phase 1; safe to re-run)
+-- -----------------------------------------------------------------------------
+-- Phase 1 registered a tenant on first use keyed ONLY by location_id, so whoever
+-- called first "owned" that location and could then read its existing row.
+-- Now every list row carries the hash of the tenant that wrote it, and tenants are
+-- keyed by (location_id, secret_hash), so an impostor who claims a location can
+-- only reach rows carrying their own hash - i.e. none.
+-- =============================================================================
+
+begin;
+
+-- 1. tenants: several rows per location (one per secret); "first caller wins" is gone
+alter table list_puncher.tenants drop constraint if exists tenants_pkey;
+delete from list_puncher.tenants;
+alter table list_puncher.tenants add primary key (location_id, secret_hash);
+
+-- 2. lists: tag each row with the tenant that wrote it
+alter table list_puncher.lists add column if not exists tenant_hash text;
+alter table list_puncher.lists drop constraint if exists lists_location_id_project_id_key;
+delete from list_puncher.lists where tenant_hash is null;   -- pre-fix row; the app re-pushes it
+alter table list_puncher.lists alter column tenant_hash set not null;
+alter table list_puncher.lists
+  add constraint lists_location_project_tenant_key unique (location_id, project_id, tenant_hash);
+
+-- 3. register = insert-if-absent, and always return the caller's OWN hash
+create or replace function list_puncher.ensure_tenant(p_location text, p_secret text)
+returns text
+language plpgsql
+security definer
+set search_path = list_puncher, pg_temp
+as $$
+declare
+  v_hash text := list_puncher.hash_secret(p_secret);
+begin
+  if coalesce(p_location, '') = '' or coalesce(p_secret, '') = '' then
+    return null;
+  end if;
+
+  insert into list_puncher.tenants (location_id, secret_hash, last_seen_at)
+  values (p_location, v_hash, now())
+  on conflict (location_id, secret_hash) do update set last_seen_at = now();
+
+  return v_hash;
+end;
+$$;
+
+create or replace function list_puncher.get_list(p_location text, p_project text, p_secret text)
+returns table (checklist_text text, updated_at timestamptz)
+language plpgsql
+security definer
+set search_path = list_puncher, pg_temp
+as $$
+declare
+  v_hash text := list_puncher.ensure_tenant(p_location, p_secret);
+begin
+  if v_hash is null then
+    return;
+  end if;
+
+  return query
+    select l.checklist_text, l.updated_at
+    from list_puncher.lists l
+    where l.location_id = p_location
+      and l.project_id  = p_project
+      and l.tenant_hash = v_hash
+    limit 1;
+end;
+$$;
+
+create or replace function list_puncher.upsert_list(p_location text, p_project text, p_secret text, p_text text)
+returns timestamptz
+language plpgsql
+security definer
+set search_path = list_puncher, pg_temp
+as $$
+declare
+  v_hash text := list_puncher.ensure_tenant(p_location, p_secret);
+  v_now  timestamptz := now();
+begin
+  if v_hash is null then
+    raise exception 'invalid tenant secret' using errcode = '28000';
+  end if;
+
+  insert into list_puncher.lists (location_id, project_id, tenant_hash, checklist_text, updated_at)
+  values (p_location, p_project, v_hash, coalesce(p_text, ''), v_now)
+  on conflict (location_id, project_id, tenant_hash)
+  do update set checklist_text = excluded.checklist_text,
+                updated_at     = excluded.updated_at;
+
+  return v_now;
+end;
+$$;
+
+create or replace function list_puncher.delete_list(p_location text, p_project text, p_secret text)
+returns boolean
+language plpgsql
+security definer
+set search_path = list_puncher, pg_temp
+as $$
+declare
+  v_hash  text := list_puncher.ensure_tenant(p_location, p_secret);
+  v_count integer;
+begin
+  if v_hash is null then
+    raise exception 'invalid tenant secret' using errcode = '28000';
+  end if;
+
+  delete from list_puncher.lists
+  where location_id = p_location
+    and project_id  = p_project
+    and tenant_hash = v_hash;
+  get diagnostics v_count = row_count;
+  return v_count > 0;
+end;
+$$;
+
+commit;
+
