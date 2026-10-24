@@ -15,7 +15,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
     
     <!-- Separated Master Stylesheet (Zero Prism Crash) - version query busts the GitHub Pages 10min cache -->
-    <link rel="stylesheet" href="index.css?v=1.29">
+    <link rel="stylesheet" href="index.css?v=1.30">
 
     <script>
     /* Universal Dark Reader Kill Switch (Rule 9) */
@@ -304,7 +304,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     // =========================================================================
     const AUTOSAVE_DELAY_MS = 500;
     const INDENT_SPACES_PER_LEVEL = 2;
-    const APP_BUILD = '1.29'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
+    const APP_BUILD = '1.30'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
     // Bump whenever the UI_STATE defaults below change: a saved state older than this gets
     // the new defaults applied exactly ONCE (afterwards the user's own toggles win).
     const UI_STATE_DEFAULTS_VERSION = 2;
@@ -356,6 +356,10 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     const GHL_CV_CLOUD_KEY = 'list_puncher_supabase_key';
     const GHL_CV_CLOUD_SECRET = 'list_puncher_secret';   // per-sub-account tenant secret (agency-hub mode)
     const CLOUD_SECRET_PARAM = 'lp_secret';              // optional: pass it straight in the menu link
+    const GHL_CV_EDITORS = 'list_puncher_editors';       // who may edit (ADMINS | ALL | emails/names)
+    const GHL_CV_VIEWERS = 'list_puncher_viewers';       // who may view (ALL | ADMINS | emails/names)
+    const PERMISSIONS_EDITORS_DEFAULT = 'ADMINS';        // shipped defaults, used when no CV and no param
+    const PERMISSIONS_VIEWERS_DEFAULT = 'ALL';
     const LEGACY_FALLBACK_CLOUD = {
         url: 'https://dhuhkinuruxbwddhffwk.supabase.co',
         key: 'sb_publishable_lRK_Qr7If2CFYEq2t5TW0w_IA4-4E8N'
@@ -381,8 +385,10 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     const USER_EMAIL    = (urlParams.get('user_email') || '').toLowerCase().trim();
     const OWNER_EMAIL   = (urlParams.get('owner_email') || '').toLowerCase().trim();
     const USER_ROLE     = (urlParams.get('user_role') || '').toLowerCase().trim();
-    const EDITORS_PARAM = urlParams.get('editors') || '';
-    const VIEWERS_PARAM = urlParams.get('viewers') || '';
+    // Editors/viewers can arrive in the link, or (preferred) come from the sub-account's GHL
+    // custom values - see applyGhlPermissionDefaults(). Hence `let`, not `const`.
+    let EDITORS_PARAM = urlParams.get('editors') || '';
+    let VIEWERS_PARAM = urlParams.get('viewers') || '';
     const MODE_OVERRIDE = (urlParams.get('mode') || urlParams.get('edit') || '').toLowerCase();
     const URL_PROJECT   = urlParams.get('project') || urlParams.get('project_id') || '';
 
@@ -1007,7 +1013,11 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
 
     // Reads this sub-account's GHL custom values using the PIT that GHL passes in the menu
     // link. Returns a lower-cased name -> value map, or null when no PIT is available.
+    // Cached briefly: a single load asks for permissions AND for the cloud target.
+    let GHL_CV_CACHE = { at: 0, map: null };
+
     async function fetchGhlCustomValues() {
+        if (GHL_CV_CACHE.map && (Date.now() - GHL_CV_CACHE.at) < 60000) return GHL_CV_CACHE.map;
         const cleanToken = String(API_TOKEN || '').trim();
         if (!LOCATION_ID || !cleanToken.startsWith('pit-')) return null;
         // This runs BEFORE the first render, so it must never be able to hang the app.
@@ -1028,6 +1038,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
             (data.customValues || []).forEach(v => {
                 if (v && v.name) map[String(v.name).toLowerCase()] = v.value;
             });
+            GHL_CV_CACHE = { at: Date.now(), map: map };
             return map;
         } catch (e) {
             lpTrace('cloud target', 'GHL custom values unavailable (' + e.message + ') - continuing without them');
@@ -1035,6 +1046,34 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         } finally {
             clearTimeout(timeoutId);
         }
+    }
+
+    // The menu link no longer has to carry &editors= / &viewers=. Order of precedence:
+    //   1. the link's own parameters (backwards compatible - a link that passes them wins)
+    //   2. this sub-account's GHL custom values (list_puncher_editors / list_puncher_viewers)
+    //   3. the shipped defaults (ADMINS / ALL)
+    // A standalone page (no GHL context) keeps its "Full Access" behaviour untouched.
+    async function applyGhlPermissionDefaults() {
+        const needsEditors = !EDITORS_PARAM;
+        const needsViewers = !VIEWERS_PARAM;
+        if (!needsEditors && !needsViewers) return;
+
+        const hasGhlContext = (LOCATION_ID && LOCATION_ID !== 'default_subaccount') || !!USER_NAME || !!USER_EMAIL;
+        if (!hasGhlContext) return;
+
+        const values = String(API_TOKEN || '').trim().startsWith('pit-') ? await fetchGhlCustomValues() : null;
+
+        if (needsEditors) {
+            const cv = (values && values[GHL_CV_EDITORS]) ? String(values[GHL_CV_EDITORS]).trim() : '';
+            EDITORS_PARAM = (cv && cv.indexOf('{{') === -1) ? cv : PERMISSIONS_EDITORS_DEFAULT;
+        }
+        if (needsViewers) {
+            const cv = (values && values[GHL_CV_VIEWERS]) ? String(values[GHL_CV_VIEWERS]).trim() : '';
+            VIEWERS_PARAM = (cv && cv.indexOf('{{') === -1) ? cv : PERMISSIONS_VIEWERS_DEFAULT;
+        }
+
+        lpTrace('permissions', 'editors="' + EDITORS_PARAM + '" viewers="' + VIEWERS_PARAM
+            + '" (from ' + (values ? 'this sub-account\'s custom values' : 'built-in defaults') + ')');
     }
 
     // Decides which Supabase project this GHL sub-account writes to. Order matters: an
@@ -1858,14 +1897,14 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
             const data = await res.json();
             const values = data.customValues || [];
 
-            const hasEditors = values.some(v => (v.name || '').toLowerCase() === 'list_puncher_editors');
-            const hasViewers = values.some(v => (v.name || '').toLowerCase() === 'list_puncher_viewers');
+            const hasEditors = values.some(v => (v.name || '').toLowerCase() === GHL_CV_EDITORS);
+            const hasViewers = values.some(v => (v.name || '').toLowerCase() === GHL_CV_VIEWERS);
 
             if (!hasEditors) {
                 await fetch(`${GHL_API_BASE}/locations/${LOCATION_ID}/customValues`, {
                     method: 'POST',
                     headers: headers,
-                    body: JSON.stringify({ name: 'list_puncher_editors', value: 'ADMINS' })
+                    body: JSON.stringify({ name: GHL_CV_EDITORS, value: PERMISSIONS_EDITORS_DEFAULT })
                 });
             }
 
@@ -1873,7 +1912,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
                 await fetch(`${GHL_API_BASE}/locations/${LOCATION_ID}/customValues`, {
                     method: 'POST',
                     headers: headers,
-                    body: JSON.stringify({ name: 'list_puncher_viewers', value: 'ALL' })
+                    body: JSON.stringify({ name: GHL_CV_VIEWERS, value: PERMISSIONS_VIEWERS_DEFAULT })
                 });
             }
         } catch(e) {
@@ -2216,6 +2255,9 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         // Evaluate permissions ONCE, up front. (This used to call a permission
         // helper that no longer exists, which threw and aborted initApp before the
         // saved list was ever loaded - the app then looked like it "never saves".)
+        // editors/viewers may come from the link, the sub-account's custom values, or the
+        // shipped defaults - resolve that before deciding anything.
+        await applyGhlPermissionDefaults();
         const perms = evaluatePermissions();
 
         if (!perms.isEditor) {
