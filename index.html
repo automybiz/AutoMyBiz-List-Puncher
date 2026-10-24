@@ -15,7 +15,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
     
     <!-- Separated Master Stylesheet (Zero Prism Crash) - version query busts the GitHub Pages 10min cache -->
-    <link rel="stylesheet" href="index.css?v=1.24">
+    <link rel="stylesheet" href="index.css?v=1.26">
 
     <script>
     /* Universal Dark Reader Kill Switch (Rule 9) */
@@ -173,6 +173,9 @@
                 <button type="button" class="btn-action" onclick="copyAllAsYamlToClipboard()" title="Copy the whole list in List Puncher format (ready for Notepad++)">
                     📋 Copy LIST
                 </button>
+                <button type="button" class="btn-action" onclick="openCloudSetupModal()" title="Connect this GHL sub-account to its own Supabase project">
+                    ☁ Cloud Project
+                </button>
                 <button type="button" class="btn-action btn-primary" onclick="addNewSection()" title="Add new milestone card">
                     + New Section
                 </button>
@@ -243,6 +246,38 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     </div>
 </div>
 
+<!-- Cloud Project Modal Overlay (per sub-account Supabase target) -->
+<div id="cloudSetupModal" class="modal-overlay">
+    <div class="modal-card">
+        <div class="modal-header">
+            <div class="modal-title-wrap">
+                <div class="modal-title">☁ Cloud Project</div>
+                <div class="modal-subtitle" id="cloudSetupStatus">Checking this sub-account...</div>
+            </div>
+            <button type="button" class="modal-close-btn" onclick="closeCloudSetupModal()">✕</button>
+        </div>
+        <div class="modal-body" style="display:flex; flex-direction:column; gap:10px;">
+            <label class="modal-hint" style="font-weight:600;">Supabase project URL</label>
+            <input type="text" id="cloudUrlInput" class="modal-textarea" style="min-height:0; height:40px; font-family:monospace;" spellcheck="false" placeholder="https://xxxxxxxxxxxxxxxxxxxx.supabase.co" />
+            <label class="modal-hint" style="font-weight:600;">Publishable (anon) key</label>
+            <input type="text" id="cloudKeyInput" class="modal-textarea" style="min-height:0; height:40px; font-family:monospace;" spellcheck="false" placeholder="sb_publishable_..." />
+            <label id="cloudGhlRow" style="display:none; align-items:center; gap:8px; font-size:12px; color:var(--text-secondary);">
+                <input type="checkbox" id="cloudSaveToGhl" checked />
+                <span>Also save to this sub-account's GHL custom values, so every device picks it up automatically</span>
+            </label>
+            <div class="modal-hint" style="white-space: pre-line; line-height: 1.4;">New client? Run supabase/setup-client-project.sql in THEIR project's SQL Editor, then add the list_puncher schema under Settings → Data API → Exposed schemas. Full walkthrough: docs/CLIENT-SUPABASE-SETUP.md</div>
+            <div class="modal-hint" id="cloudSetupFeedback" style="min-height:18px;"></div>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn-action btn-sm" onclick="testCloudTargetFromInputs()">🔌 Test connection</button>
+            <div style="display: flex; gap: 8px;">
+                <button type="button" class="btn-action" onclick="closeCloudSetupModal()">Cancel</button>
+                <button type="button" class="btn-action btn-primary" onclick="saveCloudTargetFromInputs()">✓ Save &amp; Connect</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Confirmation Modal Overlay (deletions + bulk Check/Uncheck All) -->
 <div id="deleteModal" class="modal-overlay">
     <div class="modal-card delete-modal-card" id="confirmModalCard">
@@ -269,7 +304,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     // =========================================================================
     const AUTOSAVE_DELAY_MS = 500;
     const INDENT_SPACES_PER_LEVEL = 2;
-    const APP_BUILD = '1.24'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
+    const APP_BUILD = '1.26'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
     // Bump whenever the UI_STATE defaults below change: a saved state older than this gets
     // the new defaults applied exactly ONCE (afterwards the user's own toggles win).
     const UI_STATE_DEFAULTS_VERSION = 2;
@@ -283,6 +318,45 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     const CONTAINER_DEFAULT_WIDTH = 980;
     const DEFAULT_PROJECT_ID = 'default_onboarding';
     const DEFAULT_PROJECT_NAME = 'Client Onboarding';
+
+    // =========================================================================
+    // CLOUD BACKEND (SUPABASE) - BRING YOUR OWN PROJECT, PER GHL SUB-ACCOUNT
+    // -------------------------------------------------------------------------
+    // The iframe lives INSIDE GoHighLevel, so GHL stays the only login boundary:
+    // no Supabase Auth session here, just a public key plus RLS on the table.
+    //
+    // Each sub-account points at ITS OWN Supabase project, so one client's data can
+    // never land in another's (and nobody pays for everyone else's projects). The
+    // target is resolved ONCE at startup by resolveCloudTarget(), first hit wins:
+    //   1. URL params        ?sb_url=...&sb_key=...   (per-location menu link / testing)
+    //   2. This browser      list_puncher_<loc>_cloud_target   (Cloud Project dialog)
+    //   3. GHL custom values list_puncher_supabase_url / list_puncher_supabase_key
+    //                        (set once per sub-account -> every device inherits it)
+    //   4. LEGACY_FALLBACK_CLOUD  (agency pilot project - set to null once every
+    //                        sub-account has its own target, so nothing can cross over)
+    // With no source at all the app runs 100% local, exactly like the pre-cloud build.
+    // =========================================================================
+    const SYNC_BACKEND = 'supabase';                    // 'supabase' | 'off'
+    const SUPABASE_SCHEMA = 'list_puncher';             // exposed separately from public in the Data API
+    const SUPABASE_LISTS_TABLE = 'lists';
+    const CLOUD_SAVE_DEBOUNCE_MS = 800;                 // local saves are instant; pushes are coalesced
+    const CLOUD_REQUEST_TIMEOUT_MS = 12000;             // a stalled fetch must never freeze the pill
+    const CLOUD_RETRY_MS = 15000;                       // retry window after a failed push (offline / 429)
+    const CLOUD_REFRESH_ON_FOCUS = true;                // pull a newer shared copy when the tab regains focus
+    const CLOUD_CONFIG_LOOKUP_TIMEOUT_MS = 4000;        // GHL custom-value lookup must never delay first paint
+
+    // Bring-your-own-project knobs (see resolveCloudTarget()).
+    const CLOUD_URL_PARAM = 'sb_url';
+    const CLOUD_KEY_PARAM = 'sb_key';
+    const GHL_CV_CLOUD_URL = 'list_puncher_supabase_url';
+    const GHL_CV_CLOUD_KEY = 'list_puncher_supabase_key';
+    const LEGACY_FALLBACK_CLOUD = {
+        url: 'https://dhuhkinuruxbwddhffwk.supabase.co',
+        key: 'sb_publishable_lRK_Qr7If2CFYEq2t5TW0w_IA4-4E8N'
+    };
+
+    // Filled in by resolveCloudTarget() during initApp; until then every cloud call is a no-op.
+    let CLOUD_CONFIG = { url: '', key: '', schema: SUPABASE_SCHEMA, source: 'none' };
 
     const GHL_API_BASE = 'https://services.leadconnectorhq.com';
     const SETTINGS_GATEWAY_DOMAIN = 'https://ghl-custom-workflow-settings.automybiz.workers.dev';
@@ -635,6 +709,8 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
                     TASKS_DATA = parsed;
                     lpTrace('load OK', 'key=' + projectKey + '  items=' + parsed.length + '  bytes=' + rawYaml.length);
                     renderAll();
+                    // Cached list is on screen instantly; the shared row may still be newer.
+                    hydrateFromCloud(ACTIVE_PROJECT_ID, true);
                     return;
                 }
                 // Stored text that does not parse is NEVER overwritten - keep it on disk
@@ -660,7 +736,14 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
                 }
             }
 
-            lpTrace('load EMPTY', 'no list at ' + projectKey + ' and none at list_puncher_yaml -> recovery, then blueprint');
+            lpTrace('load EMPTY', 'no list at ' + projectKey + ' and none at list_puncher_yaml -> cloud, then recovery, then blueprint');
+            // Nothing cached here (new device, new browser profile, cleared storage). Ask the
+            // cloud BEFORE seeding a blueprint: otherwise the first run on a second device would
+            // push a starter list straight over the list the agency already built.
+            if (isCloudEnabled()) {
+                hydrateFromCloud(ACTIVE_PROJECT_ID, true, () => seedOnboardingBlueprint());
+                return;
+            }
             seedOnboardingBlueprint();
         } catch (e) {
             console.warn('[List Puncher] Load failed:', e);
@@ -682,10 +765,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     function executeAutoSave() {
         clearTimeout(AUTOSAVE_TIMER);
         const savedOk = saveState();
-        setStoragePillStatus(savedOk ? 'saved' : 'restricted', savedOk ? '✓ Saved' : '⚠ Save check failed');
-        setTimeout(() => {
-            setStoragePillStatus('healthy', 'LIST Storage');
-        }, savedOk ? 1400 : 6000);
+        setStoragePillStatusTemporary(savedOk ? 'saved' : 'restricted', savedOk ? '✓ Saved' : '⚠ Save check failed', savedOk ? 1400 : 6000);
     }
 
     function setStoragePillStatus(stateClass, text) {
@@ -697,6 +777,20 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         if (pillText) {
             pillText.innerText = text;
         }
+    }
+
+    // The pill now has TWO writers: the local save engine above and the cloud push engine
+    // below. They share one revert timer, otherwise the local "✓ Saved" reset would wipe
+    // the cloud answer ("☁ Synced") mid-flight and the pill would contradict itself.
+    let PILL_RESET_TIMER = null;
+
+    function setStoragePillStatusTemporary(stateClass, text, revertMs) {
+        clearTimeout(PILL_RESET_TIMER);
+        setStoragePillStatus(stateClass, text);
+        PILL_RESET_TIMER = setTimeout(() => {
+            const base = basePillState();
+            setStoragePillStatus(base.cls, base.text);
+        }, revertMs);
     }
 
     // =========================================================================
@@ -742,6 +836,13 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         lines.push('ACTIVE_PROJECT:  ' + ACTIVE_PROJECT_ID);
         lines.push('project key:     ' + getProjectYamlKey(ACTIVE_PROJECT_ID));
         lines.push('items in memory: ' + TASKS_DATA.length);
+        lines.push('cloud sync:      ' + (isCloudEnabled()
+            ? ('ON -> ' + CLOUD_CONFIG.url + '/rest/v1/' + SUPABASE_LISTS_TABLE
+                + '  schema ' + CLOUD_CONFIG.schema + '  source ' + CLOUD_CONFIG.source)
+            : 'OFF - no project connected for this sub-account'));
+        lines.push('cloud status:    ' + CLOUD_STATUS + '   queued pushes: ' + CLOUD_PENDING.size
+            + '   known in cloud: ' + CLOUD_LAST_PUSHED.size
+            + '   syncedAt: ' + (readCloudMeta(ACTIVE_PROJECT_ID).syncedAt || '(never)'));
         try {
             const rows = [];
             for (let i = 0; i < localStorage.length; i++) {
@@ -851,6 +952,9 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
                 LAST_SAVED_YAML = fullYaml;
                 lpTrace('save OK', 'key=' + getProjectYamlKey(ACTIVE_PROJECT_ID)
                     + '  items=' + TASKS_DATA.length + '  bytes=' + fullYaml.length);
+                // Conflict resolution compares "when did THIS device last change the list" with
+                // the cloud row's updated_at, so the moment of a real change is recorded here.
+                touchCloudLocalSavedAt(ACTIVE_PROJECT_ID);
             }
 
             // Round-trip self check: if the list we just wrote cannot be read back into the same
@@ -864,6 +968,11 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
             } catch (e) {
                 console.warn('[List Puncher] Save round-trip check error:', e);
             }
+
+            // Shared persistence: the localStorage writes above are the instant local cache,
+            // this is the coalesced cloud push. A failed push NEVER fails the local save -
+            // the pill reports the two engines separately.
+            scheduleCloudSave(fullYaml);
             return true;
         } catch (e) {
             // Storage writes can throw (quota, or a blocked / sandboxed context). Never
@@ -873,6 +982,598 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
             setStoragePillStatus('restricted', '⚠ Storage blocked');
             return false;
         }
+    }
+
+    // =========================================================================
+    // CLOUD SYNC ENGINE (SUPABASE REST - ONE ROW PER LOCATION + PROJECT)
+    // -------------------------------------------------------------------------
+    // The cloud copy is what makes one agency edit visible to every client. The local
+    // cache above stays authoritative for rendering, so the app is fully usable offline
+    // and a failed request can never lose a keystroke.
+    // =========================================================================
+    const CLOUD_PENDING = new Map();        // projectId -> list text waiting to be pushed
+    const CLOUD_LAST_PUSHED = new Map();    // projectId -> text already known to be in the cloud
+    let CLOUD_TIMER = null;
+    let CLOUD_INFLIGHT = false;
+    const CLOUD_HYDRATING = new Set();      // projectIds with a pull in flight
+    let CLOUD_STATUS = 'off';               // 'off' | 'saving' | 'synced' | 'offline'
+
+    // Reads this sub-account's GHL custom values using the PIT that GHL passes in the menu
+    // link. Returns a lower-cased name -> value map, or null when no PIT is available.
+    async function fetchGhlCustomValues() {
+        const cleanToken = String(API_TOKEN || '').trim();
+        if (!LOCATION_ID || !cleanToken.startsWith('pit-')) return null;
+        // This runs BEFORE the first render, so it must never be able to hang the app.
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), CLOUD_CONFIG_LOOKUP_TIMEOUT_MS);
+        try {
+            const res = await fetch(`${GHL_API_BASE}/locations/${LOCATION_ID}/customValues`, {
+                headers: {
+                    'Authorization': 'Bearer ' + cleanToken,
+                    'Version': '2021-07-28',
+                    'Accept': 'application/json'
+                },
+                signal: controller.signal
+            });
+            if (!res.ok) return null;
+            const data = await res.json();
+            const map = {};
+            (data.customValues || []).forEach(v => {
+                if (v && v.name) map[String(v.name).toLowerCase()] = v.value;
+            });
+            return map;
+        } catch (e) {
+            lpTrace('cloud target', 'GHL custom values unavailable (' + e.message + ') - continuing without them');
+            return null;
+        } finally {
+            clearTimeout(timeoutId);
+        }
+    }
+
+    // Decides which Supabase project this GHL sub-account writes to. Order matters: an
+    // explicit link override wins, then this browser's choice, then the sub-account's GHL
+    // custom values (so a brand-new device inherits the agency's choice by itself), then
+    // the legacy agency fallback.
+    async function resolveCloudTarget() {
+        const paramTarget = normalizeCloudTarget(urlParams.get(CLOUD_URL_PARAM), urlParams.get(CLOUD_KEY_PARAM));
+        if (paramTarget) {
+            writeStoredCloudTarget(paramTarget.url, paramTarget.key);
+            CLOUD_CONFIG = { url: paramTarget.url, key: paramTarget.key, schema: SUPABASE_SCHEMA, source: 'url-param' };
+            lpTrace('cloud target', 'URL params -> ' + paramTarget.url);
+            return CLOUD_CONFIG;
+        }
+
+        const stored = readStoredCloudTarget();
+        if (stored) {
+            CLOUD_CONFIG = { url: stored.url, key: stored.key, schema: SUPABASE_SCHEMA, source: 'browser' };
+            lpTrace('cloud target', 'this browser -> ' + stored.url);
+            return CLOUD_CONFIG;
+        }
+
+        const customValues = await fetchGhlCustomValues();
+        if (customValues) {
+            const cvTarget = normalizeCloudTarget(customValues[GHL_CV_CLOUD_URL], customValues[GHL_CV_CLOUD_KEY]);
+            if (cvTarget) {
+                writeStoredCloudTarget(cvTarget.url, cvTarget.key);
+                CLOUD_CONFIG = { url: cvTarget.url, key: cvTarget.key, schema: SUPABASE_SCHEMA, source: 'ghl-custom-value' };
+                lpTrace('cloud target', 'GHL custom values -> ' + cvTarget.url);
+                return CLOUD_CONFIG;
+            }
+        }
+
+        if (LEGACY_FALLBACK_CLOUD) {
+            const fallback = normalizeCloudTarget(LEGACY_FALLBACK_CLOUD.url, LEGACY_FALLBACK_CLOUD.key);
+            if (fallback) {
+                CLOUD_CONFIG = { url: fallback.url, key: fallback.key, schema: SUPABASE_SCHEMA, source: 'agency-fallback' };
+                console.warn('[List Puncher] Using the AGENCY fallback Supabase project. Give this sub-account its own project so its data stays separate.');
+                lpTrace('cloud target', 'AGENCY FALLBACK -> ' + fallback.url);
+                return CLOUD_CONFIG;
+            }
+        }
+
+        CLOUD_CONFIG = { url: '', key: '', schema: SUPABASE_SCHEMA, source: 'none' };
+        lpTrace('cloud target', 'NONE - local-only until a project is connected');
+        return CLOUD_CONFIG;
+    }
+
+    function describeCloudTarget() {
+        if (!isCloudEnabled()) return 'Not connected - lists stay in this browser only.';
+        const labels = {
+            'url-param': 'the menu-link URL parameters',
+            'browser': 'this browser',
+            'ghl-custom-value': "this sub-account's GHL custom values",
+            'agency-fallback': 'the AGENCY fallback project'
+        };
+        const where = labels[CLOUD_CONFIG.source] || CLOUD_CONFIG.source;
+        return 'Connected to ' + CLOUD_CONFIG.url.replace(/^https?:\/\//, '') + ' (from ' + where + ')';
+    }
+
+    // The pill's resting state follows the cloud state, so "Not connected" / "Offline" survives
+    // the local save engine's "✓ Saved" flash instead of being overwritten by it.
+    function basePillState() {
+        if (!isCloudEnabled()) return { cls: 'restricted', text: '☁ Not connected' };
+        if (CLOUD_STATUS === 'offline') return { cls: 'restricted', text: '☁ Offline' };
+        if (CLOUD_STATUS === 'saving') return { cls: 'saving', text: '☁ Saving...' };
+        return { cls: 'healthy', text: 'LIST Storage' };
+    }
+
+    // Called when the target changes: nothing queued for the OLD project may leak into the new one.
+    function resetCloudRuntime() {
+        clearTimeout(CLOUD_TIMER);
+        clearTimeout(CLOUD_RETRY_TIMER);
+        CLOUD_PENDING.clear();
+        CLOUD_LAST_PUSHED.clear();
+        CLOUD_HYDRATING.clear();
+        CLOUD_INFLIGHT = false;
+        CLOUD_STATUS = 'off';
+    }
+
+    function isCloudEnabled() {
+        return SYNC_BACKEND === 'supabase' && !!CLOUD_CONFIG.url && !!CLOUD_CONFIG.key;
+    }
+
+    // "<ref>.supabase.co" -> "<ref>". Local metadata is namespaced by this, so pointing a
+    // sub-account at a different project can never compare timestamps or cached text
+    // across two different projects.
+    function cloudTargetId(url) {
+        try {
+            return (new URL(url).hostname.split('.')[0] || 'cloud').toLowerCase();
+        } catch (e) {
+            return 'cloud';
+        }
+    }
+
+    function getCloudTargetStorageKey() {
+        return `list_puncher_${LOCATION_ID}_cloud_target`;
+    }
+
+    // One gate for every way a target can arrive (URL, dialog, GHL custom value).
+    function normalizeCloudTarget(url, key) {
+        const cleanUrl = String(url || '').trim().replace(/\/+$/, '');
+        const cleanKey = String(key || '').trim();
+        if (!cleanUrl || !cleanKey) return null;
+        if (!/^https:\/\//i.test(cleanUrl)) return null;     // never send a key over plain http
+        if (/\s/.test(cleanKey)) return null;                // a stray space breaks the header
+        if (/^sb_secret_/i.test(cleanKey)) return null;      // a SECRET key must never reach the browser
+        try { new URL(cleanUrl); } catch (e) { return null; }
+        return { url: cleanUrl, key: cleanKey };
+    }
+
+    function readStoredCloudTarget() {
+        try {
+            const raw = localStorage.getItem(getCloudTargetStorageKey());
+            if (!raw) return null;
+            const parsed = JSON.parse(raw) || {};
+            return normalizeCloudTarget(parsed.url, parsed.key);
+        } catch (e) {
+            return null;
+        }
+    }
+
+    function writeStoredCloudTarget(url, key) {
+        try {
+            localStorage.setItem(getCloudTargetStorageKey(), JSON.stringify({
+                url: url, key: key, savedAt: new Date().toISOString()
+            }));
+            return true;
+        } catch (e) {
+            return false;
+        }
+    }
+
+    function getCloudMetaKey(projId) {
+        return `list_puncher_${LOCATION_ID}_proj_${projId}_cloud_${cloudTargetId(CLOUD_CONFIG.url)}_meta`;
+    }
+
+    // Per-project bookkeeping: syncedAt = the cloud updated_at this device last saw,
+    // localSavedAt = when this device last changed the list. Comparing those two is the
+    // whole conflict rule, so no machine clocks are ever compared with each other.
+    function readCloudMeta(projId) {
+        try {
+            const raw = localStorage.getItem(getCloudMetaKey(projId));
+            const parsed = raw ? JSON.parse(raw) : null;
+            return (parsed && typeof parsed === 'object') ? parsed : {};
+        } catch (e) {
+            return {};
+        }
+    }
+
+    function writeCloudMeta(projId, meta) {
+        try {
+            localStorage.setItem(getCloudMetaKey(projId), JSON.stringify(meta || {}));
+        } catch (e) { /* quota or blocked storage: the push itself still works */ }
+    }
+
+    function touchCloudLocalSavedAt(projId) {
+        const meta = readCloudMeta(projId);
+        meta.localSavedAt = new Date().toISOString();
+        writeCloudMeta(projId, meta);
+    }
+
+    function cloudHeaders(isWrite) {
+        // Supabase's new keys (sb_publishable_...) are NOT JWTs and must be sent on the apikey
+        // header ONLY - sending one as "Authorization: Bearer" makes the request fail because
+        // the platform tries to verify it as a JWT. Legacy anon/service_role keys ARE JWTs and
+        // go on BOTH headers. This branch supports whichever key the client's project issues.
+        const apiKey = CLOUD_CONFIG.key;
+        const schema = CLOUD_CONFIG.schema || SUPABASE_SCHEMA;
+        const isLegacyJwtKey = !/^sb_(publishable|secret)_/.test(apiKey);
+        const headers = {
+            'apikey': apiKey,
+            'Accept': 'application/json',
+            // PostgREST picks the schema from these headers. list_puncher is exposed next to
+            // public in the Data API, so without them "lists" resolves to public.lists (404).
+            'Accept-Profile': schema
+        };
+        if (isLegacyJwtKey) headers['Authorization'] = 'Bearer ' + apiKey;
+        if (isWrite) {
+            headers['Content-Type'] = 'application/json';
+            headers['Content-Profile'] = schema;
+        }
+        return headers;
+    }
+
+    // fetch() has no timeout of its own: a stalled request inside the GHL iframe would leave
+    // the pill on "Saving..." forever, so every call is aborted after CLOUD_REQUEST_TIMEOUT_MS.
+    async function cloudRequest(path, options) {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), CLOUD_REQUEST_TIMEOUT_MS);
+        try {
+            const res = await fetch(CLOUD_CONFIG.url + '/rest/v1/' + path, Object.assign({}, options, { signal: controller.signal }));
+            if (!res.ok) {
+                const detail = await res.text().catch(() => '');
+                throw new Error('HTTP ' + res.status + (detail ? ' - ' + detail.slice(0, 160) : ''));
+            }
+            const body = await res.text();
+            return body ? JSON.parse(body) : null;
+        } finally {
+            clearTimeout(timeoutId);
+        }
+    }
+
+    function cloudProjectFilter(projId) {
+        return 'location_id=eq.' + encodeURIComponent(LOCATION_ID)
+            + '&project_id=eq.' + encodeURIComponent(projId);
+    }
+
+    async function cloudSelectList(projId) {
+        const rows = await cloudRequest(
+            SUPABASE_LISTS_TABLE + '?' + cloudProjectFilter(projId) + '&select=yaml,updated_at&limit=1',
+            { method: 'GET', headers: cloudHeaders(false) }
+        );
+        return (Array.isArray(rows) && rows.length) ? rows[0] : null;
+    }
+
+    // One upsert on the (location_id, project_id) unique key: insert the first time this
+    // project is opened for this location, update on every save after that.
+    async function cloudUpsertList(projId, listText) {
+        const stamp = new Date().toISOString();
+        const rows = await cloudRequest(
+            SUPABASE_LISTS_TABLE + '?on_conflict=location_id,project_id&select=updated_at',
+            {
+                method: 'POST',
+                headers: Object.assign(cloudHeaders(true), { 'Prefer': 'resolution=merge-duplicates,return=representation' }),
+                body: JSON.stringify([{
+                    location_id: LOCATION_ID,
+                    project_id: projId,
+                    yaml: listText,
+                    updated_at: stamp
+                }])
+            }
+        );
+        const row = (Array.isArray(rows) && rows.length) ? rows[0] : null;
+        return { updated_at: (row && row.updated_at) || stamp };
+    }
+
+    function setCloudStatus(status) {
+        CLOUD_STATUS = status;
+        if (status === 'saving') {
+            setStoragePillStatus('saving', '☁ Saving...');   // resolved by synced / offline
+        } else if (status === 'synced') {
+            setStoragePillStatusTemporary('saved', '☁ Synced', 1600);
+        } else if (status === 'offline') {
+            setStoragePillStatusTemporary('restricted', '☁ Offline', 6000);
+        }
+    }
+
+    // saveState() runs on every keystroke (debounced), so pushes are queued per project and
+    // coalesced. The project id is captured HERE: switching lists must never retarget a push
+    // that was queued for the list the user just left.
+    function scheduleCloudSave(listText) {
+        if (!isCloudEnabled() || !listText) return;
+        const projId = ACTIVE_PROJECT_ID;
+        if (CLOUD_LAST_PUSHED.get(projId) === listText) return;   // nothing new to send
+        CLOUD_PENDING.set(projId, listText);
+        setCloudStatus('saving');
+        clearTimeout(CLOUD_TIMER);
+        CLOUD_TIMER = setTimeout(() => { flushCloudSaves(); }, CLOUD_SAVE_DEBOUNCE_MS);
+    }
+
+    async function flushCloudSaves() {
+        if (!isCloudEnabled() || CLOUD_INFLIGHT || !CLOUD_PENDING.size) return;
+        clearTimeout(CLOUD_TIMER);
+        CLOUD_INFLIGHT = true;
+        const jobs = Array.from(CLOUD_PENDING.entries());
+        let allOk = true;
+        for (const job of jobs) {
+            const projId = job[0];
+            const listText = job[1];
+            if (CLOUD_PENDING.get(projId) === listText) CLOUD_PENDING.delete(projId);
+            try {
+                const saved = await cloudUpsertList(projId, listText);
+                CLOUD_LAST_PUSHED.set(projId, listText);
+                const meta = readCloudMeta(projId);
+                meta.syncedAt = saved.updated_at;
+                writeCloudMeta(projId, meta);
+            } catch (e) {
+                allOk = false;
+                CLOUD_PENDING.set(projId, listText);   // stays queued for the retry
+                lpTrace('cloud save FAILED', 'project=' + projId + '  ' + e.message);
+            }
+        }
+        CLOUD_INFLIGHT = false;
+        setCloudStatus(allOk ? 'synced' : 'offline');
+        // Edits made while the request was in flight land here - one timer, never a storm.
+        if (CLOUD_PENDING.size) {
+            clearTimeout(CLOUD_TIMER);
+            CLOUD_TIMER = setTimeout(() => { flushCloudSaves(); }, allOk ? 250 : CLOUD_RETRY_MS);
+        }
+    }
+
+    // Pull the shared row and decide who wins. The rule is deliberately boring: whichever
+    // side changed LAST wins, and an empty local cache always loses - a brand new device must
+    // never overwrite the list the agency already built with a starter blueprint.
+    async function hydrateFromCloud(projId, announce, onNoCloud) {
+        if (!isCloudEnabled()) {
+            if (typeof onNoCloud === 'function') onNoCloud();
+            return;
+        }
+        if (CLOUD_HYDRATING.has(projId)) return;   // focus + visibilitychange can fire together
+        CLOUD_HYDRATING.add(projId);
+        try {
+            const remote = await cloudSelectList(projId);
+            if (projId !== ACTIVE_PROJECT_ID) return;   // the user switched lists while waiting
+
+            const localText = localStorage.getItem(getProjectYamlKey(projId)) || '';
+            if (!remote) {
+                if (localText.trim()) {
+                    scheduleCloudSave(localText);       // first contact: seed the shared row
+                } else if (typeof onNoCloud === 'function') {
+                    onNoCloud();
+                }
+                return;
+            }
+
+            const cloudText = remote.yaml || '';
+            const cloudAt = Date.parse(remote.updated_at || '') || 0;
+            const meta = readCloudMeta(projId);
+            const localAt = meta.localSavedAt ? (Date.parse(meta.localSavedAt) || 0) : 0;
+            const localItems = localText.trim() ? parseYamlToTasks(localText).length : 0;
+
+            // A row that exists but holds no text is as good as no row: if this device has
+            // nothing either, still seed the starter list instead of showing an empty board.
+            if (!cloudText.trim() && !localItems) {
+                if (typeof onNoCloud === 'function') onNoCloud();
+                return;
+            }
+
+            const cloudWins = (!localItems || cloudAt > localAt);
+
+            if (cloudWins && cloudText && cloudText !== localText) {
+                const parsed = parseYamlToTasks(cloudText);
+                if (!parsed.length) {
+                    // Never trade a readable local list for an unreadable cloud one.
+                    lpTrace('cloud load SKIPPED', 'cloud row for ' + projId + ' does not parse');
+                } else {
+                    TASKS_DATA = parsed;
+                    saveState();                                    // refresh the local cache
+                    CLOUD_PENDING.delete(projId);                   // this IS the cloud copy now
+                    CLOUD_LAST_PUSHED.set(projId, localStorage.getItem(getProjectYamlKey(projId)) || '');
+                    const freshMeta = readCloudMeta(projId);
+                    freshMeta.syncedAt = remote.updated_at;
+                    writeCloudMeta(projId, freshMeta);
+                    renderAll();
+                    lpTrace('cloud load OK', 'project=' + projId + '  items=' + parsed.length + '  bytes=' + cloudText.length);
+                    if (announce) showToast('☁ Loaded the shared list');
+                }
+            } else if (localText.trim() && localText !== cloudText) {
+                scheduleCloudSave(localText);   // this device holds the newer copy
+            }
+            setCloudStatus('synced');
+        } catch (e) {
+            lpTrace('cloud load FAILED', 'project=' + projId + '  ' + e.message);
+            setCloudStatus('offline');
+            if (typeof onNoCloud === 'function') onNoCloud();   // offline first run: seed locally
+        } finally {
+            CLOUD_HYDRATING.delete(projId);
+        }
+    }
+
+    // Cheap "did another device change this?" check: ask once when the tab becomes visible
+    // again instead of polling on a timer (an iframe on a GHL dashboard should idle quietly).
+    function refreshFromCloudOnFocus() {
+        if (!isCloudEnabled() || !CLOUD_REFRESH_ON_FOCUS) return;
+        const modal = document.getElementById('yamlModal');
+        if (modal && modal.classList.contains('open')) return;   // never yank the list from under an open editor
+        if (CLOUD_PENDING.size) { flushCloudSaves(); return; }
+        hydrateFromCloud(ACTIVE_PROJECT_ID, false);
+    }
+
+    function initCloudSync() {
+        if (!isCloudEnabled()) {
+            lpTrace('cloud', 'OFF - no Supabase project connected for this sub-account');
+            setStoragePillStatus('restricted', '☁ Not connected');
+            return;
+        }
+        lpTrace('cloud', 'ON ' + CLOUD_CONFIG.url + '/rest/v1/' + SUPABASE_LISTS_TABLE
+            + '  schema=' + CLOUD_CONFIG.schema + '  source=' + CLOUD_CONFIG.source
+            + '  location=' + LOCATION_ID);
+        if (CLOUD_CONFIG.source === 'agency-fallback') {
+            setStoragePillStatusTemporary('saving', '☁ Agency project', 8000);
+        }
+
+        window.addEventListener('online', () => {
+            lpTrace('cloud', 'browser back online -> flushing queued pushes');
+            flushCloudSaves();
+        });
+
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden) refreshFromCloudOnFocus();
+        });
+        window.addEventListener('focus', refreshFromCloudOnFocus);
+
+        // Same-browser tabs share localStorage, so a write from another tab IS the newest copy.
+        window.addEventListener('storage', (ev) => {
+            if (!ev || ev.key !== getProjectYamlKey(ACTIVE_PROJECT_ID)) return;
+            if (CLOUD_PENDING.size || AUTOSAVE_TIMER) return;   // this tab still holds unsaved work
+            lpTrace('storage event', 'another tab saved this project -> reloading');
+            loadCurrentProjectData();
+        });
+
+        // A push that was still queued when the page closed goes out on the next open.
+        if (CLOUD_PENDING.size) flushCloudSaves();
+    }
+
+    // =========================================================================
+    // CLOUD PROJECT DIALOG (bring-your-own Supabase target, per sub-account)
+    // =========================================================================
+    function cloudSetupFeedback(message, isError) {
+        const el = document.getElementById('cloudSetupFeedback');
+        if (!el) return;
+        el.innerText = message || '';
+        el.style.color = isError ? 'var(--accent-red)' : 'var(--accent-cyan)';
+    }
+
+    function openCloudSetupModal() {
+        const modal = document.getElementById('cloudSetupModal');
+        if (!modal) return;
+        const urlEl = document.getElementById('cloudUrlInput');
+        const keyEl = document.getElementById('cloudKeyInput');
+        const statusEl = document.getElementById('cloudSetupStatus');
+        if (urlEl) urlEl.value = CLOUD_CONFIG.url || '';
+        if (keyEl) keyEl.value = CLOUD_CONFIG.key || '';
+        if (statusEl) statusEl.innerText = describeCloudTarget();
+        // Only offer the GHL write when this page actually carries a PIT.
+        const ghlRow = document.getElementById('cloudGhlRow');
+        if (ghlRow) ghlRow.style.display = String(API_TOKEN || '').trim().startsWith('pit-') ? 'flex' : 'none';
+        cloudSetupFeedback('', false);
+        modal.classList.add('open');
+    }
+
+    function closeCloudSetupModal() {
+        const modal = document.getElementById('cloudSetupModal');
+        if (modal) modal.classList.remove('open');
+    }
+
+    function cloudTargetFromInputs() {
+        const urlEl = document.getElementById('cloudUrlInput');
+        const keyEl = document.getElementById('cloudKeyInput');
+        const target = normalizeCloudTarget(urlEl && urlEl.value, keyEl && keyEl.value);
+        if (!target) {
+            cloudSetupFeedback('Enter an https:// project URL and a publishable key (secret keys are rejected on purpose).', true);
+            return null;
+        }
+        return target;
+    }
+
+    // Read-only probe, so "Test" and "Save" can never point the app at a dead project.
+    async function probeCloudTarget(url, key) {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), CLOUD_REQUEST_TIMEOUT_MS);
+        const headers = {
+            'apikey': key,
+            'Accept': 'application/json',
+            'Accept-Profile': SUPABASE_SCHEMA
+        };
+        if (!/^sb_(publishable|secret)_/.test(key)) headers['Authorization'] = 'Bearer ' + key;
+        try {
+            const res = await fetch(url + '/rest/v1/' + SUPABASE_LISTS_TABLE + '?select=id&limit=1', {
+                headers: headers,
+                signal: controller.signal
+            });
+            const body = await res.text().catch(() => '');
+            if (res.ok) return { ok: true, detail: 'HTTP ' + res.status + ' - table reachable' };
+            if (res.status === 401) return { ok: false, detail: 'HTTP 401 - key rejected for this project' };
+            if (res.status === 404 || res.status === 406) {
+                return { ok: false, detail: 'HTTP ' + res.status + ' - run the setup SQL, then expose the ' + SUPABASE_SCHEMA + ' schema under Settings > Data API' };
+            }
+            return { ok: false, detail: 'HTTP ' + res.status + (body ? ' - ' + body.slice(0, 120) : '') };
+        } catch (e) {
+            return { ok: false, detail: 'Network error: ' + e.message };
+        } finally {
+            clearTimeout(timer);
+        }
+    }
+
+    async function testCloudTargetFromInputs() {
+        const target = cloudTargetFromInputs();
+        if (!target) return;
+        cloudSetupFeedback('Testing ' + target.url.replace(/^https?:\/\//, '') + ' ...', false);
+        const probe = await probeCloudTarget(target.url, target.key);
+        cloudSetupFeedback((probe.ok ? '✓ ' : '✕ ') + probe.detail, !probe.ok);
+    }
+
+    // Writes the two values as GHL custom values, so every device in this sub-account inherits
+    // them. Needs the PIT in the menu link (the same token the provisioner already uses).
+    async function saveCloudTargetToGhl(url, key) {
+        const cleanToken = String(API_TOKEN || '').trim();
+        if (!cleanToken.startsWith('pit-')) return { ok: false, detail: 'no PIT in the menu link' };
+        const base = `${GHL_API_BASE}/locations/${LOCATION_ID}/customValues`;
+        const headers = {
+            'Authorization': 'Bearer ' + cleanToken,
+            'Version': '2021-07-28',
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+        };
+        try {
+            const listed = await fetch(base, { headers: headers });
+            if (!listed.ok) return { ok: false, detail: 'could not list custom values (HTTP ' + listed.status + ')' };
+            const data = await listed.json();
+            const existing = data.customValues || [];
+            const upserts = [
+                { name: GHL_CV_CLOUD_URL, value: url },
+                { name: GHL_CV_CLOUD_KEY, value: key }
+            ];
+            for (const item of upserts) {
+                const match = existing.find(v => String(v.name || '').toLowerCase() === item.name.toLowerCase());
+                const endpoint = (match && match.id) ? `${base}/${match.id}` : base;
+                const method = (match && match.id) ? 'PUT' : 'POST';
+                const write = await fetch(endpoint, { method: method, headers: headers, body: JSON.stringify(item) });
+                if (!write.ok) return { ok: false, detail: 'custom value "' + item.name + '" failed (HTTP ' + write.status + ')' };
+            }
+            return { ok: true, detail: 'saved to this sub-account' };
+        } catch (e) {
+            return { ok: false, detail: 'custom value write failed: ' + e.message };
+        }
+    }
+
+    async function saveCloudTargetFromInputs() {
+        const target = cloudTargetFromInputs();
+        if (!target) return;
+
+        cloudSetupFeedback('Verifying ' + target.url.replace(/^https?:\/\//, '') + ' ...', false);
+        const probe = await probeCloudTarget(target.url, target.key);
+        if (!probe.ok) {
+            cloudSetupFeedback('✕ Not saved - ' + probe.detail, true);
+            return;
+        }
+
+        writeStoredCloudTarget(target.url, target.key);
+        CLOUD_CONFIG = { url: target.url, key: target.key, schema: SUPABASE_SCHEMA, source: 'browser' };
+        resetCloudRuntime();
+
+        const ghlChk = document.getElementById('cloudSaveToGhl');
+        let ghlNote = '';
+        if (ghlChk && ghlChk.checked) {
+            const ghl = await saveCloudTargetToGhl(target.url, target.key);
+            ghlNote = ghl.ok ? ' Saved to this sub-account too.' : ' (GHL custom values not saved: ' + ghl.detail + ')';
+        }
+
+        closeCloudSetupModal();
+        lpTrace('cloud target', 'dialog -> ' + target.url);
+        showToast('☁ Connected to ' + target.url.replace(/^https?:\/\//, '') + ghlNote);
+        // Re-run the load so the list this browser already has migrates into the new project.
+        loadCurrentProjectData();
     }
 
     // =========================================================================
@@ -1347,7 +2048,15 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
 
         // Initialize unlimited multi-project directory for this location
         loadProjectsDirectory();
+
+        // Which Supabase project does THIS sub-account belong to? May consult GHL custom
+        // values, so it has to finish before the first load/pull.
+        await resolveCloudTarget();
+
         loadCurrentProjectData();
+
+        // Shared persistence: listeners only (push is driven by saveState, pull by load/focus)
+        initCloudSync();
 
         lpTrace('init', 'origin=' + location.origin + '  iframe=' + (window.top !== window.self)
             + '  storage=' + probeStorage() + '  location=' + LOCATION_ID
@@ -1360,6 +2069,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         // Flush auto-save on page exit
         window.addEventListener('beforeunload', () => {
             executeAutoSave();
+            flushCloudSaves();   // fire-and-forget: the local cache already has the list
         });
     }
 
@@ -3910,6 +4620,12 @@ tasks:
                 if (e.target === deleteModal) closeConfirmModal();
             });
         }
+        const cloudModal = document.getElementById('cloudSetupModal');
+        if (cloudModal) {
+            cloudModal.addEventListener('click', (e) => {
+                if (e.target === cloudModal) closeCloudSetupModal();
+            });
+        }
         // Close project menu on outside click
         document.addEventListener('click', (e) => {
             if (!e.target.closest('.project-switcher-wrap')) {
@@ -3923,6 +4639,7 @@ tasks:
         if (e.key === 'Escape') {
             closeYamlModal();
             closeConfirmModal();
+            closeCloudSetupModal();
             const menu = document.getElementById('projectDropdownMenu');
             if (menu) menu.classList.remove('open');
         }

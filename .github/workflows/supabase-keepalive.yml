@@ -1,0 +1,58 @@
+name: Supabase keep-alive
+
+# Supabase pauses Free-plan projects after 7 days without activity, which takes a client's
+# shared list offline. This pings EVERY project listed in
+# .github/supabase-keepalive-targets.json once a day - add a client's project there when
+# you onboard them (see docs/CLIENT-SUPABASE-SETUP.md).
+# A scheduled workflow only fires from the DEFAULT branch, so keep this on main.
+on:
+  schedule:
+    - cron: '17 6 * * *'   # daily 06:17 UTC (off the hour to dodge GitHub's busy window)
+  workflow_dispatch:        # manual "Run workflow" button for testing
+
+permissions:
+  contents: read
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Ping every configured project
+        run: |
+          set -euo pipefail
+          FILE=.github/supabase-keepalive-targets.json
+          count=$(jq 'length' "$FILE")
+          echo "targets: $count project(s)"
+          failures=0
+
+          for i in $(seq 0 $((count - 1))); do
+            name=$(jq -r ".[$i].name" "$FILE")
+            url=$(jq -r ".[$i].url" "$FILE")
+            key=$(jq -r ".[$i].key" "$FILE")
+
+            if [ -z "$url" ] || [ "$url" = "null" ] || [ -z "$key" ] || [ "$key" = "null" ]; then
+              echo "::warning::$name has no url/key yet - skipped (add them to $FILE)"
+              continue
+            fi
+
+            # Accept-Profile is required: list_puncher is exposed as its own schema, so
+            # without it PostgREST resolves "lists" against public and returns 404.
+            code=$(curl -sS --max-time 30 -o /tmp/body.json -w '%{http_code}' \
+              -H "apikey: $key" \
+              -H "Accept-Profile: list_puncher" \
+              -H "Accept: application/json" \
+              "$url/rest/v1/lists?select=id&limit=1")
+
+            echo "$name -> HTTP $code | body: $(cat /tmp/body.json)"
+
+            if [ "$code" != "200" ]; then
+              echo "::error::$name keep-alive failed (HTTP $code). 401 = wrong key, 404/406 = schema not exposed or setup SQL not run."
+              failures=$((failures + 1))
+            fi
+          done
+
+          echo "keep-alive failures: $failures"
+          test "$failures" -eq 0
