@@ -15,7 +15,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
     
     <!-- Separated Master Stylesheet (Zero Prism Crash) - version query busts the GitHub Pages 10min cache -->
-    <link rel="stylesheet" href="index.css?v=1.27">
+    <link rel="stylesheet" href="index.css?v=1.28">
 
     <script>
     /* Universal Dark Reader Kill Switch (Rule 9) */
@@ -304,7 +304,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     // =========================================================================
     const AUTOSAVE_DELAY_MS = 500;
     const INDENT_SPACES_PER_LEVEL = 2;
-    const APP_BUILD = '1.27'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
+    const APP_BUILD = '1.28'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
     // Bump whenever the UI_STATE defaults below change: a saved state older than this gets
     // the new defaults applied exactly ONCE (afterwards the user's own toggles win).
     const UI_STATE_DEFAULTS_VERSION = 2;
@@ -357,13 +357,16 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     const CLOUD_KEY_PARAM = 'sb_key';
     const GHL_CV_CLOUD_URL = 'list_puncher_supabase_url';
     const GHL_CV_CLOUD_KEY = 'list_puncher_supabase_key';
+    const GHL_CV_CLOUD_SECRET = 'list_puncher_secret';   // per-sub-account tenant secret (agency-hub mode)
+    const CLOUD_SECRET_PARAM = 'lp_secret';              // optional: pass it straight in the menu link
     const LEGACY_FALLBACK_CLOUD = {
         url: 'https://dhuhkinuruxbwddhffwk.supabase.co',
         key: 'sb_publishable_lRK_Qr7If2CFYEq2t5TW0w_IA4-4E8N'
     };
 
     // Filled in by resolveCloudTarget() during initApp; until then every cloud call is a no-op.
-    let CLOUD_CONFIG = { url: '', key: '', schema: SUPABASE_SCHEMA, source: 'none' };
+    // mode: 'rpc' (agency hub, tenant-isolated by secret) | 'table' (plain REST, own project)
+    let CLOUD_CONFIG = { url: '', key: '', schema: SUPABASE_SCHEMA, source: 'none', mode: 'none', secret: '' };
 
     const GHL_API_BASE = 'https://services.leadconnectorhq.com';
     const SETTINGS_GATEWAY_DOMAIN = 'https://ghl-custom-workflow-settings.automybiz.workers.dev';
@@ -1042,45 +1045,81 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     // custom values (so a brand-new device inherits the agency's choice by itself), then
     // the legacy agency fallback.
     async function resolveCloudTarget() {
+        let picked = null;
+        let customValues = null;
+
         const paramTarget = normalizeCloudTarget(urlParams.get(CLOUD_URL_PARAM), urlParams.get(CLOUD_KEY_PARAM));
         if (paramTarget) {
             writeStoredCloudTarget(paramTarget.url, paramTarget.key);
-            CLOUD_CONFIG = { url: paramTarget.url, key: paramTarget.key, schema: SUPABASE_SCHEMA, source: 'url-param' };
-            lpTrace('cloud target', 'URL params -> ' + paramTarget.url);
-            return CLOUD_CONFIG;
+            picked = { url: paramTarget.url, key: paramTarget.key, source: 'url-param' };
         }
 
-        const stored = readStoredCloudTarget();
-        if (stored) {
-            CLOUD_CONFIG = { url: stored.url, key: stored.key, schema: SUPABASE_SCHEMA, source: 'browser' };
-            lpTrace('cloud target', 'this browser -> ' + stored.url);
-            return CLOUD_CONFIG;
+        if (!picked) {
+            const stored = readStoredCloudTarget();
+            if (stored) picked = { url: stored.url, key: stored.key, source: 'browser' };
         }
 
-        const customValues = await fetchGhlCustomValues();
-        if (customValues) {
-            const cvTarget = normalizeCloudTarget(customValues[GHL_CV_CLOUD_URL], customValues[GHL_CV_CLOUD_KEY]);
-            if (cvTarget) {
-                writeStoredCloudTarget(cvTarget.url, cvTarget.key);
-                CLOUD_CONFIG = { url: cvTarget.url, key: cvTarget.key, schema: SUPABASE_SCHEMA, source: 'ghl-custom-value' };
-                lpTrace('cloud target', 'GHL custom values -> ' + cvTarget.url);
-                return CLOUD_CONFIG;
+        if (!picked) {
+            customValues = await fetchGhlCustomValues();
+            if (customValues) {
+                const cvTarget = normalizeCloudTarget(customValues[GHL_CV_CLOUD_URL], customValues[GHL_CV_CLOUD_KEY]);
+                if (cvTarget) {
+                    writeStoredCloudTarget(cvTarget.url, cvTarget.key);
+                    picked = { url: cvTarget.url, key: cvTarget.key, source: 'ghl-custom-value' };
+                }
             }
         }
 
-        if (LEGACY_FALLBACK_CLOUD) {
+        if (!picked && LEGACY_FALLBACK_CLOUD) {
             const fallback = normalizeCloudTarget(LEGACY_FALLBACK_CLOUD.url, LEGACY_FALLBACK_CLOUD.key);
             if (fallback) {
-                CLOUD_CONFIG = { url: fallback.url, key: fallback.key, schema: SUPABASE_SCHEMA, source: 'agency-fallback' };
                 console.warn('[List Puncher] Using the AGENCY fallback Supabase project. Give this sub-account its own project so its data stays separate.');
-                lpTrace('cloud target', 'AGENCY FALLBACK -> ' + fallback.url);
-                return CLOUD_CONFIG;
+                picked = { url: fallback.url, key: fallback.key, source: 'agency-fallback' };
             }
         }
 
-        CLOUD_CONFIG = { url: '', key: '', schema: SUPABASE_SCHEMA, source: 'none' };
-        lpTrace('cloud target', 'NONE - local-only until a project is connected');
+        if (!picked) {
+            CLOUD_CONFIG = { url: '', key: '', schema: SUPABASE_SCHEMA, source: 'none', mode: 'none', secret: '' };
+            lpTrace('cloud target', 'NONE - local-only until a project is connected');
+            return CLOUD_CONFIG;
+        }
+
+        lpTrace('cloud target', picked.source + ' -> ' + picked.url);
+        return await finalizeCloudTarget(picked, customValues);
+    }
+
+    // A target is usable in two modes:
+    //   'rpc'   agency-hub functions exist (get_list/upsert_list) -> tenant-isolated by the
+    //           per-sub-account secret. This is the zero-setup onboarding mode.
+    //   'table' plain REST on list_puncher.lists -> a client's own project running the
+    //           client setup SQL.
+    // We start in 'rpc' whenever a secret is available and drop to 'table' the moment
+    // PostgREST reports the function missing, so either kind of project simply works.
+    async function finalizeCloudTarget(picked, customValues) {
+        CLOUD_CONFIG = {
+            url: picked.url,
+            key: picked.key,
+            schema: SUPABASE_SCHEMA,
+            source: picked.source,
+            mode: 'table',
+            secret: ''
+        };
+
+        const secretInfo = await ensureCloudSecret(customValues);
+        if (secretInfo && secretInfo.secret) {
+            CLOUD_CONFIG.secret = secretInfo.secret;
+            CLOUD_CONFIG.mode = readStoredCloudMode(picked.url) || 'rpc';
+            lpTrace('cloud secret', 'source=' + secretInfo.source + '  mode=' + CLOUD_CONFIG.mode);
+        }
         return CLOUD_CONFIG;
+    }
+
+    function switchToTableMode() {
+        if (CLOUD_CONFIG.mode === 'table') return false;
+        CLOUD_CONFIG.mode = 'table';
+        writeStoredCloudMode(CLOUD_CONFIG.url, 'table');
+        lpTrace('cloud mode', 'no RPC functions in this project -> plain table mode');
+        return true;
     }
 
     function describeCloudTarget() {
@@ -1092,7 +1131,10 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
             'agency-fallback': 'the AGENCY fallback project'
         };
         const where = labels[CLOUD_CONFIG.source] || CLOUD_CONFIG.source;
-        return 'Connected to ' + CLOUD_CONFIG.url.replace(/^https?:\/\//, '') + ' (from ' + where + ')';
+        const mode = (CLOUD_CONFIG.mode === 'rpc')
+            ? 'agency hub, tenant-isolated'
+            : 'plain table';
+        return 'Connected to ' + CLOUD_CONFIG.url.replace(/^https?:\/\//, '') + ' (' + where + ' - ' + mode + ')';
     }
 
     // The pill's resting state follows the cloud state, so "Not connected" / "Offline" survives
@@ -1170,6 +1212,90 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
 
     function getCloudMetaKey(projId) {
         return `list_puncher_${LOCATION_ID}_proj_${projId}_cloud_${cloudTargetId(CLOUD_CONFIG.url)}_meta`;
+    }
+
+    // ---- tenant secret (agency-hub mode) ------------------------------------
+    function getCloudSecretStorageKey() {
+        return `list_puncher_${LOCATION_ID}_cloud_secret`;
+    }
+
+    function readStoredCloudSecret() {
+        try {
+            return String(localStorage.getItem(getCloudSecretStorageKey()) || '').trim();
+        } catch (e) {
+            return '';
+        }
+    }
+
+    function writeStoredCloudSecret(secret) {
+        try {
+            localStorage.setItem(getCloudSecretStorageKey(), secret);
+            return true;
+        } catch (e) {
+            return false;
+        }
+    }
+
+    // 32 random bytes, base64url. Never derived from anything the page already exposes.
+    function generateCloudSecret() {
+        const bytes = new Uint8Array(32);
+        if (window.crypto && window.crypto.getRandomValues) {
+            window.crypto.getRandomValues(bytes);
+        } else {
+            for (let i = 0; i < bytes.length; i++) bytes[i] = Math.floor(Math.random() * 256);
+        }
+        let binary = '';
+        bytes.forEach(b => { binary += String.fromCharCode(b); });
+        return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    }
+
+    function getCloudModeStorageKey(url) {
+        return `list_puncher_cloud_mode_${cloudTargetId(url)}`;
+    }
+
+    function readStoredCloudMode(url) {
+        try {
+            return localStorage.getItem(getCloudModeStorageKey(url)) || '';
+        } catch (e) {
+            return '';
+        }
+    }
+
+    function writeStoredCloudMode(url, mode) {
+        try {
+            localStorage.setItem(getCloudModeStorageKey(url), mode);
+        } catch (e) { /* quota / blocked storage */ }
+    }
+
+    // Resolves the tenant secret once per sub-account:
+    //   link param -> this browser -> the sub-account's custom value -> mint & publish.
+    // The secret is random (not derived from the PIT), so rotating the PIT later cannot
+    // silently break every client's sync.
+    async function ensureCloudSecret(customValues) {
+        const rawParam = urlParams.get(CLOUD_SECRET_PARAM);
+        if (rawParam && rawParam.indexOf('{{') === -1 && rawParam.trim()) {
+            const fromParam = rawParam.trim();
+            writeStoredCloudSecret(fromParam);
+            return { secret: fromParam, source: 'url-param' };
+        }
+
+        const stored = readStoredCloudSecret();
+        if (stored) return { secret: stored, source: 'browser' };
+
+        const values = customValues || await fetchGhlCustomValues();
+        const fromCv = (values && values[GHL_CV_CLOUD_SECRET]) ? String(values[GHL_CV_CLOUD_SECRET]).trim() : '';
+        if (fromCv && fromCv.indexOf('{{') === -1) {
+            writeStoredCloudSecret(fromCv);
+            return { secret: fromCv, source: 'ghl-custom-value' };
+        }
+
+        // Nobody has claimed this sub-account yet: mint one and publish it, so every other
+        // device in the same sub-account derives the identical secret.
+        const fresh = generateCloudSecret();
+        writeStoredCloudSecret(fresh);
+        const published = await upsertGhlCustomValues([{ name: GHL_CV_CLOUD_SECRET, value: fresh }]);
+        lpTrace('cloud secret', 'minted (' + (published.ok ? 'published to this sub-account' : 'local only - ' + published.detail) + ')');
+        return { secret: fresh, source: published.ok ? 'minted+published' : 'minted-local-only' };
     }
 
     // Per-project bookkeeping: syncedAt = the cloud updated_at this device last saw,
@@ -1259,7 +1385,52 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         return true;
     }
 
+    // ---- agency-hub RPC (tenant-isolated) -----------------------------------
+    // PostgREST reports a missing function as PGRST202 / "function ... does not exist".
+    function isMissingFunctionError(err) {
+        const msg = String((err && err.message) || '');
+        return /PGRST202|function .* does not exist|Could not find the function/i.test(msg);
+    }
+
+    async function cloudRpc(name, payload) {
+        return cloudRequest('rpc/' + name, {
+            method: 'POST',
+            headers: cloudHeaders(true),
+            body: JSON.stringify(payload || {})
+        });
+    }
+
+    async function cloudRpcGetList(projId) {
+        const rows = await cloudRpc('get_list', {
+            p_location: LOCATION_ID,
+            p_project: projId,
+            p_secret: CLOUD_CONFIG.secret
+        });
+        return (Array.isArray(rows) && rows.length) ? rows[0] : null;
+    }
+
+    async function cloudRpcUpsertList(projId, listText) {
+        const result = await cloudRpc('upsert_list', {
+            p_location: LOCATION_ID,
+            p_project: projId,
+            p_secret: CLOUD_CONFIG.secret,
+            p_text: listText
+        });
+        // A function returning a scalar comes back as the raw JSON value.
+        const stamp = (typeof result === 'string') ? result
+            : (Array.isArray(result) && result.length ? String(result[0]) : '');
+        return { updated_at: stamp || new Date().toISOString() };
+    }
+
     async function cloudSelectList(projId) {
+        if (CLOUD_CONFIG.mode === 'rpc' && CLOUD_CONFIG.secret) {
+            try {
+                return await cloudRpcGetList(projId);
+            } catch (e) {
+                if (!isMissingFunctionError(e) || !switchToTableMode()) throw e;
+            }
+        }
+
         const buildQuery = () => SUPABASE_LISTS_TABLE + '?' + cloudProjectFilter(projId)
             + '&select=' + ACTIVE_TEXT_COLUMN + ',updated_at&limit=1';
         const run = async () => {
@@ -1277,6 +1448,14 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     // One upsert on the (location_id, project_id) unique key: insert the first time this
     // project is opened for this location, update on every save after that.
     async function cloudUpsertList(projId, listText) {
+        if (CLOUD_CONFIG.mode === 'rpc' && CLOUD_CONFIG.secret) {
+            try {
+                return await cloudRpcUpsertList(projId, listText);
+            } catch (e) {
+                if (!isMissingFunctionError(e) || !switchToTableMode()) throw e;
+            }
+        }
+
         const stamp = new Date().toISOString();
         const send = async () => {
             const row = {
@@ -1552,9 +1731,10 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         cloudSetupFeedback((probe.ok ? '✓ ' : '✕ ') + probe.detail, !probe.ok);
     }
 
-    // Writes the two values as GHL custom values, so every device in this sub-account inherits
-    // them. Needs the PIT in the menu link (the same token the provisioner already uses).
-    async function saveCloudTargetToGhl(url, key) {
+    // Upserts one or more custom values for this sub-account. Needs the PIT in the menu link
+    // (the same token the provisioner already uses). Used for the cloud target AND the
+    // per-tenant secret.
+    async function upsertGhlCustomValues(entries) {
         const cleanToken = String(API_TOKEN || '').trim();
         if (!cleanToken.startsWith('pit-')) return { ok: false, detail: 'no PIT in the menu link' };
         const base = `${GHL_API_BASE}/locations/${LOCATION_ID}/customValues`;
@@ -1569,11 +1749,8 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
             if (!listed.ok) return { ok: false, detail: 'could not list custom values (HTTP ' + listed.status + ')' };
             const data = await listed.json();
             const existing = data.customValues || [];
-            const upserts = [
-                { name: GHL_CV_CLOUD_URL, value: url },
-                { name: GHL_CV_CLOUD_KEY, value: key }
-            ];
-            for (const item of upserts) {
+            for (const item of (entries || [])) {
+                if (!item || !item.name) continue;
                 const match = existing.find(v => String(v.name || '').toLowerCase() === item.name.toLowerCase());
                 const endpoint = (match && match.id) ? `${base}/${match.id}` : base;
                 const method = (match && match.id) ? 'PUT' : 'POST';
@@ -1584,6 +1761,13 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         } catch (e) {
             return { ok: false, detail: 'custom value write failed: ' + e.message };
         }
+    }
+
+    async function saveCloudTargetToGhl(url, key) {
+        return upsertGhlCustomValues([
+            { name: GHL_CV_CLOUD_URL, value: url },
+            { name: GHL_CV_CLOUD_KEY, value: key }
+        ]);
     }
 
     async function saveCloudTargetFromInputs() {

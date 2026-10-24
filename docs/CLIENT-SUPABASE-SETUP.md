@@ -1,5 +1,20 @@
 # Client Supabase setup (one project per GHL sub-account)
 
+## Two ways to wire a sub-account
+
+| Mode | Where the list lives | Setup per client |
+|---|---|---|
+| **Agency hub** (default) | The agency project, isolated per sub-account by a random secret the app mints and stores as the GHL custom value `list_puncher_secret` | **None.** The first time List Puncher opens in the sub-account it provisions itself (requires `&token={{custom_values.automybiz_api_token}}` in the menu link so it can write that custom value). |
+| **Own project** | The client's own Supabase project | Create project → run `setup-client-project.sql` → expose `list_puncher` → **☁ Cloud Project** → paste URL + key |
+
+The app decides automatically: it tries the agency-hub functions (`get_list` / `upsert_list`)
+first and falls back to plain table access when they are absent. So migrating a client from
+the hub to their own project is exactly the "Own project" steps above — the current list is
+pushed into their project the moment they connect, and `list_puncher.delete_list()` lets you
+remove the hub copy afterwards.
+
+---
+
 Each GHL sub-account gets its **own** Supabase project. That keeps one client's lists out of
 another's database, and spreads the (free) project slots across client accounts instead of
 paying for every project on one bill.
