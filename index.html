@@ -15,7 +15,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
     
     <!-- Separated Master Stylesheet (Zero Prism Crash) - version query busts the GitHub Pages 10min cache -->
-    <link rel="stylesheet" href="index.css?v=1.26">
+    <link rel="stylesheet" href="index.css?v=1.27">
 
     <script>
     /* Universal Dark Reader Kill Switch (Rule 9) */
@@ -304,7 +304,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     // =========================================================================
     const AUTOSAVE_DELAY_MS = 500;
     const INDENT_SPACES_PER_LEVEL = 2;
-    const APP_BUILD = '1.26'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
+    const APP_BUILD = '1.27'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
     // Bump whenever the UI_STATE defaults below change: a saved state older than this gets
     // the new defaults applied exactly ONCE (afterwards the user's own toggles win).
     const UI_STATE_DEFAULTS_VERSION = 2;
@@ -339,6 +339,13 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     const SYNC_BACKEND = 'supabase';                    // 'supabase' | 'off'
     const SUPABASE_SCHEMA = 'list_puncher';             // exposed separately from public in the Data API
     const SUPABASE_LISTS_TABLE = 'lists';
+    // The text column is named after the CONTENT, never a format: this text is List Puncher's
+    // own checklist shorthand (YAML-flavoured headers + markdown-flavoured checkboxes), so
+    // calling it "yaml" was misleading. Projects created before v1.27 still have "yaml";
+    // cloudSelectList()/cloudUpsertList() detect that and fall back automatically.
+    const SUPABASE_TEXT_COLUMN = 'checklist_text';
+    const SUPABASE_TEXT_COLUMN_LEGACY = 'yaml';
+    let ACTIVE_TEXT_COLUMN = SUPABASE_TEXT_COLUMN;
     const CLOUD_SAVE_DEBOUNCE_MS = 800;                 // local saves are instant; pushes are coalesced
     const CLOUD_REQUEST_TIMEOUT_MS = 12000;             // a stalled fetch must never freeze the pill
     const CLOUD_RETRY_MS = 15000;                       // retry window after a failed push (offline / 429)
@@ -1236,33 +1243,65 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
             + '&project_id=eq.' + encodeURIComponent(projId);
     }
 
+    // PostgREST says "column ... does not exist" (42703) when the schema has no such column,
+    // and PGRST204 when an INSERT/UPDATE body names a column that is missing. Both mean the
+    // project still uses the legacy column name.
+    function isMissingColumnError(err) {
+        const msg = String((err && err.message) || '');
+        return /column .* does not exist|PGRST204|Could not find the .* column/i.test(msg);
+    }
+
+    function switchTextColumn() {
+        const next = (ACTIVE_TEXT_COLUMN === SUPABASE_TEXT_COLUMN) ? SUPABASE_TEXT_COLUMN_LEGACY : SUPABASE_TEXT_COLUMN;
+        if (next === ACTIVE_TEXT_COLUMN) return false;
+        ACTIVE_TEXT_COLUMN = next;
+        lpTrace('cloud column', 'using "' + next + '" - the other column name does not exist in this project');
+        return true;
+    }
+
     async function cloudSelectList(projId) {
-        const rows = await cloudRequest(
-            SUPABASE_LISTS_TABLE + '?' + cloudProjectFilter(projId) + '&select=yaml,updated_at&limit=1',
-            { method: 'GET', headers: cloudHeaders(false) }
-        );
-        return (Array.isArray(rows) && rows.length) ? rows[0] : null;
+        const buildQuery = () => SUPABASE_LISTS_TABLE + '?' + cloudProjectFilter(projId)
+            + '&select=' + ACTIVE_TEXT_COLUMN + ',updated_at&limit=1';
+        const run = async () => {
+            const rows = await cloudRequest(buildQuery(), { method: 'GET', headers: cloudHeaders(false) });
+            return (Array.isArray(rows) && rows.length) ? rows[0] : null;
+        };
+        try {
+            return await run();
+        } catch (e) {
+            if (!isMissingColumnError(e) || !switchTextColumn()) throw e;
+            return await run();
+        }
     }
 
     // One upsert on the (location_id, project_id) unique key: insert the first time this
     // project is opened for this location, update on every save after that.
     async function cloudUpsertList(projId, listText) {
         const stamp = new Date().toISOString();
-        const rows = await cloudRequest(
-            SUPABASE_LISTS_TABLE + '?on_conflict=location_id,project_id&select=updated_at',
-            {
-                method: 'POST',
-                headers: Object.assign(cloudHeaders(true), { 'Prefer': 'resolution=merge-duplicates,return=representation' }),
-                body: JSON.stringify([{
-                    location_id: LOCATION_ID,
-                    project_id: projId,
-                    yaml: listText,
-                    updated_at: stamp
-                }])
-            }
-        );
-        const row = (Array.isArray(rows) && rows.length) ? rows[0] : null;
-        return { updated_at: (row && row.updated_at) || stamp };
+        const send = async () => {
+            const row = {
+                location_id: LOCATION_ID,
+                project_id: projId,
+                updated_at: stamp
+            };
+            row[ACTIVE_TEXT_COLUMN] = listText;
+            const rows = await cloudRequest(
+                SUPABASE_LISTS_TABLE + '?on_conflict=location_id,project_id&select=updated_at',
+                {
+                    method: 'POST',
+                    headers: Object.assign(cloudHeaders(true), { 'Prefer': 'resolution=merge-duplicates,return=representation' }),
+                    body: JSON.stringify([row])
+                }
+            );
+            const saved = (Array.isArray(rows) && rows.length) ? rows[0] : null;
+            return { updated_at: (saved && saved.updated_at) || stamp };
+        };
+        try {
+            return await send();
+        } catch (e) {
+            if (!isMissingColumnError(e) || !switchTextColumn()) throw e;
+            return await send();
+        }
     }
 
     function setCloudStatus(status) {
@@ -1344,7 +1383,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
                 return;
             }
 
-            const cloudText = remote.yaml || '';
+            const cloudText = remote[ACTIVE_TEXT_COLUMN] || '';
             const cloudAt = Date.parse(remote.updated_at || '') || 0;
             const meta = readCloudMeta(projId);
             const localAt = meta.localSavedAt ? (Date.parse(meta.localSavedAt) || 0) : 0;

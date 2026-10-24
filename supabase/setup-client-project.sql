@@ -19,7 +19,10 @@ create table if not exists list_puncher.lists (
   id uuid primary key default gen_random_uuid(),
   location_id text not null,
   project_id text not null,
-  yaml text not null default '',
+  -- The whole punch list as text. Named after the CONTENT, not a format: this is
+  -- List Puncher's own checklist shorthand (YAML-flavoured headers + markdown-flavoured
+  -- checkboxes), which is neither valid YAML nor strict Markdown.
+  checklist_text text not null default '',
   updated_at timestamptz not null default now()
 );
 
@@ -72,3 +75,10 @@ commit;
 -- -----------------------------------------------------------------------------
 -- alter role authenticator set pgrst.db_schemas = 'public, storage, graphql_public, list_puncher';
 -- notify pgrst, 'reload config';
+
+-- -----------------------------------------------------------------------------
+-- MIGRATING AN OLDER PROJECT (created before v1.27, when the column was called "yaml"):
+--   alter table list_puncher.lists rename column yaml to checklist_text;
+-- Renaming preserves every row. The app auto-detects either name, so the order of this
+-- migration vs. the next app deploy does not matter.
+-- -----------------------------------------------------------------------------

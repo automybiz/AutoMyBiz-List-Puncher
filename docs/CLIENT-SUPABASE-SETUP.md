@@ -96,6 +96,10 @@ any queued pushes.
   (that is how you move a pilot list onto a client's own project).
 - **When every sub-account has its own project**, set `LEGACY_FALLBACK_CLOUD = null` in
   `index.html` so a misconfigured sub-account can never fall back into the agency project.
+- **The text column is `checklist_text`** (v1.27+). It used to be `yaml`, which was misleading:
+  the stored text is List Puncher's own checklist shorthand, not YAML. Older projects keep
+  working either way — the app detects the missing column and retries with the other name.
+  To migrate one: `alter table list_puncher.lists rename column yaml to checklist_text;`
 - **RLS model**: the app has no Supabase Auth session (GHL is the login boundary), so `anon`
   holds `select/insert/update` on the one table. `DELETE` is deliberately **not** granted, so
   nothing in a browser can destroy rows. If you later want writes gated, route them through
