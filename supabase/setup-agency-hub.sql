@@ -143,20 +143,51 @@ grant execute on function list_puncher.delete_list(text, text, text) to anon, au
 commit;
 
 -- -----------------------------------------------------------------------------
--- PHASE 2 - run ONLY after the RPC build of the app is live and verified.
--- This removes the "anyone with the publishable key can read/write/delete" hole.
+-- PHASE 2 - removes the "anyone with the publishable key can read/write/delete" hole.
+-- APPLIED to the agency project on 2026-10-24 (migration phase2_lock_table_and_add_ping)
+-- after Phase 1B was verified and the real row had been re-pushed by the app.
+--
+-- From here on the ONLY way into list_puncher.lists is the tenant functions: anon and
+-- authenticated hold no table privileges at all and RLS has no policies, so
+-- GET /rest/v1/lists answers 401 while POST /rest/v1/rpc/get_list still works.
 -- -----------------------------------------------------------------------------
--- begin;
--- revoke all on list_puncher.lists from anon, authenticated;
--- drop policy if exists lists_anon_all on list_puncher.lists;
--- commit;
+begin;
 
--- Verify (expect 4 functions, and no anon grants on the two tables):
+revoke all on list_puncher.lists from anon, authenticated;
+drop policy if exists lists_anon_all on list_puncher.lists;
+
+-- Health check for the daily keep-alive workflow (it used to probe /rest/v1/lists,
+-- which is now closed). Returns the server clock, writes nothing, leaks nothing.
+create or replace function list_puncher.ping()
+returns timestamptz
+language sql
+security definer
+set search_path = pg_catalog, pg_temp
+as $$
+  select now();
+$$;
+
+revoke all on function list_puncher.ping() from public;
+grant execute on function list_puncher.ping() to anon, authenticated;
+
+commit;
+
+-- ROLLBACK (only if something still needs the old table path - it re-opens the hole):
+--   grant usage on schema list_puncher to anon, authenticated;
+--   grant select, insert, update on list_puncher.lists to anon, authenticated;
+--   create policy lists_anon_all on list_puncher.lists for all to anon, authenticated
+--     using (true) with check (true);
+
+-- Verify (expect 5 functions, and NO grant rows for anon/authenticated on any table):
 --   select proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace
 --    where n.nspname = 'list_puncher' order by proname;
 --   select table_name, grantee, privilege_type
 --     from information_schema.role_table_grants
 --    where table_schema = 'list_puncher' order by table_name, grantee;
+--   select relname, relrowsecurity, (select count(*) from pg_policy
+--     where polrelid = c.oid) as policies
+--     from pg_class c join pg_namespace n on n.oid = c.relnamespace
+--    where n.nspname = 'list_puncher' and relkind = 'r';
 
 
 -- =============================================================================
@@ -167,22 +198,58 @@ commit;
 -- Now every list row carries the hash of the tenant that wrote it, and tenants are
 -- keyed by (location_id, secret_hash), so an impostor who claims a location can
 -- only reach rows carrying their own hash - i.e. none.
+--
+-- APPLIED to the agency project (dhuhkinuruxbwddhffwk) on 2026-10-24 as migrations
+--   phase1b_backup_snapshot / phase1b_tenant_hash_isolation.
+-- This block is what ran, verbatim: every DDL step is guarded so a second run is a
+-- no-op instead of "constraint already exists".
 -- =============================================================================
+
+-- 0. safety copies (DBA-only: RLS on, no API roles) - same as the applied migration
+create table if not exists list_puncher.lists_backup_pre1b   as select * from list_puncher.lists;
+create table if not exists list_puncher.tenants_backup_pre1b as select * from list_puncher.tenants;
+alter table list_puncher.lists_backup_pre1b   enable row level security;
+alter table list_puncher.tenants_backup_pre1b enable row level security;
+revoke all on list_puncher.lists_backup_pre1b   from anon, authenticated;
+revoke all on list_puncher.tenants_backup_pre1b from anon, authenticated;
 
 begin;
 
 -- 1. tenants: several rows per location (one per secret); "first caller wins" is gone
 alter table list_puncher.tenants drop constraint if exists tenants_pkey;
+alter table list_puncher.tenants drop constraint if exists tenants_location_id_secret_hash_key;
 delete from list_puncher.tenants;
-alter table list_puncher.tenants add primary key (location_id, secret_hash);
+
+do $do$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = 'list_puncher.tenants'::regclass and contype = 'p'
+  ) then
+    alter table list_puncher.tenants add primary key (location_id, secret_hash);
+  end if;
+end
+$do$;
 
 -- 2. lists: tag each row with the tenant that wrote it
 alter table list_puncher.lists add column if not exists tenant_hash text;
 alter table list_puncher.lists drop constraint if exists lists_location_id_project_id_key;
 delete from list_puncher.lists where tenant_hash is null;   -- pre-fix row; the app re-pushes it
 alter table list_puncher.lists alter column tenant_hash set not null;
-alter table list_puncher.lists
-  add constraint lists_location_project_tenant_key unique (location_id, project_id, tenant_hash);
+
+do $do$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = 'list_puncher.lists'::regclass
+      and conname  = 'lists_location_project_tenant_key'
+  ) then
+    alter table list_puncher.lists
+      add constraint lists_location_project_tenant_key
+      unique (location_id, project_id, tenant_hash);
+  end if;
+end
+$do$;
 
 -- 3. register = insert-if-absent, and always return the caller's OWN hash
 create or replace function list_puncher.ensure_tenant(p_location text, p_secret text)

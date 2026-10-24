@@ -36,55 +36,115 @@ Permissions: `evaluatePermissions()` reads editors/viewers from the link param �
 
 | Item | State |
 |---|---|
-| `list_puncher.lists` | exists; text column is **`checklist_text`** (renamed from `yaml`, no legacy fallback in the app) |
-| `list_puncher.tenants` | exists, **PK on `location_id` only** (Phase 1) — will change in Phase 1B |
-| Functions | Phase 1 versions of `hash_secret`, `ensure_tenant`, `get_list`, `upsert_list`, `delete_list` (all `SECURITY DEFINER` except `hash_secret`) |
-| **Phase 1B** | ❌ **NOT APPLIED — this is the current task** |
-| Phase 2 | ❌ not applied (correct: it depends on 1B) |
-| Policy `lists_anon_all` | still active: `FOR ALL TO anon, authenticated USING (true) WITH CHECK (true)` |
-| `lists` rows | 1 row: `A9eEmuUJ1FM6sBhYESfO` / `default_onboarding`, 20,400 bytes |
+| `list_puncher.lists` | exists; text column is **`checklist_text`** (renamed from `yaml`, no legacy fallback in the app); **`tenant_hash text NOT NULL`**; constraints `lists_pkey (id)` + `lists_location_project_tenant_key UNIQUE (location_id, project_id, tenant_hash)` |
+| `list_puncher.tenants` | exists, **PK `tenants_pkey (location_id, secret_hash)`** (Phase 1B) — one row per secret, so "first caller wins" is gone |
+| Functions | `hash_secret`, `ensure_tenant` (insert-if-absent, returns the caller's own hash), `get_list` / `upsert_list` / `delete_list` (all filter on `tenant_hash`; `SECURITY DEFINER` except `hash_secret`), plus **`ping()`** → `now()` for the keep-alive workflow |
+| **Phase 1B** | ✅ applied + verified 2026-10-24 (`phase1b_backup_snapshot`, `phase1b_tenant_hash_isolation`) |
+| **Phase 2** | ✅ applied + verified 2026-10-24 (`phase2_lock_table_and_add_ping`) — table access revoked, `lists_anon_all` dropped |
+| Table grants | **none** for `anon` / `authenticated` on any `list_puncher` table; RLS on all four tables, **zero policies** → `GET /rest/v1/lists` answers `401 permission denied` (`42501`) |
+| Backups | `lists_backup_pre1b` (1 row, 20,400 bytes, `A9eEmuUJ1FM6sBhYESfO` / `default_onboarding`) and `tenants_backup_pre1b` (2 rows) — RLS on, no grants |
+| `lists` rows | **1**: `A9eEmuUJ1FM6sBhYESfO` / `default_onboarding`, `tenant_hash` = `530bdffbfb1f…`, 20,400 bytes, byte-identical to the backup — re-pushed by the app 13:43 UTC after 1B |
+| `tenants` rows | **1**: `(A9eEmuUJ1FM6sBhYESfO, 530bdffbfb1f…)` — the browser's real secret, registered/proven by that push |
 
 ### Why Phase 1B matters
-Phase 1's `ensure_tenant` registers a tenant keyed **only by `location_id`, on first use**, so whoever calls first "owns" that location and can read its existing row. This was reproduced live: `get_list` with a junk secret against the real location returned the full list. Phase 1B tags every row with the writer's `tenant_hash` and keys tenants by `(location_id, secret_hash)`.
+Phase 1's `ensure_tenant` registers a tenant keyed **only by `location_id`, on first use**, so whoever calls first "owns" that location and can read its existing row. Reproduced live: `get_list` with a junk secret against the real location returned the full list (the pre-1B `tenants` row for `A9eEmuUJ1FM6sBhYESfO` hashed to `sha256('WRONG')`, i.e. the probe secret had claimed the location, which is why the real app could never read its own row). Phase 1B tags every row with the writer's `tenant_hash` and keys tenants by `(location_id, secret_hash)`.
 
-## 4. CURRENT TASK — apply Phase 1B, verify, report
+## 4. Phase 1B — DONE (applied + verified 2026-10-24)
 
-**Step 1 — safety copy** (run alone):
-```sql
-create table if not exists list_puncher.lists_backup_pre1b as select * from list_puncher.lists;
-```
+Applied through the `supabase` MCP as two migrations, both safe to re-run:
 
-**Step 2 —** run the block under the header `PHASE 1B - SECURITY FIX` in `supabase/setup-agency-hub.sql`. It:
-- drops `tenants_pkey`, clears `tenants`, adds PK `(location_id, secret_hash)`
-- adds `lists.tenant_hash`, drops the old `lists_location_id_project_id_key`, deletes the untagged row, sets `tenant_hash NOT NULL`, adds `lists_location_project_tenant_key UNIQUE (location_id, project_id, tenant_hash)`
-- replaces `ensure_tenant` (insert-if-absent, returns the caller's own hash) and adds `tenant_hash` filtering to `get_list` / `upsert_list` / `delete_list`
+| Migration | What it did |
+|---|---|
+| `phase1b_backup_snapshot` | `list_puncher.lists_backup_pre1b` (1 row, 20,400 bytes) + `list_puncher.tenants_backup_pre1b` (2 rows); RLS on, `anon` / `authenticated` revoked |
+| `phase1b_tenant_hash_isolation` | the `PHASE 1B - SECURITY FIX` block of `supabase/setup-agency-hub.sql` — same text as the file, including the `if not exists` guards on both `add constraint`s and the `tenants` PK |
 
-**Step 3 — verify (no MCP needed; use the publishable key from `index.html`)**
+Result: `tenants` PK `(location_id, secret_hash)`; `lists.tenant_hash text NOT NULL`;
+`lists_location_id_project_id_key` dropped; `lists_location_project_tenant_key UNIQUE
+(location_id, project_id, tenant_hash)` added; `ensure_tenant` / `get_list` / `upsert_list` /
+`delete_list` replaced; the untagged pre-1B row deleted (it is in the backup).
+
+### Verification log (publishable key from `index.html`, plain REST — no MCP)
 
 ```powershell
-# wrong secret against the real location MUST now return []
 $h = Get-Content 'index.html' -Raw
 $key = [regex]::Match($h, "key: '(sb_publishable_[^']+)'").Groups[1].Value
+$hdrs = @{ apikey=$key; 'Accept-Profile'='list_puncher'; 'Content-Profile'='list_puncher'; 'Content-Type'='application/json' }
 Invoke-WebRequest -Uri 'https://dhuhkinuruxbwddhffwk.supabase.co/rest/v1/rpc/get_list' -Method POST `
-  -Headers @{ apikey=$key; 'Accept-Profile'='list_puncher'; 'Content-Profile'='list_puncher'; 'Content-Type'='application/json' } `
-  -Body '{"p_location":"A9eEmuUJ1FM6sBhYESfO","p_project":"default_onboarding","p_secret":"WRONG"}' -UseBasicParsing | Select-Object -Expand Content
+  -Headers $hdrs -Body '{"p_location":"A9eEmuUJ1FM6sBhYESfO","p_project":"default_onboarding","p_secret":"WRONG"}' -UseBasicParsing
 ```
 
-| Check | Expect |
+| Probe | Result |
 |---|---|
-| wrong-secret `get_list` | `[]` (before the fix it returned the whole list) |
-| constraints | `lists_location_project_tenant_key UNIQUE (location_id, project_id, tenant_hash)` + `lists_pkey` |
-| `tenants` | empty until the app next calls it |
-| after the user opens List Puncher (v1.30) | 1 `lists` row with `tenant_hash IS NOT NULL` and ~20,400 bytes |
+| `get_list` real location + secret `WRONG` | `200 []` — before 1B this returned the whole 20,400-byte list |
+| `get_list` real location + empty secret | `200 []` |
+| `get_list` unknown location | `200 []` |
+| `upsert_list` `P1B_SELFTEST` / `secret-alpha` | `2026-10-24T13:28:25.539784+00:00` |
+| `get_list` `P1B_SELFTEST` / `secret-alpha` | `[{"checklist_text":"section: self test",…}]` |
+| `get_list` `P1B_SELFTEST` / `secret-bravo` | `[]` ← the isolation fix |
+| `get_list` `P1B_SELFTEST` / junk | `[]` |
+| `GET /rest/v1/lists` (direct table) | `200 []` **at 1B time** — still open then; closed in §4c |
+| Phase 1B block re-run inside `begin … rollback` | no errors → the guards make it idempotent |
 
-**Step 4 — report** what changed and the verification output. If any DDL call fails with
-`403 … after trying upscoping`, the OAuth grant is still read-only — see §6.
+All probe rows were deleted afterwards (`P1B_SELFTEST`, `NO_SUCH_LOCATION`, `ALPHATEST1`, plus
+the `sha256('WRONG')` tenant on the real location). That left `lists` / `tenants` empty until the
+app re-pushed — see §4b.
 
-## 5. After Phase 1B, in this order
+### Advisor baseline after Phase 2 (`get_advisors security`)
 
-1. **Phase 2** (`supabase/setup-agency-hub.sql`, commented block): `revoke all on list_puncher.lists from anon, authenticated;` + `drop policy if exists lists_anon_all`. Then verify the same REST probe now returns `401`/permission denied, and that `rpc/get_list` still works with the right secret. This is the actual security win.
-2. **Client #2 onboarding** (should be zero-touch): create the GHL sub-account → ensure its `automybiz_api_token` custom value holds a PIT → open List Puncher once. It mints a tenant secret, registers `(location_id, hash)`, and seeds its row.
-3. **Bootstrap punch list** (`docs/BOOTSTRAP.md`): the whole setup written in List Puncher's own checklist format so a new machine + new Supabase project can be provisioned in minutes. Include the OAuth traps below.
+| Lint | Status |
+|---|---|
+| `anon_security_definer_function_executable` ×4 | **expected** — `get_list` / `upsert_list` / `delete_list` / `ping` *are* the API |
+| `authenticated_security_definer_function_executable` ×4 | same, for the signed-in role |
+| `rls_enabled_no_policy` ×4 (all four tables) | **expected** — no policies on purpose, no table grants at all |
+| `function_search_path_mutable` (`hash_secret`) | cosmetic; fixing it means `create or replace … set search_path = pg_catalog, pg_temp` |
+| `lists_anon_all` (`USING true`) | ✅ **gone** (Phase 2) |
+
+## 4b. Re-seed — DONE 2026-10-24 13:43 UTC
+
+Phase 1B deleted the untagged row, so the browser had to re-push it. The app was opened
+(hard refresh) in the browser that already held the list, in the `Europe Parts West`
+sub-account (`A9eEmuUJ1FM6sBhYESfO`); pill `☁ Synced`. `hydrateFromCloud()` saw "no cloud row,
+local text present" and called `scheduleCloudSave(localText)`, which registered
+`(location, sha256(real secret))` and upserted through the RPC.
+
+| Check | Result |
+|---|---|
+| `lists` | 1 row, `tenant_hash` = `530bdffbfb1f…`, **20,400 bytes**, `checklist_text` **byte-identical to `lists_backup_pre1b`** |
+| `tenants` | 1 row `(A9eEmuUJ1FM6sBhYESfO, 530bdffbfb1f…)`, created 13:43:36, last seen 13:46:06 |
+| mode used | RPC (`tenant_hash` was populated; a plain-REST insert would have failed `NOT NULL`) |
+
+⚠️ Order still matters on a *new* tenant: a browser with no local copy, opened while the row is
+absent, runs `seedOnboardingBlueprint()` and pushes the starter list. The backup table is the
+undo button.
+
+## 4c. Phase 2 — DONE (applied + verified 2026-10-24)
+
+Migration `phase2_lock_table_and_add_ping`: `revoke all on list_puncher.lists from anon,
+authenticated` + `drop policy lists_anon_all` + new `list_puncher.ping()` (executable by anon,
+returns `now()`, writes nothing).
+
+| Probe | Result |
+|---|---|
+| `GET /rest/v1/lists?select=id` (publishable key) | **`401`** `{"code":"42501","message":"permission denied for table lists"}` ← the hole is closed |
+| `POST /rest/v1/rpc/ping` (`Content-Profile: list_puncher`) | `200` `"2026-10-24T13:49:03.013753+00:00"` |
+| `POST /rest/v1/rpc/get_list` real location + `WRONG` | `200 []` |
+| `POST /rest/v1/rpc/get_list` junk location | `200 []` |
+| grants for `anon` / `authenticated` | **none** on any `list_puncher` table |
+| RLS / policies | `lists`, `tenants`, both backups: RLS on, **0 policies** |
+
+Rollback (re-opens the hole, kept in `setup-agency-hub.sql`): re-grant
+`select/insert/update` + recreate `lists_anon_all`.
+
+Also fixed in the same pass: `.github/workflows/supabase-keepalive.yml` used to probe
+`/rest/v1/lists`, which is now `401`. It now POSTs `rpc/ping` and only falls back to the table
+probe when that answers `404` (a client's own project). A POST selects its schema with
+**`Content-Profile`** — `Accept-Profile` alone makes PostgREST look in `public` and answer
+`PGRST202`.
+
+## 5. CURRENT TASK — client #2, then bootstrap
+
+1. **Client #2 onboarding** (should be zero-touch): create the GHL sub-account → ensure its `automybiz_api_token` custom value holds a PIT → open List Puncher once. It mints a tenant secret, registers `(location_id, hash)`, and seeds its row. Then confirm from the DB side that it produced exactly one `tenants` row + one `lists` row for the new `location_id`, and that `get_list` with a junk secret against it returns `[]`.
+2. **Bootstrap punch list** (`docs/BOOTSTRAP.md`): the whole setup written in List Puncher's own checklist format so a new machine + new Supabase project can be provisioned in minutes. Include the OAuth traps below.
 
 ## 6. Environment / MCP facts
 
@@ -108,6 +168,11 @@ Invoke-WebRequest -Uri 'https://dhuhkinuruxbwddhffwk.supabase.co/rest/v1/rpc/get
 | `<ref>.supabase.co` NXDOMAIN | The project ref is exactly **20 characters**; a 19-char typo makes the hostname not exist. Always copy it, never transcribe |
 | REST 404 on `lists` | `list_puncher` must be in **Settings → Data API → Exposed schemas**, and every request needs `Accept-Profile` / `Content-Profile: list_puncher` |
 | 401 on REST | Wrong key type: publishable keys go on `apikey` only (never `Authorization: Bearer`); legacy anon JWTs go on both |
+| Direct table insert fails `null value in column "tenant_hash"` | Expected after Phase 1B — hub rows are only written by `upsert_list`. `'table'` mode (plain REST, no `tenant_hash`) must never point at the agency hub, only at a client's own project |
+| `401 {"code":"42501","message":"permission denied for table lists"}` | **Correct after Phase 2** — use `POST /rest/v1/rpc/get_list` |
+| `PGRST202 Could not find the function public.<name>` on an RPC | A POST picks its schema from **`Content-Profile`**; `Accept-Profile` alone leaves it in `public`. Send `Content-Profile: list_puncher` (GET requests use `Accept-Profile`) |
+| A browser stuck on `☁ Offline` while others sync fine | That profile has `list_puncher_cloud_mode_<url> = 'table'` cached (from the pre-RPC era). Table mode now gets `401`; clear that key or add a fallback that reverses the mode on `401/403` (app change, build 1.31) |
+| Hub sync works but the list came back as the starter blueprint | A device with no local copy opened the app before the original browser re-pushed the row (§4b step 1); recover the text from `list_puncher.lists_backup_pre1b` |
 | Free project pauses | 7 days inactivity → `list_puncher` goes offline. `.github/workflows/supabase-keepalive.yml` pings every project in `.github/supabase-keepalive-targets.json` daily; GitHub disables scheduled workflows after 60 days of repo inactivity |
 
 ## 8. File map
@@ -115,11 +180,12 @@ Invoke-WebRequest -Uri 'https://dhuhkinuruxbwddhffwk.supabase.co/rest/v1/rpc/get
 ```
 index.html                                  app (build markers at the top)
 index.css                                   styles (--lp-css-build at the top)
-supabase/setup-agency-hub.sql               agency-hub schema: Phase 1, Phase 1B, Phase 2 (commented)
+supabase/setup-agency-hub.sql               agency-hub schema: Phase 1, Phase 1B (applied), Phase 2 (commented)
+                                            → also creates list_puncher.lists_backup_pre1b / tenants_backup_pre1b
 supabase/setup-client-project.sql           one-paste setup for a client's OWN project
 docs/CLIENT-SUPABASE-SETUP.md               the two modes + per-client walkthrough
 docs/HANDOVER.md                            this file
-.github/workflows/supabase-keepalive.yml    daily ping for every project in the targets JSON
+.github/workflows/supabase-keepalive.yml    daily ping: POST rpc/ping (agency hub), table probe fallback (client projects)
 .github/supabase-keepalive-targets.json     [{name, url, key}] — publishable keys only
 ```
 
@@ -127,7 +193,7 @@ docs/HANDOVER.md                            this file
 
 - Never put a **secret** key (`sb_secret_…`) in the page; `normalizeCloudTarget()` rejects it on purpose.
 - Only **publishable** keys go in `index.html` and the keep-alive targets file (both are public).
-- Don't run Phase 2 until Phase 1B is verified.
+- Phase 1B **and** Phase 2 are applied and verified. The hub is RPC-only: never `grant` table privileges or recreate `lists_anon_all` on it. Client-owned projects are the opposite — they *need* the table grant (`setup-client-project.sql`).
 - `checklist_text` only — no legacy `yaml` fallback.
 - Keep `APP_BUILD`, `index.css?v=` and `--lp-css-build` identical, and verify with `node --check` on the extracted inline script before committing.
 - Update this file when the state changes.

@@ -38,18 +38,34 @@ jobs:
               continue
             fi
 
-            # Accept-Profile is required: list_puncher is exposed as its own schema, so
-            # without it PostgREST resolves "lists" against public and returns 404.
+            # Agency hub: the tables are closed to anon (Phase 2), so probe the ping RPC.
+            # NB: a POST picks its schema from Content-Profile (Accept-Profile is the GET
+            # selector) - with the wrong one PostgREST looks in "public" and answers
+            # PGRST202 "Could not find the function public.ping".
             code=$(curl -sS --max-time 30 -o /tmp/body.json -w '%{http_code}' \
+              -X POST \
               -H "apikey: $key" \
-              -H "Accept-Profile: list_puncher" \
+              -H "Content-Profile: list_puncher" \
+              -H "Content-Type: application/json" \
               -H "Accept: application/json" \
-              "$url/rest/v1/lists?select=id&limit=1")
+              -d '{}' \
+              "$url/rest/v1/rpc/ping")
+
+            # A client's OWN project has no ping RPC (it keeps the table grant), so fall
+            # back to the table probe. Accept-Profile is required: list_puncher is exposed
+            # as its own schema, so without it PostgREST resolves "lists" against public.
+            if [ "$code" = "404" ]; then
+              code=$(curl -sS --max-time 30 -o /tmp/body.json -w '%{http_code}' \
+                -H "apikey: $key" \
+                -H "Accept-Profile: list_puncher" \
+                -H "Accept: application/json" \
+                "$url/rest/v1/lists?select=id&limit=1")
+            fi
 
             echo "$name -> HTTP $code | body: $(cat /tmp/body.json)"
 
             if [ "$code" != "200" ]; then
-              echo "::error::$name keep-alive failed (HTTP $code). 401 = wrong key, 404/406 = schema not exposed or setup SQL not run."
+              echo "::error::$name keep-alive failed (HTTP $code). 401 = wrong key or a closed table (rpc/ping missing on this project), 404/406 = schema not exposed or setup SQL not run."
               failures=$((failures + 1))
             fi
           done

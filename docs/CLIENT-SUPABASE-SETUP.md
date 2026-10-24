@@ -114,7 +114,13 @@ any queued pushes.
 - **The text column is `checklist_text`.** It was briefly called `yaml`, which was misleading:
   the stored text is List Puncher's own checklist shorthand, not YAML. There is no legacy
   fallback — the app only speaks `checklist_text`.
-- **RLS model**: the app has no Supabase Auth session (GHL is the login boundary), so `anon`
-  holds `select/insert/update` on the one table. `DELETE` is deliberately **not** granted, so
-  nothing in a browser can destroy rows. If you later want writes gated, route them through
-  the Cloudflare Worker with the secret key and revoke `insert/update` from `anon`.
+- **RLS model (client's OWN project)**: the app has no Supabase Auth session (GHL is the login
+  boundary), so `anon` holds `select/insert/update` on the one table. `DELETE` is deliberately
+  **not** granted, so nothing in a browser can destroy rows. If you later want writes gated,
+  route them through the Cloudflare Worker with the secret key and revoke `insert/update` from
+  `anon`.
+- **The agency hub is the opposite.** Since Phase 2 it has **no** table grants for `anon` /
+  `authenticated` and **no** RLS policies — only the `get_list` / `upsert_list` / `delete_list`
+  RPCs (plus `ping` for the keep-alive). So a direct `GET /rest/v1/lists` there answering `401
+  permission denied` is correct, not a misconfiguration. `setup-client-project.sql` is the one
+  that *must* keep the grant.
