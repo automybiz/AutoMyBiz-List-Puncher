@@ -584,6 +584,53 @@ A directory row is a **label**, not the list. Hiding or deleting a directory row
 `lists` / `tasks` content - otherwise a mis-tap in the switcher is unrecoverable. "Delete list" stays
 two separate things: hide the label, and (only after the confirm card) remove the content.
 
+## 18. Build 1.39 - one sub-account, one tenant secret (2026-10-25)
+
+### The split this prevents (`index.html` `ensureCloudSecret`)
+The old resolution order was: link param → **this browser** → GHL custom value → mint & publish.
+"this browser" beating the custom value is correct for offline resilience, but combined with
+"publish only when minting" it had a hole:
+
+1. The agency owner opens List Puncher in the Euro Parts West sub-account. No secret anywhere →
+   mint, then publish to the custom value `list_puncher_secret`.
+2. **If that publish failed** (`upsertGhlCustomValues` returns `no PIT in the menu link` when the
+   menu link carries no `pit-` token, or the API call errors), the secret now exists **only in that
+   one browser** - and nothing ever retries.
+3. Day opens the same menu link. No custom value, no stored secret → he **mints his own** and
+   publishes it.
+4. The owner's browser keeps its stored secret (browser beats custom value), Day uses the new one.
+   Two different `tenant_hash` values → two sets of rows → **two invisible datasets under one
+   sub-account**, with no error anywhere to explain it.
+
+For this project that worst case is the agency owner's 98-item `Client Onboarding` list.
+
+### The fix
+1. **Self-heal:** when a stored secret exists and the custom value is missing (or still an unresolved
+   `{{placeholder}}`), publish the stored secret. Only a *missing* value is filled - an existing
+   custom value is never overwritten here.
+2. **Mismatch is loud:** if the stored secret and the custom value differ, neither side is adopted and
+   neither is overwritten; `lpStorageReport()` reports `tenant secret: browser (MISMATCH with this
+   sub-account)` and `lpTrace` says the same. Auto-switching was rejected deliberately: it would hide
+   whatever list that browser already has.
+3. `lpStorageReport()` gained a `tenant secret:` line - the **source** only, never the value.
+
+### Verified
+- `$env:TEMP\lp-secret-test.js`: **30 asserts, all pass** - drives the real async `ensureCloudSecret`
+  through all seven paths (param / self-heal / heal-impossible / agree / MISMATCH / fresh-adopt /
+  mint) and asserts the publish payload carries *this browser's* value rather than a new one.
+- `lp-poll-test.js` 33/33, `lp-empty-list-test.js` unchanged, 3/3 inline scripts compile.
+- Headless Chrome smoke test against a bogus `sb_url`: boots, pill reads `⚠ Not syncing`, no crash.
+- Production DB untouched: `tenants` 4 (1 real + 3 known `default_subaccount` leftovers), `lists` 3,
+  `tasks` 0, `directories` 0.
+
+### How to prove you and Day are in the same tenant
+Run `lpStorageReport()` in the console on both machines. Both must show the same `tenant secret:`
+source, and neither may say `MISMATCH`. A fresh device should say `ghl custom value`; the machine
+that had the only copy should say `browser (published to this sub-account)`.
+
+**Do not test this with an incognito window until the custom value exists** - before 1.39, that test
+was itself what created the split (the fresh session minted and published a second secret).
+
 ### Rollout (feature flag, NOT a fork - decided 2026-10-25)
 `?storage=rows` switches the backend; no param keeps today's blob path byte-for-byte. Revert is a URL
 change. A physical fork was rejected because two HTML files on the same origin share `localStorage` -

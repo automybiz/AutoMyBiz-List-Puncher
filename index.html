@@ -15,7 +15,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
     
     <!-- Separated Master Stylesheet (Zero Prism Crash) - version query busts the GitHub Pages 10min cache -->
-    <link rel="stylesheet" href="index.css?v=1.38">
+    <link rel="stylesheet" href="index.css?v=1.39">
 
     <script>
     /* Universal Dark Reader Kill Switch (Rule 9) */
@@ -338,7 +338,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     // =========================================================================
     const AUTOSAVE_DELAY_MS = 500;
     const INDENT_SPACES_PER_LEVEL = 2;
-    const APP_BUILD = '1.38'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
+    const APP_BUILD = '1.39'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
     // Bump whenever the UI_STATE defaults below change: a saved state older than this gets
     // the new defaults applied exactly ONCE (afterwards the user's own toggles win).
     const UI_STATE_DEFAULTS_VERSION = 2;
@@ -1084,6 +1084,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
             ? ('ON -> ' + CLOUD_CONFIG.url + '/rest/v1/' + SUPABASE_LISTS_TABLE
                 + '  schema ' + CLOUD_CONFIG.schema + '  source ' + CLOUD_CONFIG.source)
             : 'OFF - no project connected for this sub-account'));
+        lines.push('tenant secret:   ' + CLOUD_SECRET_SOURCE + '   (two people must see the SAME secret source)');
         lines.push('cloud status:    ' + CLOUD_STATUS + '   queued pushes: ' + CLOUD_PENDING.size
             + '   known in cloud: ' + CLOUD_LAST_PUSHED.size
             + '   syncedAt: ' + (readCloudMeta(ACTIVE_PROJECT_ID).syncedAt || '(never)'));
@@ -1254,6 +1255,10 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     let CLOUD_INFLIGHT = false;
     const CLOUD_HYDRATING = new Set();      // projectIds with a pull in flight
     let CLOUD_STATUS = 'off';               // 'off' | 'saving' | 'synced' | 'offline'
+    // Where this browser's tenant secret came from. Two people must resolve the SAME secret or
+    // they are writing to two different tenants that cannot see each other - so this is worth
+    // showing in lpStorageReport() rather than leaving buried in the console trace.
+    let CLOUD_SECRET_SOURCE = 'not resolved yet';
 
     // Reads this sub-account's GHL custom values using the PIT that GHL passes in the menu
     // link. Returns a lower-cased name -> value map, or null when no PIT is available.
@@ -1553,21 +1558,51 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     //   link param -> this browser -> the sub-account's custom value -> mint & publish.
     // The secret is random (not derived from the PIT), so rotating the PIT later cannot
     // silently break every client's sync.
+    //
+    // SELF-HEAL (build 1.39): a secret that exists ONLY in this browser is a data split waiting
+    // to happen. The next device in the same sub-account finds no custom value, mints its own,
+    // and the two browsers end up in different tenants staring at different lists - with no error
+    // anywhere to explain it. So when the custom value is missing, we publish ours instead of
+    // silently keeping a private copy. An EXISTING custom value is never overwritten here.
     async function ensureCloudSecret(customValues) {
         const rawParam = urlParams.get(CLOUD_SECRET_PARAM);
         if (rawParam && rawParam.indexOf('{{') === -1 && rawParam.trim()) {
             const fromParam = rawParam.trim();
             writeStoredCloudSecret(fromParam);
+            CLOUD_SECRET_SOURCE = 'url-param';
             return { secret: fromParam, source: 'url-param' };
         }
 
-        const stored = readStoredCloudSecret();
-        if (stored) return { secret: stored, source: 'browser' };
-
         const values = customValues || await fetchGhlCustomValues();
         const fromCv = (values && values[GHL_CV_CLOUD_SECRET]) ? String(values[GHL_CV_CLOUD_SECRET]).trim() : '';
-        if (fromCv && fromCv.indexOf('{{') === -1) {
+        const cvIsSet = !!fromCv && fromCv.indexOf('{{') === -1;
+
+        const stored = readStoredCloudSecret();
+        if (stored) {
+            if (!cvIsSet) {
+                const healed = await upsertGhlCustomValues([{ name: GHL_CV_CLOUD_SECRET, value: stored }]);
+                CLOUD_SECRET_SOURCE = healed.ok ? 'browser (published to this sub-account)' : 'browser only';
+                lpTrace('cloud secret', healed.ok
+                    ? 'this browser held the only copy -> published it to the sub-account'
+                    : 'this browser holds the only copy and publishing failed: ' + healed.detail);
+                return { secret: stored, source: healed.ok ? 'browser+published' : 'browser' };
+            }
+            // Two different secrets for one sub-account means one of these devices is looking at
+            // a tenant nobody else can see. Never auto-switch (that would hide this browser's
+            // existing list); make it loud instead.
+            if (fromCv !== stored) {
+                CLOUD_SECRET_SOURCE = 'browser (MISMATCH with this sub-account)';
+                lpTrace('cloud secret', 'MISMATCH: this browser and the sub-account hold different secrets - '
+                    + 'one of them is writing to a tenant the other cannot see');
+            } else {
+                CLOUD_SECRET_SOURCE = 'browser (matches this sub-account)';
+            }
+            return { secret: stored, source: 'browser' };
+        }
+
+        if (cvIsSet) {
             writeStoredCloudSecret(fromCv);
+            CLOUD_SECRET_SOURCE = 'ghl custom value';
             return { secret: fromCv, source: 'ghl-custom-value' };
         }
 
@@ -1576,6 +1611,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         const fresh = generateCloudSecret();
         writeStoredCloudSecret(fresh);
         const published = await upsertGhlCustomValues([{ name: GHL_CV_CLOUD_SECRET, value: fresh }]);
+        CLOUD_SECRET_SOURCE = published.ok ? 'minted (published to this sub-account)' : 'minted (this browser only)';
         lpTrace('cloud secret', 'minted (' + (published.ok ? 'published to this sub-account' : 'local only - ' + published.detail) + ')');
         return { secret: fresh, source: published.ok ? 'minted+published' : 'minted-local-only' };
     }
