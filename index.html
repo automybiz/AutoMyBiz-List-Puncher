@@ -15,7 +15,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
     
     <!-- Separated Master Stylesheet (Zero Prism Crash) - version query busts the GitHub Pages 10min cache -->
-    <link rel="stylesheet" href="index.css?v=1.39">
+    <link rel="stylesheet" href="index.css?v=1.40">
 
     <script>
     /* Universal Dark Reader Kill Switch (Rule 9) */
@@ -338,7 +338,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     // =========================================================================
     const AUTOSAVE_DELAY_MS = 500;
     const INDENT_SPACES_PER_LEVEL = 2;
-    const APP_BUILD = '1.39'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
+    const APP_BUILD = '1.40'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
     // Bump whenever the UI_STATE defaults below change: a saved state older than this gets
     // the new defaults applied exactly ONCE (afterwards the user's own toggles win).
     const UI_STATE_DEFAULTS_VERSION = 2;
@@ -724,10 +724,37 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
             itemsContainer.appendChild(item);
         });
 
-        const storageBox = document.getElementById('storageKeyBox');
-        if (storageBox) {
-            storageBox.innerText = `Key: list_puncher_${LOCATION_ID}_proj_${ACTIVE_PROJECT_ID}_yaml` + describeStorage();
+        refreshPillTooltip();
+    }
+
+    // sha256(secret) -> first 8 hex chars, i.e. the server's own tenant_hash prefix. Needs a
+    // secure context (the GHL iframe is https); anywhere else it reports 'unverifiable' rather
+    // than pretending. The secret itself is never displayed anywhere.
+    async function tenantFingerprint(secret) {
+        try {
+            if (!secret || !(window.crypto && window.crypto.subtle)) return 'unverifiable';
+            const bytes = new TextEncoder().encode(secret);
+            const digest = await window.crypto.subtle.digest('SHA-256', bytes);
+            return Array.from(new Uint8Array(digest))
+                .map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 8);
+        } catch (e) {
+            return 'unverifiable';
         }
+    }
+
+    function describeTenant() {
+        if (!isCloudEnabled()) return ' | tenant: none (browser only)';
+        if (!CLOUD_TENANT_FINGERPRINT) return ' | tenant: resolving...';
+        return ` | tenant ${CLOUD_TENANT_FINGERPRINT} (secret from ${CLOUD_SECRET_SOURCE})`;
+    }
+
+    // One writer for the pill's storage/tooltip text, so the tenant line cannot drift away from
+    // the key line when either the list or the cloud target changes.
+    function refreshPillTooltip() {
+        const storageBox = document.getElementById('storageKeyBox');
+        if (!storageBox) return;
+        storageBox.innerText = `Key: list_puncher_${LOCATION_ID}_proj_${ACTIVE_PROJECT_ID}_yaml`
+            + describeStorage() + describeTenant();
     }
 
     // Storage facts for the pill tooltip: the fastest way to diagnose a list that did
@@ -1084,7 +1111,8 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
             ? ('ON -> ' + CLOUD_CONFIG.url + '/rest/v1/' + SUPABASE_LISTS_TABLE
                 + '  schema ' + CLOUD_CONFIG.schema + '  source ' + CLOUD_CONFIG.source)
             : 'OFF - no project connected for this sub-account'));
-        lines.push('tenant secret:   ' + CLOUD_SECRET_SOURCE + '   (two people must see the SAME secret source)');
+        lines.push('tenant secret:   ' + CLOUD_SECRET_SOURCE + '   fingerprint: ' + (CLOUD_TENANT_FINGERPRINT || '(unresolved)'));
+        lines.push('                 ^ two people see the same list only if this fingerprint matches on both');
         lines.push('cloud status:    ' + CLOUD_STATUS + '   queued pushes: ' + CLOUD_PENDING.size
             + '   known in cloud: ' + CLOUD_LAST_PUSHED.size
             + '   syncedAt: ' + (readCloudMeta(ACTIVE_PROJECT_ID).syncedAt || '(never)'));
@@ -1259,6 +1287,10 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     // they are writing to two different tenants that cannot see each other - so this is worth
     // showing in lpStorageReport() rather than leaving buried in the console trace.
     let CLOUD_SECRET_SOURCE = 'not resolved yet';
+    // sha256(secret) truncated to 8 hex chars. The server's tenant_hash IS sha256(secret), so
+    // this is provably "which tenant am I" - two machines showing 530bdffb are writing the same
+    // rows. Visible in the pill tooltip so nobody needs DevTools to answer it.
+    let CLOUD_TENANT_FINGERPRINT = '';
 
     // Reads this sub-account's GHL custom values using the PIT that GHL passes in the menu
     // link. Returns a lower-cased name -> value map, or null when no PIT is available.
@@ -1394,7 +1426,10 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         if (secretInfo && secretInfo.secret) {
             CLOUD_CONFIG.secret = secretInfo.secret;
             CLOUD_CONFIG.mode = readStoredCloudMode(picked.url) || 'rpc';
-            lpTrace('cloud secret', 'source=' + secretInfo.source + '  mode=' + CLOUD_CONFIG.mode);
+            CLOUD_TENANT_FINGERPRINT = await tenantFingerprint(secretInfo.secret);
+            lpTrace('cloud secret', 'source=' + secretInfo.source + '  tenant=' + CLOUD_TENANT_FINGERPRINT
+                + '  mode=' + CLOUD_CONFIG.mode);
+            refreshPillTooltip();   // the tooltip can only show the tenant once it is resolved
         }
         return CLOUD_CONFIG;
     }
