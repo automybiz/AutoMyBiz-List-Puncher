@@ -198,3 +198,27 @@ docs/HANDOVER.md                            this file
 - Keep `APP_BUILD`, `index.css?v=` and `--lp-css-build` identical, and verify with `node --check` on the extracted inline script before committing.
 - Update this file when the state changes.
 
+
+---
+
+## 10. Build 1.32 - three-state tasks (2026-10-24)
+
+The checkbox is now YES / NO / BLANK. `[x]` no longer means done.
+
+| Marker | State | Meaning |
+|---|---|---|
+| `[ ]` | `blank` | untouched / undecided |
+| `[v]` | `yes` | approved / done |
+| `[x]` | `no` | rejected / ignored - kept in the list, struck through in `#F50` |
+
+- **Format stamp.** Every saved list starts with `# lp-format: 2`. Text *without* the stamp is v1 and gets `[x]` rewritten to `[v]` exactly once, inside `parseYamlToTasks` (so local load, cloud pull and paste all migrate).
+- **Model.** `task.checked` -> `task.state`. `taskState(task)` still reads a legacy `checked` boolean so blueprint/seed/cached data keeps working.
+- **Render.** Native checkbox replaced by `<button class="task-state">` (a checkbox cannot express three states). Click cycles blank -> yes -> no -> blank.
+- **Bulk.** YesAll / NoAll / BlankAll, explicit set (not toggle), on milestone headers and on branch toolbars, each behind the confirm dialog. `confirmSectionState(idx, state)` / `confirmBranchState(idx, state)`.
+- **Progress.** `yes / (total - no)`, with ` - N no` appended when anything is ignored. Sections count `allDone` the same way.
+- **Parsers.** All `[ xX]` character classes widened to `[^\]]{0,3}` (4 detection helpers too, otherwise `[v]` lines were not recognised as tasks). Aliases accepted: `v y yes done approved ok true` and `x n no skip skipped ignored rejected false`.
+- **Prompt.** The AI legend now documents the three markers and forbids `[x]` for done.
+
+Verification used in this build (all green): `node --check` on the extracted inline script, a 23-assert state-contract harness, a 17-assert format/parse round-trip harness, and a 10-assert harness that parses `docs/BOOTSTRAP.md` and proves a lossless re-serialisation.
+
+`docs/BOOTSTRAP.md` is the bootstrap punch list written in this format (7 sections, 74 items): paste it into List Puncher to get a working checklist.
