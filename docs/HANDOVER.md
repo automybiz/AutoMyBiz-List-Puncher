@@ -13,7 +13,7 @@ Kickoff for a new Cline task:
 | Repo | `github.com/automybiz/AutoMyBiz-List-Puncher` (public, branch `main`) |
 | Local | `x:\DATA\_SOFTWARE\_3D_PRINTING\_PROJECTS\_WEB\CODE\AutoMyBiz List Puncher` |
 | App | single-file `index.html` + `index.css`, served by GitHub Pages, embedded in GoHighLevel via a Custom Menu Link |
-| Build | **1.38** (`APP_BUILD`, `index.css?v=`, `--lp-css-build` — keep all three in sync) |
+| Build | **1.42** (`APP_BUILD`, `index.css?v=`, `--lp-css-build` — keep all three in sync) |
 | Database | Supabase project ref `dhuhkinuruxbwddhffwk` (org AutoMyBiz, us-west-2, free plan), schema `list_puncher` |
 | Product goal | zero-touch onboarding per GHL sub-account (agency hosts the data, per-tenant isolation), with an optional upgrade path to a client's own Supabase project |
 

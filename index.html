@@ -1308,12 +1308,6 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
                 console.warn('[List Puncher] Save round-trip check error:', e);
             }
 
-            // Shared persistence: the localStorage writes above are the instant local cache,
-            // this is the coalesced cloud push. A failed push NEVER fails the local save -
-            // the pill reports the two engines separately.
-            // A brand-new EMPTY list is not pushed: that would create a task-less row for every
-            // list anyone ever opens. Once a row exists, an empty list IS pushed - that is how
-            // deleting every task reaches the other devices.
             // ROWS MODE: keep the local JSON cache (ids included) and send only what changed.
             // The YAML above is still written as the escape hatch, but the blob is NEVER pushed
             // here - two transports writing the same list would fight each other.
@@ -1323,6 +1317,12 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
                 return true;
             }
 
+            // BLOB MODE shared persistence: the localStorage writes above are the instant local
+            // cache, this is the coalesced cloud push. A failed push NEVER fails the local save -
+            // the pill reports the two engines separately.
+            // A brand-new EMPTY list is not pushed: that would create a task-less row for every
+            // list anyone ever opens. Once a row exists, an empty list IS pushed - that is how
+            // deleting every task reaches the other devices.
             if (TASKS_DATA.length || readCloudMeta(ACTIVE_PROJECT_ID).syncedAt) {
                 scheduleCloudSave(fullYaml);
             }
