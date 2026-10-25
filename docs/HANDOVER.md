@@ -223,3 +223,45 @@ The checkbox is now YES / NO / BLANK. `[x]` no longer means done.
 Verification used in this build (all green): `node --check` on the extracted inline script, a 23-assert state-contract harness, a 17-assert format/parse round-trip harness, and a 10-assert harness that parses `docs/BOOTSTRAP.md` and proves a lossless re-serialisation.
 
 `docs/BOOTSTRAP.md` is the bootstrap punch list written in this format (7 sections, 74 items): paste it into List Puncher to get a working checklist.
+
+
+---
+
+## 11. Build 1.34 - new lists start empty, and say so (2026-10-25)
+
+`+ New Project List...` used to seed `ONBOARDING_BLUEPRINT` into every new list, so a fresh list
+opened showing the demo sections - which reads as "the previous list is still here". It now starts
+genuinely empty and renders a guidance panel instead.
+
+**The empty-list contract**
+
+| Piece | Rule |
+|---|---|
+| `EMPTY_LIST_SENTINEL` | `# lp-empty: 1` - written to the project key instead of a blank string |
+| Why a sentinel | the parser skips `#` comments (0 tasks) but the KEY EXISTS, which is how "deliberately empty" is told apart from "never opened on this device" |
+| `loadCurrentProjectData()` | `rawYaml !== null` is authoritative: 0 tasks renders the empty state and STOPS |
+| `saveState()` | writes the sentinel when `TASKS_DATA` is empty; skips the cloud push unless a row already exists |
+| `hydrateFromCloud()` | `cloudWins = (!localExists OR cloudAt > localAt)` - an empty local list is a real answer, an absent one is not |
+
+**Three traps that would have reappeared the moment lists stopped being seeded.** The first two
+copied another list's tasks into the active project and then persisted it with `saveState()`:
+
+1. the `list_puncher_yaml` legacy cross-key in `loadCurrentProjectData()` - now DEFAULT-list only;
+2. `recoverStoredListFromAnyKey()` - adopts the richest `list_puncher_*_yaml` in the browser; now
+   returns `false` unless `ACTIVE_PROJECT_ID === DEFAULT_PROJECT_ID`;
+3. `saveState()` no longer writes the legacy cross-key while a user list is active, so the default
+   list's backup survives a create.
+
+**Header.** Removed the native `title` tooltip from the 📁 switcher (kept `aria-label` for screen
+readers) and dropped the hardcoded `// Client Onboarding` breadcrumb - it lied whenever another
+list was active, and the active name is already in the switcher pill.
+
+**Empty state.** `buildEmptyStateHtml()` plus `.empty-state*` in `index.css`: three numbered cards
+(build by hand / AI prompt + List Editor / reuse another list via the milestone and branch paste
+buttons), each wired to the handlers that already existed.
+
+Verification (all green): `node --check` on all three inline script blocks, CSS braces balanced, a
+27-assert harness calling the real `promptCreateProject` / `loadCurrentProjectData` /
+`switchActiveProject` / `seedOnboardingBlueprint` / `saveState` against an in-memory localStorage
+(create -> reload -> switch back -> default-list recovery -> delete-all), and headless-Chrome
+screenshots of both the empty state and the first-run blueprint.

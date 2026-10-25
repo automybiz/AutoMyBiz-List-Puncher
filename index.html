@@ -15,7 +15,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
     
     <!-- Separated Master Stylesheet (Zero Prism Crash) - version query busts the GitHub Pages 10min cache -->
-    <link rel="stylesheet" href="index.css?v=1.33">
+    <link rel="stylesheet" href="index.css?v=1.34">
 
     <script>
     /* Universal Dark Reader Kill Switch (Rule 9) */
@@ -66,7 +66,7 @@
         <div class="header-pills-cluster">
             <!-- Multi-Project Switcher Dropdown (Unlimited Lists per Business) -->
             <div class="project-switcher-wrap">
-                <button type="button" class="project-select-btn" id="btnProjectSelect" onclick="toggleProjectDropdown()" title="Switch or manage project lists">
+                <button type="button" class="project-select-btn" id="btnProjectSelect" onclick="toggleProjectDropdown()" aria-label="Switch or manage project lists">
                     <span>📁</span>
                     <span class="project-select-label" id="currentProjectLabel">Client Onboarding</span>
                     <span style="font-size: 10px; margin-left: 2px;">▾</span>
@@ -133,7 +133,7 @@
         <div class="header-top">
             <div class="brand-title-wrap">
                 <div class="brand-title">
-                    ⚡ List Puncher <span class="cyan">// Client Onboarding</span>
+                    ⚡ List Puncher
                 </div>
 
                 <span class="client-badge" id="clientBadge">Client Workspace</span>
@@ -304,7 +304,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     // =========================================================================
     const AUTOSAVE_DELAY_MS = 500;
     const INDENT_SPACES_PER_LEVEL = 2;
-    const APP_BUILD = '1.33'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
+    const APP_BUILD = '1.34'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
     // Bump whenever the UI_STATE defaults below change: a saved state older than this gets
     // the new defaults applied exactly ONCE (afterwards the user's own toggles win).
     const UI_STATE_DEFAULTS_VERSION = 2;
@@ -391,6 +391,14 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     }
 
     const DEFAULT_PROJECT_NAME = 'Client Onboarding';
+
+    // The on-disk record for a list that is deliberately empty. Written instead of a blank
+    // string for two reasons: the storage trace then says why the key is there, and the
+    // parser (which skips # comments) still reads it as zero tasks.
+    // The KEY EXISTING is the important part - loadCurrentProjectData() treats "key present,
+    // zero tasks" as a final answer and only runs the adopt-another-list fallbacks when the
+    // key is absent entirely.
+    const EMPTY_LIST_SENTINEL = '# lp-empty: 1';
 
     // =========================================================================
     // CLOUD BACKEND (SUPABASE) - BRING YOUR OWN PROJECT, PER GHL SUB-ACCOUNT
@@ -710,13 +718,21 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
             ACTIVE_PROJECT_ID = newId;
             localStorage.setItem(getActiveProjectStorageKey(), ACTIVE_PROJECT_ID);
 
-            // Seed with blueprint
-            TASKS_DATA = JSON.parse(JSON.stringify(ONBOARDING_BLUEPRINT));
+            // A new list starts EMPTY on purpose: renderAll() then shows the guidance panel
+            // that teaches the three ways to fill it. Two things make that safe:
+            //   1. the project's own key must EXIST (the sentinel) - otherwise
+            //      loadCurrentProjectData() reads it as "never opened on this device" and
+            //      starts adopting another list (legacy cross-key, then any-key recovery);
+            //   2. no starter blueprint - seeding one here is what used to make a brand-new
+            //      list look like it already contained somebody else's tasks.
+            TASKS_DATA = [];
+            localStorage.removeItem(getProjectUiKey(newId));
+            localStorage.setItem(getProjectYamlKey(newId), EMPTY_LIST_SENTINEL);
             saveState();
 
             loadCurrentProjectData();
             renderProjectDropdownUI();
-            showToast(`Created new project "${name.trim()}"`);
+            showToast(`Created "${name.trim()}" - it's empty, pick a way to fill it`);
         }
     }
 
@@ -789,7 +805,12 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
             // Load the list content for this project
             const projectKey = getProjectYamlKey(ACTIVE_PROJECT_ID);
             const rawYaml = localStorage.getItem(projectKey);
-            if (rawYaml && rawYaml.trim()) {
+
+            // PRESENCE of this project's own key is authoritative - including when it holds
+            // nothing but the empty sentinel. A list must never inherit another list's tasks
+            // just because its own copy is empty; that is exactly how a newly created list
+            // ended up showing the previously active list.
+            if (rawYaml !== null) {
                 const parsed = parseYamlToTasks(rawYaml);
                 if (parsed.length) {
                     TASKS_DATA = parsed;
@@ -799,30 +820,49 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
                     hydrateFromCloud(ACTIVE_PROJECT_ID, true);
                     return;
                 }
-                // Stored text that does not parse is NEVER overwritten - keep it on disk
-                // (it can still be recovered by hand) and say so in the storage pill.
-                lpTrace('load UNREADABLE', 'key=' + projectKey + '  bytes=' + rawYaml.length + '  -> left untouched');
-                console.warn('[List Puncher] Stored list in ' + projectKey + ' (' + rawYaml.length + ' chars) could not be parsed. Left untouched.');
-                TASKS_DATA = [];
-                setStoragePillStatus('restricted', '⚠ Stored list unreadable');
-                renderAll();
-                return;
-            }
 
-            // Fall back to the legacy cross-key, then to any key at all (recovery)
-            const legacyYaml = localStorage.getItem('list_puncher_yaml');
-            if (legacyYaml && legacyYaml.trim()) {
-                const parsedLegacy = parseYamlToTasks(legacyYaml);
-                if (parsedLegacy.length) {
-                    TASKS_DATA = parsedLegacy;
-                    lpTrace('load LEGACY KEY', 'key=list_puncher_yaml  items=' + parsedLegacy.length + '  -> re-homed to ' + projectKey);
-                    saveState();
+                const storedText = rawYaml.trim();
+                if (storedText && storedText !== EMPTY_LIST_SENTINEL) {
+                    // Stored text that does not parse is NEVER overwritten - keep it on disk
+                    // (it can still be recovered by hand) and say so in the storage pill.
+                    lpTrace('load UNREADABLE', 'key=' + projectKey + '  bytes=' + rawYaml.length + '  -> left untouched');
+                    console.warn('[List Puncher] Stored list in ' + projectKey + ' (' + rawYaml.length + ' chars) could not be parsed. Left untouched.');
+                    TASKS_DATA = [];
+                    setStoragePillStatus('restricted', '⚠ Stored list unreadable');
                     renderAll();
                     return;
                 }
+
+                // Deliberately empty list -> the empty-state guidance panel. Still ask the
+                // cloud first, because another device may have filled this list already. No
+                // seed callback is passed, so an empty list is never auto-filled behind the
+                // user's back.
+                TASKS_DATA = [];
+                lpTrace('load EMPTY LIST', 'key=' + projectKey + '  -> empty-state guidance');
+                renderAll();
+                hydrateFromCloud(ACTIVE_PROJECT_ID, true);
+                return;
             }
 
-            lpTrace('load EMPTY', 'no list at ' + projectKey + ' and none at list_puncher_yaml -> cloud, then recovery, then blueprint');
+            // No record for this project at all = genuinely first run here (new device, new
+            // browser profile, cleared storage). Only the DEFAULT list may adopt a stray copy
+            // lying around in this browser - a list the user created has to start empty rather
+            // than pick up whatever else happens to be stored here.
+            if (ACTIVE_PROJECT_ID === DEFAULT_PROJECT_ID) {
+                const legacyYaml = localStorage.getItem('list_puncher_yaml');
+                if (legacyYaml && legacyYaml.trim()) {
+                    const parsedLegacy = parseYamlToTasks(legacyYaml);
+                    if (parsedLegacy.length) {
+                        TASKS_DATA = parsedLegacy;
+                        lpTrace('load LEGACY KEY', 'key=list_puncher_yaml  items=' + parsedLegacy.length + '  -> re-homed to ' + projectKey);
+                        saveState();
+                        renderAll();
+                        return;
+                    }
+                }
+            }
+
+            lpTrace('load NEW PROJECT', 'no record for ' + projectKey + ' -> cloud, then recovery, then blueprint/empty');
             // Nothing cached here (new device, new browser profile, cleared storage). Ask the
             // cloud BEFORE seeding a blueprint: otherwise the first run on a second device would
             // push a starter list straight over the list the agency already built.
@@ -1028,10 +1068,18 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
 
     function saveState() {
         try {
-            const fullYaml = formatTasksSliceAsYaml(TASKS_DATA);
+            // An empty list is written as the SENTINEL, not a blank string, so this project's
+            // key still exists - that is what tells loadCurrentProjectData() the list is
+            // deliberately empty rather than "never opened on this device".
+            const fullYaml = TASKS_DATA.length ? formatTasksSliceAsYaml(TASKS_DATA) : EMPTY_LIST_SENTINEL;
             localStorage.setItem(getProjectYamlKey(ACTIVE_PROJECT_ID), fullYaml);
             localStorage.setItem(getProjectUiKey(ACTIVE_PROJECT_ID), JSON.stringify(projectUiStateSnapshot()));
-            localStorage.setItem('list_puncher_yaml', fullYaml); // Legacy backup + cross-key safety net
+            // The legacy cross-key is the DEFAULT list's safety net only. Writing it while a
+            // user-created list is active would overwrite the very backup the default list
+            // recovers from, so it stays frozen until that list is active again.
+            if (ACTIVE_PROJECT_ID === DEFAULT_PROJECT_ID) {
+                localStorage.setItem('list_puncher_yaml', fullYaml); // Legacy backup + cross-key safety net
+            }
 
             // Only trace real changes - autosave runs on every keystroke (debounced).
             if (fullYaml !== LAST_SAVED_YAML) {
@@ -1058,7 +1106,12 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
             // Shared persistence: the localStorage writes above are the instant local cache,
             // this is the coalesced cloud push. A failed push NEVER fails the local save -
             // the pill reports the two engines separately.
-            scheduleCloudSave(fullYaml);
+            // A brand-new EMPTY list is not pushed: that would create a task-less row for every
+            // list anyone ever opens. Once a row exists, an empty list IS pushed - that is how
+            // deleting every task reaches the other devices.
+            if (TASKS_DATA.length || readCloudMeta(ACTIVE_PROJECT_ID).syncedAt) {
+                scheduleCloudSave(fullYaml);
+            }
             return true;
         } catch (e) {
             // Storage writes can throw (quota, or a blocked / sandboxed context). Never
@@ -1631,9 +1684,13 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
             const remote = await cloudSelectList(projId);
             if (projId !== ACTIVE_PROJECT_ID) return;   // the user switched lists while waiting
 
-            const localText = localStorage.getItem(getProjectYamlKey(projId)) || '';
+            const rawLocalText = localStorage.getItem(getProjectYamlKey(projId));
+            const localExists = rawLocalText !== null;   // a key holding only the sentinel counts
+            const localText = rawLocalText || '';
             if (!remote) {
-                if (localText.trim()) {
+                // Only a list with real tasks seeds a shared row. The empty sentinel would
+                // otherwise create a task-less row for every list a user ever opens.
+                if (localText.trim() && parseYamlToTasks(localText).length) {
                     scheduleCloudSave(localText);       // first contact: seed the shared row
                 } else if (typeof onNoCloud === 'function') {
                     onNoCloud();
@@ -1654,11 +1711,14 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
                 return;
             }
 
-            const cloudWins = (!localItems || cloudAt > localAt);
+            // "This device has no record at all" is what loses to the cloud - not "this device
+            // holds an empty list", which is a real answer the user may have just chosen.
+            const cloudWins = (!localExists || cloudAt > localAt);
 
             if (cloudWins && cloudText && cloudText !== localText) {
                 const parsed = parseYamlToTasks(cloudText);
-                if (!parsed.length) {
+                const cloudIsEmptyList = cloudText.trim() === EMPTY_LIST_SENTINEL;
+                if (!parsed.length && !cloudIsEmptyList) {
                     // Never trade a readable local list for an unreadable cloud one.
                     lpTrace('cloud load SKIPPED', 'cloud row for ' + projId + ' does not parse');
                 } else {
@@ -2703,6 +2763,11 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     // or a key written by an older build). Adopt the richest list found and re-home
     // it under the active project instead of showing an empty board.
     function recoverStoredListFromAnyKey() {
+        // Only the DEFAULT list may adopt a stray copy. A list the user created has a record
+        // of its own and must never inherit another project's tasks just because this browser
+        // happens to hold them - that was the "my new list shows the previous list" bug.
+        if (ACTIVE_PROJECT_ID !== DEFAULT_PROJECT_ID) return false;
+
         const keys = [];
         try {
             for (let i = 0; i < localStorage.length; i++) keys.push(localStorage.key(i));
@@ -2734,6 +2799,18 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     }
 
     function seedOnboardingBlueprint() {
+        // The starter blueprint is a first-run convenience for the DEFAULT list only. A list
+        // the user created must start EMPTY - recording the sentinel here also stops it from
+        // asking again on the next load, and keeps the recovery below out of the picture.
+        if (ACTIVE_PROJECT_ID !== DEFAULT_PROJECT_ID) {
+            TASKS_DATA = [];
+            lpTrace('no blueprint', 'project=' + ACTIVE_PROJECT_ID + '  -> list stays empty');
+            localStorage.setItem(getProjectYamlKey(ACTIVE_PROJECT_ID), EMPTY_LIST_SENTINEL);
+            saveState();
+            renderAll();
+            return;
+        }
+
         // The blueprint is a FALLBACK, never an overwrite. Before seeding the demo
         // list, try to adopt a list stored under another key (the "I lost my list on
         // refresh" case) and only seed when storage really is empty.
@@ -2748,6 +2825,60 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         TASKS_DATA = JSON.parse(JSON.stringify(ONBOARDING_BLUEPRINT));
         saveState();
         renderAll();
+    }
+
+    // =========================================================================
+    // EMPTY STATE - the guided first step for a list with no tasks yet
+    // -------------------------------------------------------------------------
+    // A newly created list is empty on purpose. This panel is its whole onboarding: all
+    // three ways a list gets filled are reachable from here, so nobody has to guess what
+    // the toolbar buttons do or wonder whether the app is broken.
+    // =========================================================================
+    function buildEmptyStateHtml() {
+        const proj = PROJECTS_LIST.find(p => p.id === ACTIVE_PROJECT_ID);
+        const projName = escapeHtml(proj ? proj.name : 'This list');
+        return `
+        <div class="empty-state">
+            <div class="empty-state-head">
+                <span class="empty-state-icon">📋</span>
+                <div>
+                    <h3>This list is empty</h3>
+                    <p><strong>${projName}</strong> has no milestones yet. Pick whichever way suits you &mdash; you can mix all three, and everything saves as you go.</p>
+                </div>
+            </div>
+
+            <div class="empty-state-grid">
+                <div class="empty-option">
+                    <div class="empty-option-num">1</div>
+                    <h4>Build it by hand</h4>
+                    <p>Add a milestone, then the tasks and notes underneath it. Slowest, but nothing gets lost in translation.</p>
+                    <div class="empty-actions">
+                        <button type="button" class="btn-action btn-primary" onclick="addNewSection()">＋ Add first milestone</button>
+                    </div>
+                </div>
+
+                <div class="empty-option">
+                    <div class="empty-option-num">2</div>
+                    <h4>Let an AI draft it</h4>
+                    <p>Copy the prompt, drop it into the ChatGPT / Claude / Gemini conversation you already have, then paste the code block it hands back into the List Editor.</p>
+                    <div class="empty-actions">
+                        <button type="button" class="btn-action" onclick="copyAiPromptToClipboard()">🤖 Copy AI Prompt</button>
+                        <button type="button" class="btn-action" onclick="openYamlModal('full')">📝 Open List Editor</button>
+                    </div>
+                </div>
+
+                <div class="empty-option">
+                    <div class="empty-option-num">3</div>
+                    <h4>Reuse a list you already have</h4>
+                    <p>Switch to another list, then use the paste icon on a milestone header (<strong>Paste tasks into this milestone</strong>) or on a task row (<strong>Paste subtasks into this branch</strong>) to move whole sections across.</p>
+                    <div class="empty-actions">
+                        <button type="button" class="btn-action" onclick="toggleProjectDropdown()">📁 Switch list</button>
+                    </div>
+                </div>
+            </div>
+
+            <p class="empty-state-foot">This list only appears here when it is selected in the 📁 switcher above &mdash; your other lists stay exactly as you left them.</p>
+        </div>`;
     }
 
     function getSubtreeRange(parentIdx) {
@@ -2787,10 +2918,10 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         const deckContainer = document.getElementById('deckContainer');
         deckContainer.innerHTML = '';
 
-        // An empty list renders as an empty board. Seeding the demo blueprint is a
-        // LOAD-time fallback only - doing it here could overwrite a saved list.
+        // An empty list renders the guidance panel. Seeding a starter list is a LOAD-time
+        // fallback only - doing it here could overwrite a saved list.
         if (!TASKS_DATA.length) {
-            deckContainer.innerHTML = '<div style="padding:28px;text-align:center;color:var(--text-secondary);font-size:0.9rem;">No tasks yet &mdash; paste your list into the <strong>LIST Editor</strong>, or add a milestone with <strong>+ New Section</strong>.</div>';
+            deckContainer.innerHTML = buildEmptyStateHtml();
             return;
         }
 
