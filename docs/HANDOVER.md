@@ -420,7 +420,7 @@ The read still resolves by comparing `remote.updated_at` with this device's `loc
 (`cloudWins = !localExists || cloudAt > localAt`). 1.38 does not change that; it shortens the window.
 Removing the clock comparison only makes sense together with §16, which deletes it.
 
-## 16. NEXT CHANGE (designed, not built) - one row per task
+## 16. NEXT CHANGE - one row per task (backend APPLIED 2026-10-25, client not switched yet)
 
 ### The problem it removes
 `lists.checklist_text` holds the **whole list** as one YAML string. Two people ticking different tasks
@@ -452,7 +452,7 @@ unchanged, because YAML is the *interchange* format (think CSV, not the database
 Anything arriving as YAML has no ids, so it is an **import** (fresh ids) - correct, and paste therefore
 replaces rather than merges. Anything else would be a guess.
 
-### Schema
+### Schema (applied as migration `phase3_task_rows_table_and_rpcs`)
 ```sql
 create table list_puncher.tasks (
   id             uuid primary key default gen_random_uuid(),  -- DB row identity, never reused
@@ -461,16 +461,20 @@ create table list_puncher.tasks (
   tenant_hash    text not null,
   task_id        text not null,          -- OUR id: stable across rename / reorder / reload
   parent_task_id text,
-  level          int  not null default 0,
-  sort_order     int  not null default 0,
+  level          smallint not null default 0,
+  sort_order     integer  not null default 0,
   state          text not null default 'blank',
   title          text not null default '',
   notes          text not null default '',
   visible        boolean not null default true,
   updated_at     timestamptz not null default now(),
   deleted_at     timestamptz,            -- soft delete ONLY
-  unique (location_id, project_id, tenant_hash, task_id)
+  constraint tasks_state_check  check (state in ('yes','no','blank')),
+  constraint tasks_level_check  check (level between 0 and 9),
+  constraint tasks_identity_key unique (location_id, project_id, tenant_hash, task_id)
 );
+create index tasks_live_idx on list_puncher.tasks (location_id, project_id, tenant_hash, sort_order)
+  where deleted_at is null;
 ```
 Both ids on purpose: the uuid PK is the database's own (never reused, never sent); `task_id` is the
 client's. Keeping `task_id` inside a composite unique (not as the PK) is what lets the same list - and
@@ -479,13 +483,41 @@ therefore the same `task_id`s - be **copied into another project**.
 **Deletion is always explicit** (`deleted_at`), never inferred from absence. That single rule is what
 prevents the classic "my copy didn't have row 9, so row 9 got deleted" data loss.
 
-One RPC, `apply_task_changes(p_location, p_project, p_secret, p_changes jsonb)`: upsert the diff in
-one transaction and **return the full current list**, so the pusher converges in the same round trip.
-Different tasks touched by two people both survive; the same task is last-write-wins, which is the
-correct semantic for one cell.
+### The three functions (all `SECURITY DEFINER`, `search_path = list_puncher, pg_temp`)
+| Function | Returns | Purpose |
+|---|---|---|
+| `get_task_rows(p_location, p_project, p_secret)` | the live rows, `order by sort_order, task_id` | the read path, mirrors `get_list()` |
+| `get_task_revision(p_location, p_project, p_secret)` | `(revision timestamptz, live_count int)` | **cheap poll**: `max(updated_at)` over live + deleted rows. Poll this, fetch the rows only when it changes. A never-written list answers `(null, 0)` - the "deliberately empty" answer that replaces the sentinel. |
+| `apply_task_changes(p_location, p_project, p_secret, p_changes jsonb)` | the live rows after the batch | upserts only the rows in the change set, in one transaction, then returns the authoritative list so the pusher converges in the same round trip |
+
+Change-set element: `{task_id, parent_task_id, level, sort_order, state, title, notes, visible, deleted}`.
+`deleted: true` soft-deletes. The client **never** sends a whole-list replacement, which is exactly
+what makes two people editing different tasks harmless.
 
 `EMPTY_LIST_SENTINEL` (`# lp-empty: 1`) disappears from the sync path - "empty" becomes "zero
 non-deleted rows", which is what the sentinel was working around.
+
+### Backend verification (2026-10-25, real calls, real rows)
+1. Insert 3 tasks via `apply_task_changes` → 3 rows returned.
+2. Change **only** `t2` (rename + uncheck) and soft-delete `t3` → 2 live rows, `t2` updated,
+   **`t1` untouched and still present** (the property the whole design exists for), `t3` gone.
+3. `get_task_revision` → `live_count = 2`, `revision` set.
+4. `get_task_rows` with a **wrong secret** → 0 rows (tenant isolation holds).
+5. `list_puncher.lists` still exactly 3 rows throughout - nothing in this migration touches it.
+6. All test rows (3 tasks + 2 `__rowtest__` tenant rows) deleted; `tasks` is empty again.
+7. `get_advisors security`: no new *kind* of finding — `tasks` shows up as `rls_enabled_no_policy`
+   exactly like `lists` / `tenants`, and the three functions show the same
+   `anon/authenticated can execute SECURITY DEFINER` WARN that all seven existing RPCs already show.
+   That is the accepted posture (§3): tables locked, isolation enforced by `tenant_hash` inside
+   `SECURITY DEFINER` functions.
+
+**Known quirk (pre-existing, not new):** calling a get/list RPC with a wrong secret does not fail -
+`ensure_tenant` registers a fresh `(location_id, new_hash)` tenant and returns zero rows. Isolation is
+correct, but bogus GETs leave `tenants` litter. Deleting a tenant row is always safe (it holds no data).
+
+### What is left to do for this phase
+Only the client. `?storage=rows` seam as described below, backfill from the YAML blob, stable ids,
+`parentId` normalization, then two-browser testing.
 
 ### Rollout (feature flag, NOT a fork - decided 2026-10-25)
 `?storage=rows` switches the backend; no param keeps today's blob path byte-for-byte. Revert is a URL
