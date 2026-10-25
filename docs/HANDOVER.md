@@ -733,6 +733,86 @@ The directory is per **tenant**, so it is shared between people who resolve the 
 (§18/§19). Two different secrets under one sub-account still see two separate directories - by design,
 and now visible in the pill tooltip as two different fingerprints.
 
+## 21. Build 1.42 - one row per task, behind a flag (2026-10-25)
+
+The row backend (§16) now has a client. **The default is still `blob`** - nothing changes for anyone
+until the flag is flipped, which is deliberate: this is the biggest change in the project and it should
+be switched on while somebody is watching.
+
+### Switching it on
+```
+?storage=rows      in the URL          (one-off test, no persisted change)
+lpUseRows(true)    in the console      (persisted per browser; lpUseRows(false) goes back)
+```
+Resolution order: URL param -> `list_puncher_<loc>_storage_mode` -> `'blob'`. `lpStorageReport()` now
+prints `storage mode:` with which transport is live.
+
+### What actually changed
+`TASKS_DATA` was ALREADY a table of `{visible, id, parentId, level, order, state, title, notes}` - so
+only the wire changed. **No mutation site was touched** (tick, add, delete, reorder, notes, editor
+save); instead `saveState()` diffs the whole array against `TASKS_SNAPSHOT` (what the server last
+confirmed) and queues only the rows whose signature changed.
+
+| Piece | Behaviour |
+|---|---|
+| `buildTaskRows` | TASKS_DATA -> wire rows; `sort_order` is the array position; a task with no id is given one **and keeps it** |
+| `rowsToTasks` | wire rows -> TASKS_DATA; ordered by `sort_order`; a row with no `task_id` is dropped |
+| `taskRowSignature` | every comparable field in one string; null and `''` parent are the same |
+| `diffTaskRows` | new or changed rows are sent; a task that vanished locally becomes `deleted: true` (explicit, never inferred) |
+| `saveState()` | rows mode: writes the JSON cache, queues the diff, **never pushes the blob**. The YAML key is still written as the escape hatch. |
+| `loadCurrentProjectData()` | rows mode: paints from the JSON cache (ids preserved), then pulls |
+| `flushTaskRowSaves()` | one `apply_task_changes` per project; the returned list becomes the new snapshot; 800 ms debounce, `CLOUD_RETRY_MS` retry |
+| poll / focus | rows mode resends queued changes first, then pulls |
+| `hydrateFromCloud()` | returns immediately in rows mode, so an old YAML row can never be adopted over shared tasks |
+
+### The two guards that make a 3 s pull safe
+1. **Never adopt over unsent work** - if this tab has queued row changes, push them and skip the adopt.
+2. **Seed once per browser+list** (`..._rows_seeded`) - otherwise a list somebody deliberately emptied
+   would be resurrected from a stale local copy on the next poll.
+
+### Two prerequisites, done here
+- **Stable ids.** `generateSlugId('task', title, index)` is content+position derived, so a rename or a
+  reorder changes it. `buildTaskRows` assigns `newTaskId()` to a task that has none **and mutates the
+  task**, so the identity survives every later save. Ids from the DB travel in the JSON cache.
+- **`parentId` is real.** The strict parser used to leave `parentId: ''` and encode nesting only in
+  `level` + array order; it now takes the parent from its own parse stack.
+
+### Database
+`phase3_tasks_level_check_widen` raises `tasks_level_check` from `<= 9` to `<= 40`: the parser builds
+`level` from the dash-indent stack and can nest deeper than 9, and failing a whole batch (or silently
+clamping) would both be worse than a wider sanity bound.
+
+### Verified
+- `$env:TEMP\lp-rows-test.js`: **58 asserts, all pass.** The important ones:
+  - **two people ticking different tasks produce two DISJOINT change sets** - the entire reason for
+    this build;
+  - a task with no id keeps the id it was given (no identity churn);
+  - round trip TASKS_DATA -> rows -> TASKS_DATA is lossless (title, state, level, notes, visible, parent);
+  - a row returned by the SERVER has the same signature as one built locally (otherwise every poll
+    would resend the whole list);
+  - every signature component actually matters;
+  - the wiring exists at all 11 sites.
+- **End-to-end against the live database** with `?storage=rows` and a throwaway `location_id`: the
+  starter blueprint was seeded into `list_puncher.tasks` as **18 rows** (5 sections + 13 tasks),
+  `sort_order` 0-17, levels 0-2, states preserved, and **5 distinct non-null `parent_task_id`s** -
+  every task parented to its section. Throwaway rows deleted afterwards (`tasks` 0, `directories` 3,
+  `lists` 3, `tenants` 4 - production untouched).
+- `lp-directory-test.js` 23/23, `lp-secret-test.js` 35/35, `lp-poll-test.js` 34/34,
+  `lp-empty-list-test.js` unchanged, 3/3 inline scripts compile.
+- Three harnesses needed a `rowsStorageEnabled()` stub, because `saveState`, `loadCurrentProjectData`
+  and `pollCloudOnce` now branch on it. They pin it to `false` so they keep testing the blob path.
+
+### Known costs and limitations (accepted for now)
+- **`sort_order` is the array index**, so inserting or deleting a task re-sends every row below it.
+  A 98-item list therefore sends a tail on a delete. Fixing that needs fractional indexing - not worth
+  it until it hurts.
+- **The poll fetches every row each tick.** `get_task_revision` exists for this and is unused; the
+  cheap-poll optimisation is a later win, not a correctness need.
+- **Deleting a list leaves its task rows** in `list_puncher.tasks` (the label goes, content rows stay,
+  §20). Orphaned rows are harmless but should be swept some day.
+- **A YAML import can reuse an existing id**, because parser ids are content+position derived. That is
+  treated as an update to that task, which is the sane reading of "same title at the same place".
+
 ### Rollout (feature flag, NOT a fork - decided 2026-10-25)
 `?storage=rows` switches the backend; no param keeps today's blob path byte-for-byte. Revert is a URL
 change. A physical fork was rejected because two HTML files on the same origin share `localStorage` -

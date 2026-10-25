@@ -15,7 +15,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
     
     <!-- Separated Master Stylesheet (Zero Prism Crash) - version query busts the GitHub Pages 10min cache -->
-    <link rel="stylesheet" href="index.css?v=1.41">
+    <link rel="stylesheet" href="index.css?v=1.42">
 
     <script>
     /* Universal Dark Reader Kill Switch (Rule 9) */
@@ -338,7 +338,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     // =========================================================================
     const AUTOSAVE_DELAY_MS = 500;
     const INDENT_SPACES_PER_LEVEL = 2;
-    const APP_BUILD = '1.41'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
+    const APP_BUILD = '1.42'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
     // Bump whenever the UI_STATE defaults below change: a saved state older than this gets
     // the new defaults applied exactly ONCE (afterwards the user's own toggles win).
     const UI_STATE_DEFAULTS_VERSION = 2;
@@ -507,6 +507,41 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     let VIEWERS_PARAM = urlParams.get('viewers') || '';
     const MODE_OVERRIDE = (urlParams.get('mode') || urlParams.get('edit') || '').toLowerCase();
     const URL_PROJECT   = urlParams.get('project') || urlParams.get('project_id') || '';
+
+    // =========================================================================
+    // STORAGE MODE - how list CONTENT is persisted in the cloud
+    // -------------------------------------------------------------------------
+    //   'blob' (default) one YAML row per list in list_puncher.lists. Whole-list writes, so
+    //                    two people editing the same list at the same moment lose one edit.
+    //   'rows'           one row per task in list_puncher.tasks. Two people ticking DIFFERENT
+    //                    tasks cannot touch each other's rows at all.
+    // Resolved once: ?storage=rows|blob -> this browser's choice -> 'blob'. The flag exists so
+    // the new transport can be switched off with a URL instead of a code change.
+    // =========================================================================
+    const STORAGE_MODE_PARAM = 'storage';
+    const STORAGE_MODE_KEY = `list_puncher_${LOCATION_ID}_storage_mode`;
+
+    const STORAGE_MODE = (function () {
+        const fromParam = String(urlParams.get(STORAGE_MODE_PARAM) || '').toLowerCase();
+        if (fromParam === 'rows' || fromParam === 'blob') return fromParam;
+        try {
+            const stored = String(localStorage.getItem(STORAGE_MODE_KEY) || '').toLowerCase();
+            if (stored === 'rows' || stored === 'blob') return stored;
+        } catch (e) { /* storage blocked - fall through to the default */ }
+        return 'blob';
+    })();
+
+    // Console switch so nobody has to edit a GHL menu link: lpUseRows(true) / lpUseRows(false)
+    function lpUseRows(on) {
+        try {
+            localStorage.setItem(STORAGE_MODE_KEY, on ? 'rows' : 'blob');
+            console.info('[List Puncher] storage mode -> ' + (on ? 'rows' : 'blob') + '. Reloading...');
+            location.reload();
+        } catch (e) {
+            console.warn('[List Puncher] could not save the storage mode:', e);
+        }
+    }
+    window.lpUseRows = lpUseRows;
 
     // Multi-Project State
     let ACTIVE_PROJECT_ID = DEFAULT_PROJECT_ID;
@@ -950,6 +985,20 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
             updateHeaderToggleButtonsUI();
             applyContainerWidth();
 
+            // ROWS MODE: the local cache is JSON (ids included) and the shared rows are the
+            // truth. A cache miss is NOT the same as a deliberately empty list, so the starter
+            // blueprint may only be used when this browser has never cached this project.
+            if (rowsStorageEnabled()) {
+                const cached = readRowsCache(ACTIVE_PROJECT_ID);
+                TASKS_DATA = cached ? cachedTasksToTasks(cached.tasks) : [];
+                lpTrace('load (rows)', 'key=' + getRowsCacheKey(ACTIVE_PROJECT_ID)
+                    + '  items=' + TASKS_DATA.length + '  cached=' + (cached ? 'yes' : 'no'));
+                renderAll();
+                const maySeed = !cached && ACTIVE_PROJECT_ID === DEFAULT_PROJECT_ID;
+                hydrateTasksFromCloud(ACTIVE_PROJECT_ID, true, maySeed ? seedOnboardingBlueprint : null);
+                return;
+            }
+
             // Load the list content for this project
             const projectKey = getProjectYamlKey(ACTIVE_PROJECT_ID);
             const rawYaml = localStorage.getItem(projectKey);
@@ -1118,6 +1167,8 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
             ? ('ON -> ' + CLOUD_CONFIG.url + '/rest/v1/' + SUPABASE_LISTS_TABLE
                 + '  schema ' + CLOUD_CONFIG.schema + '  source ' + CLOUD_CONFIG.source)
             : 'OFF - no project connected for this sub-account'));
+        lines.push('storage mode:    ' + STORAGE_MODE + (rowsStorageEnabled() ? '  (one row per task)' : '  (one YAML row per list)')
+            + '   switch: lpUseRows(true|false) or ?storage=rows|blob');
         lines.push('tenant secret:   ' + CLOUD_SECRET_SOURCE + '   fingerprint: ' + (CLOUD_TENANT_FINGERPRINT || '(unresolved)'));
         lines.push('                 ^ two people see the same list only if this fingerprint matches on both');
         lines.push('cloud status:    ' + CLOUD_STATUS + '   queued pushes: ' + CLOUD_PENDING.size
@@ -1263,6 +1314,15 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
             // A brand-new EMPTY list is not pushed: that would create a task-less row for every
             // list anyone ever opens. Once a row exists, an empty list IS pushed - that is how
             // deleting every task reaches the other devices.
+            // ROWS MODE: keep the local JSON cache (ids included) and send only what changed.
+            // The YAML above is still written as the escape hatch, but the blob is NEVER pushed
+            // here - two transports writing the same list would fight each other.
+            if (rowsStorageEnabled()) {
+                writeRowsCache(ACTIVE_PROJECT_ID);
+                queueTaskRowChanges(ACTIVE_PROJECT_ID);
+                return true;
+            }
+
             if (TASKS_DATA.length || readCloudMeta(ACTIVE_PROJECT_ID).syncedAt) {
                 scheduleCloudSave(fullYaml);
             }
@@ -1486,6 +1546,10 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         DIRECTORY_PENDING.clear();   // a queued rename for the OLD tenant must never be sent to the new one
         clearTimeout(DIRECTORY_TIMER);
         DIRECTORY_FLUSHING = false;
+        TASK_ROWS_PENDING.clear();   // same rule for queued task rows
+        TASKS_SNAPSHOT.clear();
+        clearTimeout(TASK_ROWS_TIMER);
+        TASK_ROWS_FLUSHING = false;
         startCloudPolling();   // re-arm against the NEW target (a no-op when cloud is off)
     }
 
@@ -1877,6 +1941,9 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     // side changed LAST wins, and an empty local cache always loses - a brand new device must
     // never overwrite the list the agency already built with a starter blueprint.
     async function hydrateFromCloud(projId, announce, onNoCloud) {
+        // Rows mode owns the content path completely: the blob is not even read, so an old YAML
+        // row can never be adopted on top of the shared tasks.
+        if (rowsStorageEnabled()) return;
         if (!isCloudEnabled()) {
             if (typeof onNoCloud === 'function') onNoCloud();
             return;
@@ -2117,6 +2184,298 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         }
     }
 
+    // =========================================================================
+    // ROW STORAGE (one row per task - the transport behind ?storage=rows)
+    // -------------------------------------------------------------------------
+    // TASKS_DATA does not change shape: it was ALREADY a table of
+    //   {visible, id, parentId, level, order, state, title, notes}
+    // so only the WIRE changes: instead of serialising the whole list into one YAML row, the
+    // app diffs the array against the last server-confirmed copy and upserts only the tasks
+    // that actually changed. Two people ticking different tasks therefore write different rows
+    // and neither can erase the other's tick.
+    // =========================================================================
+    const TASK_ROWS_PENDING = new Map();   // projectId -> Map(task_id -> change)
+    const TASKS_SNAPSHOT = new Map();      // projectId -> Map(task_id -> signature) last confirmed by the server
+    const TASK_ROWS_HYDRATING = new Set();
+    let TASK_ROWS_TIMER = null;
+    let TASK_ROWS_FLUSHING = false;
+
+    function rowsStorageEnabled() {
+        return STORAGE_MODE === 'rows'
+            && isCloudEnabled()
+            && CLOUD_CONFIG.mode === 'rpc'
+            && !!CLOUD_CONFIG.secret;
+    }
+
+    function getRowsCacheKey(projId) {
+        return `list_puncher_${LOCATION_ID}_proj_${projId}_rows`;
+    }
+
+    function getRowsSeededKey(projId) {
+        return `list_puncher_${LOCATION_ID}_proj_${projId}_rows_seeded`;
+    }
+
+    function markRowsSeeded(projId) {
+        try { localStorage.setItem(getRowsSeededKey(projId), '1'); } catch (e) { /* storage blocked */ }
+    }
+
+    function rowsAreSeeded(projId) {
+        try { return localStorage.getItem(getRowsSeededKey(projId)) === '1'; } catch (e) { return false; }
+    }
+
+    // Parser-generated ids are content+position derived, fine for a YAML import but not for a
+    // row identity. New tasks get an id ONCE and keep it forever.
+    function newTaskId() {
+        try {
+            if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+                return 'task_' + window.crypto.randomUUID().replace(/-/g, '').slice(0, 20);
+            }
+        } catch (e) { /* fall through */ }
+        return 'task_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    }
+
+    // PURE: TASKS_DATA -> wire rows. Sort order IS the array position, because that is what the
+    // screen shows. A task without an id gets one here and keeps it (the array is mutated on
+    // purpose, so the next diff compares the same identity).
+    function buildTaskRows(tasks) {
+        return (Array.isArray(tasks) ? tasks : []).map((t, i) => {
+            if (!t.id) t.id = newTaskId();
+            return {
+                task_id: String(t.id),
+                parent_task_id: t.parentId ? String(t.parentId) : null,
+                level: Number(t.level) || 0,
+                sort_order: i,
+                state: (t.state === 'yes' || t.state === 'no') ? t.state : 'blank',
+                title: String(t.title || ''),
+                notes: String(t.notes || ''),
+                visible: t.visible !== false
+            };
+        });
+    }
+
+    // PURE: wire rows -> TASKS_DATA shape. Nesting rides on `level` (that is what the renderer
+    // already uses); parentId is carried for the DB but is never needed to draw.
+    function rowsToTasks(rows) {
+        return (Array.isArray(rows) ? rows : [])
+            .filter(r => r && r.task_id)
+            .slice()
+            .sort((a, b) => (Number(a.sort_order) || 0) - (Number(b.sort_order) || 0))
+            .map((r, i) => ({
+                visible: r.visible !== false,
+                id: String(r.task_id),
+                parentId: r.parent_task_id ? String(r.parent_task_id) : '',
+                level: Number(r.level) || 0,
+                order: i + 1,
+                state: (r.state === 'yes' || r.state === 'no') ? r.state : 'blank',
+                title: String(r.title || ''),
+                notes: String(r.notes || '')
+            }));
+    }
+
+    // Everything that can differ between two versions of one task, in a comparable string.
+    function taskRowSignature(r) {
+        return [
+            r.parent_task_id ? String(r.parent_task_id) : '',
+            Number(r.level) || 0,
+            Number(r.sort_order) || 0,
+            (r.state === 'yes' || r.state === 'no') ? r.state : 'blank',
+            String(r.title || ''),
+            String(r.notes || ''),
+            r.visible === false ? 0 : 1
+        ].join('\u0001');
+    }
+
+    function snapshotFromRows(rows) {
+        const map = new Map();
+        (Array.isArray(rows) ? rows : []).forEach(r => {
+            if (r && r.task_id) map.set(String(r.task_id), taskRowSignature(r));
+        });
+        return map;
+    }
+
+    // PURE (unit-tested): what has to be sent. A row goes when it is new or when anything in its
+    // signature changed; a task that vanished locally becomes an explicit soft delete.
+    function diffTaskRows(previous, rows) {
+        const prev = (previous instanceof Map) ? previous : new Map();
+        const changes = [];
+        const seen = new Set();
+        (Array.isArray(rows) ? rows : []).forEach(r => {
+            const id = String(r.task_id);
+            seen.add(id);
+            if (prev.get(id) !== taskRowSignature(r)) changes.push(r);
+        });
+        prev.forEach((sig, id) => {
+            if (!seen.has(id)) changes.push({ task_id: id, deleted: true });
+        });
+        return changes;
+    }
+
+    // ---- local cache (JSON, WITH ids: a YAML cache would regenerate ids on every load) ------
+    function writeRowsCache(projId) {
+        try {
+            localStorage.setItem(getRowsCacheKey(projId), JSON.stringify({
+                version: 1,
+                projectId: projId,
+                savedAt: new Date().toISOString(),
+                tasks: (Array.isArray(TASKS_DATA) ? TASKS_DATA : []).map(t => ({
+                    id: t.id || '',
+                    parentId: t.parentId || '',
+                    level: Number(t.level) || 0,
+                    state: (t.state === 'yes' || t.state === 'no') ? t.state : 'blank',
+                    title: String(t.title || ''),
+                    notes: String(t.notes || ''),
+                    visible: t.visible !== false
+                }))
+            }));
+        } catch (e) { /* quota or blocked storage: the push still works */ }
+    }
+
+    function readRowsCache(projId) {
+        try {
+            const raw = localStorage.getItem(getRowsCacheKey(projId));
+            if (!raw) return null;
+            const parsed = JSON.parse(raw);
+            return (parsed && Array.isArray(parsed.tasks)) ? parsed : null;
+        } catch (e) { return null; }
+    }
+
+    // Cached entries already carry their ids, so they survive a reload unchanged.
+    function cachedTasksToTasks(list) {
+        return (Array.isArray(list) ? list : []).map((t, i) => ({
+            visible: t.visible !== false,
+            id: t.id || newTaskId(),
+            parentId: t.parentId || '',
+            level: Number(t.level) || 0,
+            order: i + 1,
+            state: (t.state === 'yes' || t.state === 'no') ? t.state : 'blank',
+            title: String(t.title || ''),
+            notes: String(t.notes || '')
+        }));
+    }
+
+    function taskRowSignatureList(tasks) {
+        return buildTaskRows(tasks).map(taskRowSignature).join('\u0002');
+    }
+
+    function pendingRowBucket(projId) {
+        let bucket = TASK_ROWS_PENDING.get(projId);
+        if (!bucket) { bucket = new Map(); TASK_ROWS_PENDING.set(projId, bucket); }
+        return bucket;
+    }
+
+    function hasPendingRowChanges(projId) {
+        const bucket = TASK_ROWS_PENDING.get(projId);
+        return !!(bucket && bucket.size);
+    }
+
+    // Called from saveState(). Diffs the WHOLE array against what the server last confirmed, so
+    // every mutation path (tick, add, delete, reorder, notes, editor save) is covered without
+    // touching a single one of them.
+    function queueTaskRowChanges(projId) {
+        if (!rowsStorageEnabled()) return;
+        const changes = diffTaskRows(TASKS_SNAPSHOT.get(projId), buildTaskRows(TASKS_DATA));
+        if (!changes.length) return;
+        const bucket = pendingRowBucket(projId);
+        changes.forEach(c => bucket.set(String(c.task_id), c));
+        setCloudStatus('saving');
+        clearTimeout(TASK_ROWS_TIMER);
+        TASK_ROWS_TIMER = setTimeout(() => { flushTaskRowSaves(); }, CLOUD_SAVE_DEBOUNCE_MS);
+    }
+
+    // Sends only what changed, one RPC per project. The server applies the batch in a single
+    // transaction and returns the authoritative list, which becomes the new snapshot.
+    async function flushTaskRowSaves() {
+        if (!rowsStorageEnabled() || !TASK_ROWS_PENDING.size || TASK_ROWS_FLUSHING) return;
+        clearTimeout(TASK_ROWS_TIMER);
+        TASK_ROWS_FLUSHING = true;
+        let allOk = true;
+        const entries = Array.from(TASK_ROWS_PENDING.entries());
+        for (const entry of entries) {
+            const projId = entry[0];
+            const bucket = entry[1];
+            if (!bucket.size) { TASK_ROWS_PENDING.delete(projId); continue; }
+            const changes = Array.from(bucket.values());
+            try {
+                const rows = await cloudRpc('apply_task_changes', {
+                    p_location: LOCATION_ID,
+                    p_project: projId,
+                    p_secret: CLOUD_CONFIG.secret,
+                    p_changes: changes
+                });
+                changes.forEach(c => bucket.delete(String(c.task_id)));
+                if (!bucket.size) TASK_ROWS_PENDING.delete(projId);
+                if (Array.isArray(rows)) TASKS_SNAPSHOT.set(projId, snapshotFromRows(rows));
+                markRowsSeeded(projId);
+                lpTrace('rows push OK', 'project=' + projId + '  ' + changes.length + ' change(s) -> '
+                    + (Array.isArray(rows) ? rows.length : 0) + ' live task(s)');
+            } catch (e) {
+                allOk = false;
+                lpTrace('rows push FAILED', 'project=' + projId + '  ' + e.message);
+            }
+        }
+        TASK_ROWS_FLUSHING = false;
+        setCloudStatus(allOk ? 'synced' : 'offline');
+        // Anything typed while the request was in flight lands here - one timer, never a storm.
+        if (TASK_ROWS_PENDING.size) {
+            clearTimeout(TASK_ROWS_TIMER);
+            TASK_ROWS_TIMER = setTimeout(() => { flushTaskRowSaves(); }, allOk ? 250 : CLOUD_RETRY_MS);
+        }
+    }
+
+    // Pull the shared tasks. Two guards make this safe to call from a 3 s timer:
+    //   - never adopt a pull over changes this tab has not managed to send yet;
+    //   - backfill from the local copy ONCE per browser+list, so a list somebody deliberately
+    //     emptied is never resurrected from a stale local copy.
+    async function hydrateTasksFromCloud(projId, announce, onNoCloud) {
+        if (!rowsStorageEnabled() || TASK_ROWS_HYDRATING.has(projId)) return;
+        TASK_ROWS_HYDRATING.add(projId);
+        try {
+            let rows = await cloudRpc('get_task_rows', {
+                p_location: LOCATION_ID,
+                p_project: projId,
+                p_secret: CLOUD_CONFIG.secret
+            });
+            if (projId !== ACTIVE_PROJECT_ID) return;   // the user switched lists while waiting
+            if (!Array.isArray(rows)) return;
+
+            if (!rows.length && !rowsAreSeeded(projId)) {
+                // Nothing shared and this browser+list has never seeded: this is a first run, not
+                // a list somebody emptied. A brand-new default list still gets the starter
+                // blueprint, exactly like the blob path does.
+                if (!TASKS_DATA.length && typeof onNoCloud === 'function') {
+                    onNoCloud();
+                    renderAll();
+                }
+                markRowsSeeded(projId);
+                TASKS_SNAPSHOT.set(projId, new Map());
+                queueTaskRowChanges(projId);      // sends whatever this browser already had
+                if (CLOUD_STATUS !== 'synced') setCloudStatus('synced');
+                lpTrace('rows seed', 'project=' + projId + '  ' + TASKS_DATA.length + ' task(s) seeded');
+                return;
+            }
+
+            if (hasPendingRowChanges(projId)) { flushTaskRowSaves(); return; }
+
+            TASKS_SNAPSHOT.set(projId, snapshotFromRows(rows));
+            const next = rowsToTasks(rows);
+            if (taskRowSignatureList(TASKS_DATA) !== taskRowSignatureList(next)) {
+                TASKS_DATA = next;
+                writeRowsCache(projId);
+                saveState();          // keeps the YAML escape hatch + this project's UI state in step
+                renderAll();
+                if (announce) showToast('☁ Loaded the shared list');
+                lpTrace('rows load OK', 'project=' + projId + '  tasks=' + next.length);
+            }
+            if (CLOUD_STATUS !== 'synced') setCloudStatus('synced');
+        } catch (e) {
+            lpTrace('rows load FAILED', 'project=' + projId + '  ' + e.message);
+            setCloudStatus('offline');
+            if (typeof onNoCloud === 'function') onNoCloud();
+        } finally {
+            TASK_ROWS_HYDRATING.delete(projId);
+        }
+    }
+
     // Cheap "did another device change this?" check for the list CONTENT. The directory rides
     // the same 3 s timer (see pollCloudOnce), so the switcher keeps up too.
     function refreshFromCloudOnFocus() {
@@ -2124,6 +2483,11 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         const modal = document.getElementById('yamlModal');
         if (modal && modal.classList.contains('open')) return;   // never yank the list from under an open editor
         if (CLOUD_PENDING.size) { flushCloudSaves(); return; }
+        if (rowsStorageEnabled()) {
+            if (TASK_ROWS_PENDING.size) { flushTaskRowSaves(); return; }
+            hydrateTasksFromCloud(ACTIVE_PROJECT_ID, false);
+            return;
+        }
         hydrateFromCloud(ACTIVE_PROJECT_ID, false);
     }
 
@@ -2175,6 +2539,11 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         if (AUTOSAVE_TIMER) return;                              // a keystroke is still waiting for saveState()
         if (CLOUD_PENDING.size) { flushCloudSaves(); return; }   // this device's work goes out first
         hydrateDirectoryFromCloud(false);   // a list the other person created appears here too
+        if (rowsStorageEnabled()) {
+            if (TASK_ROWS_PENDING.size) { flushTaskRowSaves(); return; }   // resend before pulling
+            hydrateTasksFromCloud(ACTIVE_PROJECT_ID, false);
+            return;
+        }
         hydrateFromCloud(ACTIVE_PROJECT_ID, false);
     }
 
@@ -5087,7 +5456,9 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
                 const task = {
                     visible: true,
                     id: generateSlugId('task', title, result.length),
-                    parentId: '',
+                    // Nesting was only ever encoded in `level` + array order; rows need a real
+                    // parent, so take it from the parse stack while it is right here.
+                    parentId: parentEntry ? parentEntry.task.id : '',
                     level: parentEntry ? parentEntry.task.level + 1 : 1,
                     order: result.length + 1,
                     state: rowState,
