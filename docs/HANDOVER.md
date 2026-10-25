@@ -519,6 +519,71 @@ correct, but bogus GETs leave `tenants` litter. Deleting a tenant row is always 
 Only the client. `?storage=rows` seam as described below, backfill from the YAML blob, stable ids,
 `parentId` normalization, then two-browser testing.
 
+## 17. PHASE A (do this BEFORE the row storage) - shared list directory
+
+### Why it comes first
+There are exactly **two** people with access: the agency owner and Day (Day has not been given the tour
+yet, so in practice one). `PROJECTS_LIST` (`index.html:608`, `[{id, name}]` at
+`list_puncher_<loc>_projects`) is **browser-local**, so a list created on one machine does not exist on
+the other. Day would open the app, see only `default_onboarding`, and decide it is broken - on day one,
+before he has any reason to trust it. That is both more certain and more damaging than the
+concurrent-edit loss §16 fixes. It also makes §16 testable: two browsers can only exercise editing the
+same list if they can both see it.
+
+### Table + functions
+Applied as migrations `phase4_shared_list_directory` (+ `phase4_directory_changes_cleanup`, which
+replaced the function to drop a dead `where false` no-op and fix the blank-name rule).
+
+```sql
+create table list_puncher.directories (
+  id uuid primary key default gen_random_uuid(),
+  location_id text not null,
+  tenant_hash text not null,
+  project_id  text not null,          -- the SAME project_id used by lists / tasks
+  name        text not null default '',
+  sort_order  integer not null default 0,
+  updated_at  timestamptz not null default now(),
+  deleted_at  timestamptz,            -- soft delete ONLY
+  constraint directories_identity_key unique (location_id, tenant_hash, project_id)
+);
+```
+| Function | Purpose |
+|---|---|
+| `get_directory(p_location, p_secret)` | live rows, `order by sort_order, name` |
+| `apply_directory_changes(p_location, p_secret, p_changes jsonb)` | create / rename / delete the named lists, then return the authoritative directory |
+
+Element: `{project_id, name, sort_order, deleted}`. Two rules are built into the function:
+- **an empty `name` means "not renaming"** and keeps the existing label (otherwise every reorder would
+  blank a shared name);
+- a change set only touches the lists it names - anything else survives untouched.
+
+### Verified (real calls, 2026-10-25)
+1. Two lists inserted → 2 rows.
+2. Rename `proj_stripe` + add `proj_ghl` → 3 rows, switcher order
+   `default_onboarding, proj_stripe, proj_ghl`; **`default_onboarding` was never mentioned and survived**.
+3. Soft-delete `proj_ghl` → 2 live rows, `proj_ghl` absent.
+4. Rename with an empty name → label unchanged.
+5. Wrong secret → 0 rows (tenant isolation holds).
+6. All test rows and tenants deleted: `directories` 0, `lists` 3, `tasks` 0, `tenants` 4 - production
+   never touched.
+
+### Client wiring still to do (this is the real work)
+- `loadProjectsDirectory()` gains a cloud pull + **merge**: union by `id`; a cloud name wins over a local
+  one; a list that exists only locally is *pushed* rather than dropped. Reuse the existing debounce /
+  retry / offline machinery instead of writing a second queue.
+- The four write sites - `createProjectList` (`~799`), `deleteProjectList` (`~827`),
+  `promptRenameProject`'s callback (`~860`), and the `URL_PROJECT` auto-add (`~651`) - all route through
+  one `scheduleDirectorySave(changes)`.
+- The 3 s poll should refresh the directory too (it is a handful of rows), so a list Day creates appears
+  in the switcher without anyone refreshing.
+- If the active list no longer exists (the other person deleted it), fall back to the first list instead
+  of showing an empty board for a phantom.
+
+### The rule that makes this safe
+A directory row is a **label**, not the list. Hiding or deleting a directory row must never delete
+`lists` / `tasks` content - otherwise a mis-tap in the switcher is unrecoverable. "Delete list" stays
+two separate things: hide the label, and (only after the confirm card) remove the content.
+
 ### Rollout (feature flag, NOT a fork - decided 2026-10-25)
 `?storage=rows` switches the backend; no param keeps today's blob path byte-for-byte. Revert is a URL
 change. A physical fork was rejected because two HTML files on the same origin share `localStorage` -
