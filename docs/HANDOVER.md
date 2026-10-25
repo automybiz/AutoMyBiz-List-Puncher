@@ -184,7 +184,8 @@ supabase/setup-agency-hub.sql               agency-hub schema: Phase 1, Phase 1B
                                             → also creates list_puncher.lists_backup_pre1b / tenants_backup_pre1b
 supabase/setup-client-project.sql           one-paste setup for a client's OWN project
 docs/CLIENT-SUPABASE-SETUP.md               the two modes + per-client walkthrough
-docs/HANDOVER.md                            this file
+docs/HANDOVER.md                            this file
+docs/SETUP-SUPABASE-MCP.md                  Supabase + VS Code MCP runbook, in list format - paste it into the app
 .github/workflows/supabase-keepalive.yml    daily ping: POST rpc/ping (agency hub), table probe fallback (client projects)
 .github/supabase-keepalive-targets.json     [{name, url, key}] — publishable keys only
 ```

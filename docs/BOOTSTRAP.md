@@ -1,4 +1,4 @@
-﻿# lp-format: 2
+# lp-format: 2
 
 # Paste this file into List Puncher (Paste button) to turn it into a working checklist.
 # [ ] = to do, [v] = already done, [x] = deliberately NOT done (a trap).
