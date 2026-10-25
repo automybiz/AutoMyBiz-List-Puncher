@@ -34,7 +34,7 @@
     --indent-step: 22px;
 
     /* Build marker: lets the app detect a stale cached stylesheet (compared against APP_BUILD in index.html) */
-    --lp-css-build: "1.36";
+    --lp-css-build: "1.37";
 
     --completed-opacity: 0.42;
 
@@ -96,7 +96,7 @@ body {
     gap: 12px;
     border-bottom: 1px solid var(--border-color);
     padding-bottom: 16px;
-    padding-right: 560px; /* Space for the top-right cluster (dropdown + both pills) */
+    padding-right: 470px; /* Space for the top-right cluster (switcher row + pills row) */
 }
 
 .brand-title-wrap {
@@ -116,10 +116,23 @@ body {
 }
 
 /* Multi-Project Dropdown Selector */
+/* --lp-project-width is set by applyProjectSwitcherWidth() from the LONGEST list name, so the
+   pill and its menu are always wide enough for every entry and never jump when you switch. */
 .project-switcher-wrap {
     position: relative;
     display: inline-flex;
     align-items: center;
+    --lp-project-width: 250px;
+}
+
+/* Off-screen ruler used to measure list names in the switcher's own font. */
+.project-measure {
+    position: absolute;
+    top: -9999px;
+    left: -9999px;
+    visibility: hidden;
+    white-space: nowrap;
+    pointer-events: none;
 }
 
 .project-select-btn {
@@ -136,7 +149,8 @@ body {
     align-items: center;
     gap: 6px;
     transition: all 0.2s ease;
-    max-width: 240px;
+    width: var(--lp-project-width, 250px);
+    max-width: 100%;
     user-select: none;
 }
 
@@ -147,9 +161,12 @@ body {
 }
 
 .project-select-label {
+    flex: 1;                    /* pushes the caret to the pill's right edge */
+    min-width: 0;
     overflow: hidden;
-    text-overflow: ellipsis;
+    text-overflow: ellipsis;    /* safety net: the pill is sized to the longest name */
     white-space: nowrap;
+    text-align: left;
 }
 
 .project-dropdown-menu {
@@ -160,8 +177,11 @@ body {
     background: #0d121f;
     border: 1px solid var(--border-color);
     border-radius: 8px;
+    /* Same width as the pill above it, so the menu reads as part of the control. Long names
+       wrap inside the item instead of being cut off. */
+    width: var(--lp-project-width, 250px);
     min-width: 250px;
-    max-width: 320px;
+    max-width: 92vw;
     max-height: 380px;
     overflow-y: auto;
     box-shadow: 0 12px 35px rgba(0, 0, 0, 0.9);
@@ -233,11 +253,21 @@ body {
     top: 20px;
     right: 24px;
     display: flex;
-    align-items: center;
+    /* Two rows: the list switcher, then the mode + storage pills under it. The switcher is
+       the widest thing here, so it gets the full row instead of sharing one with the pills. */
+    flex-direction: column;
+    align-items: flex-end;
     justify-content: flex-end;
-    flex-wrap: wrap;
     gap: 8px;
     z-index: 10;
+}
+
+.header-status-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
 }
 
 .header-pill-wrap {
@@ -1819,6 +1849,10 @@ body.is-resizing .container-resize-handle {
     .header-pills-cluster {
         position: static;
         margin-top: 10px;
+        align-items: flex-start;
+        justify-content: flex-start;
+    }
+    .header-status-row {
         justify-content: flex-start;
     }
     .task-notes-block {

@@ -15,7 +15,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
     
     <!-- Separated Master Stylesheet (Zero Prism Crash) - version query busts the GitHub Pages 10min cache -->
-    <link rel="stylesheet" href="index.css?v=1.36">
+    <link rel="stylesheet" href="index.css?v=1.37">
 
     <script>
     /* Universal Dark Reader Kill Switch (Rule 9) */
@@ -61,8 +61,9 @@
 
     <!-- Header Control Bar -->
     <div class="header-card">
-        <!-- Top-right cluster: project dropdown, then the mode pill, then the storage pill.
-             Right-aligned as one flex row (anchored to the card's top-right corner). -->
+        <!-- Top-right cluster: the list switcher gets a row of its own and the two status pills
+             sit on the row below it. That lets the switcher grow to fit a long list name instead
+             of competing with the pills for the same line. -->
         <div class="header-pills-cluster">
             <!-- Multi-Project Switcher Dropdown (Unlimited Lists per Business) -->
             <div class="project-switcher-wrap">
@@ -84,7 +85,13 @@
                         <span>✕</span> <span>Delete Active List</span>
                     </div>
                 </div>
+                <!-- Off-screen ruler: applyProjectSwitcherWidth() measures the longest list name in
+                     the switcher's own font, so the pill and the menu end up exactly wide enough. -->
+                <span class="project-measure" id="projectMeasure" aria-hidden="true"></span>
             </div>
+
+            <!-- The two status pills, on their own row under the switcher -->
+            <div class="header-status-row">
 
             <!-- Mode Status Pill -->
             <div class="header-pill-wrap">
@@ -127,6 +134,8 @@
                     <div class="tooltip-code-box" id="storageKeyBox">Key: list_puncher_yaml</div>
                     <span class="tooltip-footer-note">Click the pill to open the List Puncher list editor. Console: lpStorageReport() dumps every storage key.</span>
                 </div>
+            </div>
+
             </div>
         </div>
 
@@ -329,7 +338,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     // =========================================================================
     const AUTOSAVE_DELAY_MS = 500;
     const INDENT_SPACES_PER_LEVEL = 2;
-    const APP_BUILD = '1.36'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
+    const APP_BUILD = '1.37'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
     // Bump whenever the UI_STATE defaults below change: a saved state older than this gets
     // the new defaults applied exactly ONCE (afterwards the user's own toggles win).
     const UI_STATE_DEFAULTS_VERSION = 2;
@@ -656,10 +665,45 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         renderProjectDropdownUI();
     }
 
+    // The switcher pill AND its menu are sized from the LONGEST list name, not the active one:
+    // a long name is never cut off with an ellipsis, and the header does not jump when you
+    // switch lists. The cap stops a pathological name from eating the whole header row.
+    const PROJECT_SWITCHER_MAX_WIDTH = 430;
+    const PROJECT_SWITCHER_CHROME = 64;   // folder icon + caret + gaps + pill padding
+
+    function applyProjectSwitcherWidth() {
+        const wrap = document.querySelector('.project-switcher-wrap');
+        const measure = document.getElementById('projectMeasure');
+        const labelEl = document.getElementById('currentProjectLabel');
+        if (!wrap || !measure || !labelEl || !PROJECTS_LIST.length) return;
+
+        try {
+            // Measure in the pill's own font, otherwise the width is a guess.
+            const cs = window.getComputedStyle(labelEl);
+            measure.style.fontFamily = cs.fontFamily;
+            measure.style.fontSize = cs.fontSize;
+            measure.style.fontWeight = cs.fontWeight;
+            measure.style.letterSpacing = cs.letterSpacing;
+
+            let widest = 0;
+            PROJECTS_LIST.forEach(proj => {
+                measure.innerText = proj.name || '';
+                widest = Math.max(widest, measure.getBoundingClientRect().width);
+            });
+            if (!widest) return;
+
+            const width = Math.round(Math.min(PROJECT_SWITCHER_MAX_WIDTH, widest + PROJECT_SWITCHER_CHROME));
+            wrap.style.setProperty('--lp-project-width', width + 'px');
+        } catch (e) {
+            // Cosmetic only: a failed measurement just leaves the CSS default width in place.
+        }
+    }
+
     function renderProjectDropdownUI() {
         const curProj = PROJECTS_LIST.find(p => p.id === ACTIVE_PROJECT_ID) || PROJECTS_LIST[0];
         const labelEl = document.getElementById('currentProjectLabel');
         if (labelEl && curProj) labelEl.innerText = curProj.name;
+        applyProjectSwitcherWidth();
 
         const itemsContainer = document.getElementById('projectItemsList');
         if (!itemsContainer) return;

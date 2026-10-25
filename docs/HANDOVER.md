@@ -322,3 +322,33 @@ inline code left the board pointing at the deleted list until the next switch.
 Verification: 55-assert harness (the `prompt` / `confirm` / `alert` stubs now THROW, so any regression
 fails the run instead of passing quietly), `node --check` on all three inline script blocks, CSS braces
 balanced, and headless-Chrome screenshots of the card in both its clean and rejected-name states.
+
+
+---
+
+## 14. Build 1.37 - the list switcher sizes itself (2026-10-25)
+
+The pill was capped at `max-width: 240px`, so every real list name was cut off with an ellipsis
+("Supabase Setup and MC..."), and the menu was a fixed 250-320px. Both are now driven by one CSS
+variable, `--lp-project-width`, which `applyProjectSwitcherWidth()` sets from the **longest** name in
+`PROJECTS_LIST`:
+
+- `renderProjectDropdownUI()` calls it on every load / switch / create / rename / delete.
+- The name is measured in an off-screen `.project-measure` span using the pill label's own computed
+  font (family / size / weight / letter-spacing), then `+ 64px` for the folder icon, caret and
+  padding, capped at `PROJECT_SWITCHER_MAX_WIDTH` (430px).
+- `.project-select-btn` and `.project-dropdown-menu` both use `width: var(--lp-project-width)`, so the
+  menu is exactly as wide as the pill and long names wrap inside an item instead of being clipped.
+  Measurement failures are swallowed - the CSS default (250px) still works.
+
+Sizing from the **longest** name (not the active one) is deliberate: the pill never jumps when you
+switch lists, and `PROJECTS_LIST` is the only source of truth for names anyway.
+
+**Layout.** `.header-pills-cluster` is now a column: the switcher on the first row and the mode +
+storage pills in a new `.header-status-row` beneath it. That frees the horizontal space the switcher
+needed, and `.header-top`'s reserved gutter went from 560px to 470px, so the action buttons gained a
+little room instead of losing it. Under 860px the cluster stays static and left-aligned.
+
+Verification: `node --check` on all three inline script blocks, CSS braces balanced, and headless-Chrome
+screenshots of the real app with a 31-character and a 54-character list name (both fit, pills on the
+row below) plus a static render of the open menu proving it matches the pill's width.
