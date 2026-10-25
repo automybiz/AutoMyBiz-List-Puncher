@@ -15,7 +15,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
     
     <!-- Separated Master Stylesheet (Zero Prism Crash) - version query busts the GitHub Pages 10min cache -->
-    <link rel="stylesheet" href="index.css?v=1.40">
+    <link rel="stylesheet" href="index.css?v=1.41">
 
     <script>
     /* Universal Dark Reader Kill Switch (Rule 9) */
@@ -338,7 +338,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     // =========================================================================
     const AUTOSAVE_DELAY_MS = 500;
     const INDENT_SPACES_PER_LEVEL = 2;
-    const APP_BUILD = '1.40'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
+    const APP_BUILD = '1.41'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
     // Bump whenever the UI_STATE defaults below change: a saved state older than this gets
     // the new defaults applied exactly ONCE (afterwards the user's own toggles win).
     const UI_STATE_DEFAULTS_VERSION = 2;
@@ -650,6 +650,8 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
                 ACTIVE_PROJECT_ID = generateSlugId('proj', URL_PROJECT, 0);
                 PROJECTS_LIST.push({ id: ACTIVE_PROJECT_ID, name: URL_PROJECT });
                 localStorage.setItem(key, JSON.stringify(PROJECTS_LIST));
+                // A list summoned by ?project= must end up in the shared switcher, not just here.
+                scheduleDirectorySave({ project_id: ACTIVE_PROJECT_ID, name: URL_PROJECT, sort_order: PROJECTS_LIST.length - 1 });
             }
         } else {
             const storedActiveId = localStorage.getItem(getActiveProjectStorageKey());
@@ -828,6 +830,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         const newId = generateSlugId('proj', name, Date.now());
         PROJECTS_LIST.push({ id: newId, name: name });
         localStorage.setItem(getProjectsStorageKey(), JSON.stringify(PROJECTS_LIST));
+        scheduleDirectorySave({ project_id: newId, name: name, sort_order: PROJECTS_LIST.length - 1 });
 
         ACTIVE_PROJECT_ID = newId;
         localStorage.setItem(getActiveProjectStorageKey(), ACTIVE_PROJECT_ID);
@@ -857,6 +860,8 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
 
         PROJECTS_LIST = PROJECTS_LIST.filter(p => p.id !== projectId);
         localStorage.setItem(getProjectsStorageKey(), JSON.stringify(PROJECTS_LIST));
+        // Soft delete in the shared directory: the LABEL goes, the content rows are left alone.
+        scheduleDirectorySave({ project_id: projectId, deleted: true });
 
         ACTIVE_PROJECT_ID = PROJECTS_LIST[0].id;
         localStorage.setItem(getActiveProjectStorageKey(), ACTIVE_PROJECT_ID);
@@ -888,6 +893,8 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
                 if (newName === curProj.name) return;   // nothing to do
                 curProj.name = newName;
                 localStorage.setItem(getProjectsStorageKey(), JSON.stringify(PROJECTS_LIST));
+                const renamedIndex = PROJECTS_LIST.findIndex(p => p.id === curProj.id);
+                scheduleDirectorySave({ project_id: curProj.id, name: newName, sort_order: renamedIndex < 0 ? 0 : renamedIndex });
                 renderProjectDropdownUI();
                 showToast(`Renamed project to "${newName}"`);
             }
@@ -1476,6 +1483,9 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         CLOUD_HYDRATING.clear();
         CLOUD_INFLIGHT = false;
         CLOUD_STATUS = 'off';
+        DIRECTORY_PENDING.clear();   // a queued rename for the OLD tenant must never be sent to the new one
+        clearTimeout(DIRECTORY_TIMER);
+        DIRECTORY_FLUSHING = false;
         startCloudPolling();   // re-arm against the NEW target (a no-op when cloud is off)
     }
 
@@ -1941,8 +1951,174 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         }
     }
 
-    // Cheap "did another device change this?" check: ask once when the tab becomes visible
-    // again instead of polling on a timer (an iframe on a GHL dashboard should idle quietly).
+    // =========================================================================
+    // SHARED LIST DIRECTORY (WHICH lists exist - not what is inside them)
+    // -------------------------------------------------------------------------
+    // PROJECTS_LIST used to be browser-local, so a list created on one machine did not exist
+    // on the other one and could only be reached by pasting &project=proj_... into a link.
+    // That is the first thing two people notice. The directory is now shared; the list
+    // CONTENT stays exactly where it was.
+    //
+    // The rules are deliberately the same shape as the row storage:
+    //   - the server is the truth for which lists exist and what they are called;
+    //   - a pending local change is an overlay on that truth until it is pushed;
+    //   - the FIRST contact from a browser queues everything it already has, so upgrading
+    //     can never silently drop a list somebody made before this build existed.
+    // =========================================================================
+    const DIRECTORY_PENDING = new Map();   // projectId -> {project_id, name, sort_order, deleted}
+    let DIRECTORY_TIMER = null;
+    let DIRECTORY_FLUSHING = false;
+    let DIRECTORY_HYDRATING = false;
+
+    function getDirectorySeededKey() {
+        return `list_puncher_${LOCATION_ID}_dir_seeded`;
+    }
+
+    // Only the agency hub defines the directory functions. A client's own Supabase project
+    // (plain-table mode) keeps the old local-only behaviour instead of failing every 3 s.
+    function directorySharingEnabled() {
+        return isCloudEnabled() && CLOUD_CONFIG.mode === 'rpc' && !!CLOUD_CONFIG.secret;
+    }
+
+    function markDirectorySeeded() {
+        try { localStorage.setItem(getDirectorySeededKey(), '1'); } catch (e) { /* storage blocked */ }
+    }
+
+    function directoryIsSeeded() {
+        try { return localStorage.getItem(getDirectorySeededKey()) === '1'; } catch (e) { return false; }
+    }
+
+    // PURE (unit-tested): combine the shared directory with this browser's copy.
+    //   cloudRows  [{project_id, name, sort_order}] - the shared truth, any order
+    //   pendingIds ids whose create/rename is still queued locally
+    // A local entry the cloud does not list is DROPPED - that is how a delete reaches this
+    // browser - unless its own change is still pending, or the cloud is still empty because
+    // nobody has seeded it yet.
+    function mergeDirectory(localList, cloudRows, pendingIds) {
+        const local = Array.isArray(localList) ? localList : [];
+        const cloud = (Array.isArray(cloudRows) ? cloudRows : [])
+            .filter(r => r && r.project_id)
+            .slice()
+            .sort((a, b) => (Number(a.sort_order) || 0) - (Number(b.sort_order) || 0));
+        const pending = (pendingIds instanceof Set) ? pendingIds : new Set(pendingIds || []);
+        const nameOf = (id) => {
+            const hit = local.find(p => p && p.id === id);
+            return hit ? String(hit.name || '') : '';
+        };
+
+        const out = [];
+        const seen = new Set();
+        cloud.forEach(row => {
+            if (seen.has(row.project_id)) return;
+            seen.add(row.project_id);
+            const name = String(row.name || '').trim() || nameOf(row.project_id);
+            out.push({ id: row.project_id, name: name || (row.project_id) });
+        });
+        local.forEach(p => {
+            if (!p || !p.id || seen.has(p.id)) return;
+            if (cloud.length && !pending.has(p.id)) return;   // the cloud says this list is gone
+            seen.add(p.id);
+            out.push({ id: p.id, name: p.name || p.id });
+        });
+        return out.length ? out : local.slice();   // never hand back an empty switcher
+    }
+
+    // Writes PROJECTS_LIST + the local cache, repaints the switcher, and repairs the active
+    // list if somebody else deleted it. Returns true only when something really changed, so
+    // the 3 s poll stays silent.
+    function applyDirectory(next) {
+        if (!Array.isArray(next) || !next.length) return false;
+        let before = '';
+        try { before = JSON.stringify(PROJECTS_LIST); } catch (e) { before = ''; }
+        const after = JSON.stringify(next);
+        if (before === after) return false;
+
+        PROJECTS_LIST = next;
+        try { localStorage.setItem(getProjectsStorageKey(), after); } catch (e) { /* quota */ }
+
+        if (!PROJECTS_LIST.some(p => p.id === ACTIVE_PROJECT_ID)) {
+            ACTIVE_PROJECT_ID = PROJECTS_LIST[0].id;
+            try { localStorage.setItem(getActiveProjectStorageKey(), ACTIVE_PROJECT_ID); } catch (e) { /* quota */ }
+            lpTrace('directory', 'the list this tab was on is gone -> falling back to ' + ACTIVE_PROJECT_ID);
+            loadCurrentProjectData();
+        }
+        renderProjectDropdownUI();
+        return true;
+    }
+
+    // Queue one create / rename / delete. Coalesced per list, so renaming twice quickly sends
+    // one change, and a failed push keeps the change for the retry instead of losing it.
+    function scheduleDirectorySave(change) {
+        if (!directorySharingEnabled() || !change || !change.project_id) return;
+        DIRECTORY_PENDING.set(change.project_id, change);
+        markDirectorySeeded();          // this browser HAS pushed, so it never re-seeds later
+        clearTimeout(DIRECTORY_TIMER);
+        DIRECTORY_TIMER = setTimeout(() => { flushDirectorySaves(); }, CLOUD_SAVE_DEBOUNCE_MS);
+    }
+
+    async function flushDirectorySaves() {
+        if (!directorySharingEnabled() || !DIRECTORY_PENDING.size || DIRECTORY_FLUSHING) return;
+        clearTimeout(DIRECTORY_TIMER);
+        DIRECTORY_FLUSHING = true;
+        const changes = Array.from(DIRECTORY_PENDING.values());
+        try {
+            const rows = await cloudRpc('apply_directory_changes', {
+                p_location: LOCATION_ID,
+                p_secret: CLOUD_CONFIG.secret,
+                p_changes: changes
+            });
+            changes.forEach(c => DIRECTORY_PENDING.delete(c.project_id));
+            applyDirectory(mergeDirectory(PROJECTS_LIST, rows, Array.from(DIRECTORY_PENDING.keys())));
+            lpTrace('directory push OK', changes.length + ' change(s) -> '
+                + (Array.isArray(rows) ? rows.length : 0) + ' list(s) shared');
+        } catch (e) {
+            lpTrace('directory push FAILED', e.message);
+            clearTimeout(DIRECTORY_TIMER);
+            DIRECTORY_TIMER = setTimeout(() => { flushDirectorySaves(); }, CLOUD_RETRY_MS);
+        } finally {
+            DIRECTORY_FLUSHING = false;
+        }
+    }
+
+    // Pull the shared directory and reconcile. Safe to call on every poll tick: it is a handful
+    // of rows and the merge is a no-op when nothing changed.
+    async function hydrateDirectoryFromCloud(announce) {
+        if (!directorySharingEnabled() || DIRECTORY_HYDRATING) return;
+        DIRECTORY_HYDRATING = true;
+        try {
+            const rows = await cloudRpc('get_directory', {
+                p_location: LOCATION_ID,
+                p_secret: CLOUD_CONFIG.secret
+            });
+            if (!Array.isArray(rows)) return;
+            const cloudIds = new Set(rows.map(r => r.project_id));
+
+            if (!directoryIsSeeded()) {
+                // First contact: everything this browser already has becomes a queued create.
+                PROJECTS_LIST.forEach((p, i) => {
+                    if (p && p.id && !cloudIds.has(p.id)) {
+                        DIRECTORY_PENDING.set(p.id, { project_id: p.id, name: p.name, sort_order: i });
+                    }
+                });
+                markDirectorySeeded();
+                lpTrace('directory', 'first contact - queued ' + DIRECTORY_PENDING.size + ' local list(s)');
+            }
+            if (DIRECTORY_PENDING.size) { flushDirectorySaves(); }   // push first, merge the answer
+
+            const changed = applyDirectory(mergeDirectory(PROJECTS_LIST, rows, Array.from(DIRECTORY_PENDING.keys())));
+            if (changed) {
+                lpTrace('directory load', rows.length + ' shared list(s)');
+                if (announce) showToast('☁ Your lists are now shared');
+            }
+        } catch (e) {
+            lpTrace('directory load FAILED', e.message);
+        } finally {
+            DIRECTORY_HYDRATING = false;
+        }
+    }
+
+    // Cheap "did another device change this?" check for the list CONTENT. The directory rides
+    // the same 3 s timer (see pollCloudOnce), so the switcher keeps up too.
     function refreshFromCloudOnFocus() {
         if (!isCloudEnabled() || !CLOUD_REFRESH_ON_FOCUS) return;
         const modal = document.getElementById('yamlModal');
@@ -1998,6 +2174,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         if (listIsBusyForCloudPull()) return;
         if (AUTOSAVE_TIMER) return;                              // a keystroke is still waiting for saveState()
         if (CLOUD_PENDING.size) { flushCloudSaves(); return; }   // this device's work goes out first
+        hydrateDirectoryFromCloud(false);   // a list the other person created appears here too
         hydrateFromCloud(ACTIVE_PROJECT_ID, false);
     }
 
@@ -2026,6 +2203,11 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
 
         // Same-browser tabs share localStorage, so a write from another tab IS the newest copy.
         window.addEventListener('storage', (ev) => {
+            // Another tab of this browser changed WHICH lists exist.
+            if (ev && ev.key === getProjectsStorageKey()) {
+                loadProjectsDirectory();
+                return;
+            }
             if (!ev || ev.key !== getProjectYamlKey(ACTIVE_PROJECT_ID)) return;
             if (CLOUD_PENDING.size || AUTOSAVE_TIMER) return;   // this tab still holds unsaved work
             lpTrace('storage event', 'another tab saved this project -> reloading');
@@ -2034,6 +2216,9 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
 
         // A push that was still queued when the page closed goes out on the next open.
         if (CLOUD_PENDING.size) flushCloudSaves();
+
+        // Which lists exist is shared too - both people see the same switcher.
+        hydrateDirectoryFromCloud(false);
 
         // From here on the other devices' edits arrive on their own, no alt-tab required.
         startCloudPolling();

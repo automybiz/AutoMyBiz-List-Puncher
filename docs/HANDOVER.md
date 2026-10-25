@@ -567,7 +567,11 @@ Element: `{project_id, name, sort_order, deleted}`. Two rules are built into the
 6. All test rows and tenants deleted: `directories` 0, `lists` 3, `tasks` 0, `tenants` 4 - production
    never touched.
 
-### Client wiring still to do (this is the real work)
+### Client wiring - DONE in build 1.41 (see §20)
+
+The notes below were the plan for this work; §20 records what was actually built.
+
+### Client wiring plan (historic)
 - `loadProjectsDirectory()` gains a cloud pull + **merge**: union by `id`; a cloud name wins over a local
   one; a list that exists only locally is *pushed* rather than dropped. Reuse the existing debounce /
   retry / offline machinery instead of writing a second queue.
@@ -668,6 +672,66 @@ custom value `list_puncher_secret` needs to hold that machine's secret.
 fallback), 33 poll asserts, the empty-list harness unchanged, 3/3 inline scripts compile, and a
 headless-Chrome render whose tooltip reads
 `| tenant 67b11ae8 (secret from minted (this browser only))` on a fresh profile.
+
+## 20. Build 1.41 - the list directory is shared (2026-10-25)
+
+`PROJECTS_LIST` is no longer browser-local. Creating, renaming or deleting a list on one machine now
+reaches the other person within one poll (~3 s), and a list summoned by `?project=` is added to the
+shared directory instead of existing only in that browser.
+
+### The merge rule (the whole design, one paragraph)
+The server is the truth for **which** lists exist and what they are called; a queued local change is an
+overlay on that truth until it is pushed; and the **first contact** from a browser queues everything it
+already has, so upgrading cannot silently drop a list somebody made before this build existed. A local
+entry the cloud does not list is **dropped** - that is how a delete reaches this browser - unless its
+own change is still pending, or the cloud is still empty because nobody has seeded it.
+
+`mergeDirectory(localList, cloudRows, pendingIds)` is **pure** and unit-tested for exactly that.
+
+### Where it is wired
+| Site | Change queued |
+|---|---|
+| `createProjectList` | `{project_id, name, sort_order}` |
+| `promptRenameProject` callback | `{project_id, name, sort_order}` |
+| `deleteProjectList` | `{project_id, deleted: true}` - **soft**: the label goes, content rows stay |
+| `loadProjectsDirectory` (`?project=` auto-add) | `{project_id, name, sort_order}` |
+| `pollCloudOnce` (every 3 s) | pull + merge, silently |
+| `initCloudSync` (boot) | one pull before polling starts |
+| `storage` event on the projects key | another tab re-renders the switcher |
+| `resetCloudRuntime` | queued directory changes are dropped - a rename for the OLD target must not go to the new one |
+
+`applyDirectory()` writes `PROJECTS_LIST` + the local cache, repaints the switcher, and if the active
+list no longer exists (the other person deleted it) falls back to the first list instead of rendering a
+board for a phantom. It returns `true` only when something changed, which is what keeps the 3 s poll
+silent.
+
+`scheduleDirectorySave()` coalesces per list behind the same 800 ms debounce as the content push, and a
+failed push is retried after `CLOUD_RETRY_MS` instead of being lost.
+
+`directorySharingEnabled()` is `isCloudEnabled() && mode === 'rpc' && secret` - a client's own
+Supabase project has no `directories` table and simply keeps the old local-only behaviour instead of
+failing an RPC every 3 s.
+
+### Verified
+- `$env:TEMP\lp-directory-test.js`: **23 asserts, all pass** - drives the real `mergeDirectory`
+  through first contact, cloud ordering, remote delete, delete-vs-pending, remote rename, empty names,
+  duplicate ids, rows with no `project_id`, a null cloud response, plus 8 assertions that every wiring
+  site exists.
+- **End-to-end against the live database**: a headless-Chrome run with a throwaway
+  `location_id=__e2e_dir141` seeded `Client Onboarding` into `list_puncher.directories`
+  (sort_order 0, its own tenant), proving boot -> seed -> `apply_directory_changes` -> row over real
+  HTTP. All throwaway rows were then deleted (`directories` 0, `lists` 3, `tasks` 0, `tenants` 4).
+- `lp-poll-test.js` 34/34 (now also asserts a tick refreshes the directory exactly once, silently),
+  `lp-secret-test.js` 35/35, `lp-empty-list-test.js` unchanged, 3/3 inline scripts compile,
+  headless render shows the normal switcher and pill.
+- Two harnesses needed new stubs (`scheduleDirectorySave`, `hydrateDirectoryFromCloud`) because
+  `createProjectList` and `pollCloudOnce` now depend on the directory engine. They fail loudly if a
+  queued change has no `project_id`, rather than silently passing.
+
+### Known limitation (unchanged, and expected)
+The directory is per **tenant**, so it is shared between people who resolve the SAME tenant secret
+(§18/§19). Two different secrets under one sub-account still see two separate directories - by design,
+and now visible in the pill tooltip as two different fingerprints.
 
 ### Rollout (feature flag, NOT a fork - decided 2026-10-25)
 `?storage=rows` switches the backend; no param keeps today's blob path byte-for-byte. Revert is a URL
