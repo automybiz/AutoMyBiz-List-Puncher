@@ -15,7 +15,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
     
     <!-- Separated Master Stylesheet (Zero Prism Crash) - version query busts the GitHub Pages 10min cache -->
-    <link rel="stylesheet" href="index.css?v=1.34">
+    <link rel="stylesheet" href="index.css?v=1.35">
 
     <script>
     /* Universal Dark Reader Kill Switch (Rule 9) */
@@ -304,7 +304,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     // =========================================================================
     const AUTOSAVE_DELAY_MS = 500;
     const INDENT_SPACES_PER_LEVEL = 2;
-    const APP_BUILD = '1.34'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
+    const APP_BUILD = '1.35'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
     // Bump whenever the UI_STATE defaults below change: a saved state older than this gets
     // the new defaults applied exactly ONCE (afterwards the user's own toggles win).
     const UI_STATE_DEFAULTS_VERSION = 2;
@@ -2922,6 +2922,10 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         // fallback only - doing it here could overwrite a saved list.
         if (!TASKS_DATA.length) {
             deckContainer.innerHTML = buildEmptyStateHtml();
+            // updateProgress() normally runs at the bottom of this function, so returning
+            // early would leave the PREVIOUS list's "7 / 13 Completed (54%)" sitting above an
+            // empty board. An empty list has to read as 0 / 0.
+            updateProgress();
             return;
         }
 

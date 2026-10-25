@@ -265,3 +265,27 @@ Verification (all green): `node --check` on all three inline script blocks, CSS 
 `switchActiveProject` / `seedOnboardingBlueprint` / `saveState` against an in-memory localStorage
 (create -> reload -> switch back -> default-list recovery -> delete-all), and headless-Chrome
 screenshots of both the empty state and the first-run blueprint.
+
+---
+
+## 12. Build 1.35 - an empty list reports 0 / 0 (2026-10-25)
+
+`renderAll()` returns early for an empty list, and `updateProgress()` only ran at the bottom of that
+function - so an empty list kept the previous list's readout ("7 / 13 Completed (54%)") above the
+empty-state panel. The early return now calls `updateProgress()` as well.
+
+**Reading the cloud table** (`list_puncher.lists` = one row per `location_id` + `project_id` +
+`tenant_hash`). The 📁 switcher is built from `localStorage`, never from this table, so the row count
+and the list count are unrelated:
+
+| What you see | Why |
+|---|---|
+| 3 lists in the switcher | `PROJECTS_LIST` in `localStorage` - the table is never listed |
+| 4 rows in `list_puncher.lists` | two sub-accounts: the real location id plus `default_subaccount` |
+| Two rows with `project_id = default_onboarding` | different `location_id` (and different `tenant_hash`) - the unique key includes the location, so they are NOT duplicates |
+
+`default_subaccount` is the fallback in
+`LOCATION_ID = urlParams.get('location_id') || 'default_subaccount'` (index.html:455): any load
+without `?location_id=` (a raw Pages visit, a `file://` open, a headless screenshot) mints its own
+tenant there. Nothing under it can leak into a real sub-account, because `get_list` filters on
+`location_id` **and** `project_id` **and** `tenant_hash`.
