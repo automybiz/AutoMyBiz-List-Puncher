@@ -15,7 +15,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
     
     <!-- Separated Master Stylesheet (Zero Prism Crash) - version query busts the GitHub Pages 10min cache -->
-    <link rel="stylesheet" href="index.css?v=1.30">
+    <link rel="stylesheet" href="index.css?v=1.32">
 
     <script>
     /* Universal Dark Reader Kill Switch (Rule 9) */
@@ -304,7 +304,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     // =========================================================================
     const AUTOSAVE_DELAY_MS = 500;
     const INDENT_SPACES_PER_LEVEL = 2;
-    const APP_BUILD = '1.30'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
+    const APP_BUILD = '1.32'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
     // Bump whenever the UI_STATE defaults below change: a saved state older than this gets
     // the new defaults applied exactly ONCE (afterwards the user's own toggles win).
     const UI_STATE_DEFAULTS_VERSION = 2;
@@ -317,6 +317,79 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     const CONTAINER_MIN_WIDTH = 600;
     const CONTAINER_DEFAULT_WIDTH = 980;
     const DEFAULT_PROJECT_ID = 'default_onboarding';
+        // =========================================================================
+    // TASK STATES - YES / NO / BLANK
+    //   [ ]  blank - untouched / undecided
+    //   [v]  yes   - approved / done      (v and x are adjacent keys)
+    //   [x]  no    - rejected / ignored   (kept in the list, just set aside)
+    // Ignored items count as decided, so 4 yes + 1 no of 5 reads as 100%.
+    // =========================================================================
+    const TASK_BLANK = 'blank';
+    const TASK_YES = 'yes';
+    const TASK_NO = 'no';
+    const TASK_STATES = [TASK_BLANK, TASK_YES, TASK_NO];
+    const MARK_BLANK = '[ ]';
+    const MARK_YES = '[v]';
+    const MARK_NO = '[x]';
+    const FORMAT_STAMP = '# lp-format: 2';
+
+    function taskState(task) {
+        if (!task) return TASK_BLANK;
+        if (task.state === TASK_YES || task.state === TASK_NO) return task.state;
+        if (task.state === TASK_BLANK) return TASK_BLANK;
+        return task.checked ? TASK_YES : TASK_BLANK;
+    }
+
+    function setTaskState(task, state) {
+        if (!task) return;
+        task.state = (TASK_STATES.indexOf(state) === -1) ? TASK_BLANK : state;
+    }
+
+    function nextTaskState(state) {
+        if (state === TASK_BLANK) return TASK_YES;
+        if (state === TASK_YES) return TASK_NO;
+        return TASK_BLANK;
+    }
+
+    function stateToMark(state) {
+        if (state === TASK_YES) return MARK_YES;
+        if (state === TASK_NO) return MARK_NO;
+        return MARK_BLANK;
+    }
+
+    function taskStateClass(task) {
+        const s = taskState(task);
+        return s === TASK_YES ? 'is-yes' : (s === TASK_NO ? 'is-no' : '');
+    }
+
+    // The 3-state control. A native checkbox cannot show yes/no/blank, so this is a button
+    // that cycles. HTML entities keep the source ASCII-safe.
+    function renderStateButton(index, task) {
+        const state = taskState(task);
+        const cls = state === TASK_YES ? 'state-yes' : (state === TASK_NO ? 'state-no' : 'state-blank');
+        const glyph = state === TASK_YES ? '&#10003;' : (state === TASK_NO ? '&#10005;' : '');
+        const hint = state === TASK_YES ? 'Yes (approved) - click for No' : (state === TASK_NO ? 'No (ignored) - click to reset' : 'Blank - click for Yes');
+        return '<button type="button" class="task-state ' + cls + '" data-state="' + state + '" title="' + hint + '" onclick="cycleTaskState(' + index + ')">' + glyph + '</button>';
+    }
+    function markerToState(inner) {
+        const token = String(inner || '').trim().toLowerCase();
+        if (!token) return TASK_BLANK;
+        const yesTokens = ['v', 'y', 'yes', 'done', 'approved', 'ok', 'true', '✓', '✔', '☑'];
+        const noTokens = ['x', 'n', 'no', 'skip', 'skipped', 'ignored', 'rejected', 'false', '✗', '✘', '✕', '-', '~'];
+        if (yesTokens.indexOf(token) !== -1) return TASK_YES;
+        if (noTokens.indexOf(token) !== -1) return TASK_NO;
+        return TASK_BLANK;
+    }
+
+    function migrateChecklistFormat(text) {
+        const source = String(text || '');
+        if (!source.trim()) return source;
+        if (source.indexOf(FORMAT_STAMP) !== -1) return source;
+        const converted = source.replace(/^(\s*-\s*)\[x\]/gim, function (m, prefix) { return prefix + MARK_YES; });
+        if (converted === source) return source;
+        return FORMAT_STAMP + '\n' + converted;
+    }
+
     const DEFAULT_PROJECT_NAME = 'Client Onboarding';
 
     // =========================================================================
@@ -838,7 +911,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     }
 
     function lpStorageReport() {
-        const lines = [];
+        const lines = [FORMAT_STAMP];
         lines.push('===== LIST PUNCHER STORAGE REPORT =====');
         lines.push('when:            ' + new Date().toString());
         lines.push('origin:          ' + location.origin + location.pathname);
@@ -1922,28 +1995,28 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
 
     // Standard Onboarding Blueprint
     const ONBOARDING_BLUEPRINT = [
-        { visible: true, id: "cf_01", parentId: "", level: 0, order: 1, checked: true, title: "Cloudflare Infrastructure", notes: "Master DNS and edge routing configuration for production domain." },
-        { visible: true, id: "cf_02", parentId: "cf_01", level: 1, order: 2, checked: true, title: "Create account with admin@ email", notes: "Isolates domain security from public sales channels." },
-        { visible: true, id: "cf_03", parentId: "cf_01", level: 2, order: 3, checked: true, title: "Invite automybiz@gmail.com as Administrator", notes: "Enables agency management under single login credentials." },
-        { visible: true, id: "cf_04", parentId: "cf_01", level: 1, order: 4, checked: true, title: "Deploy Sveltia CMS OAuth Authenticator Worker", notes: "Handles secure GitHub OAuth proxying without third-party auth." },
+        { visible: true, id: "cf_01", parentId: "", level: 0, order: 1, state: 'yes', title: "Cloudflare Infrastructure", notes: "Master DNS and edge routing configuration for production domain." },
+        { visible: true, id: "cf_02", parentId: "cf_01", level: 1, order: 2, state: 'yes', title: "Create account with admin@ email", notes: "Isolates domain security from public sales channels." },
+        { visible: true, id: "cf_03", parentId: "cf_01", level: 2, order: 3, state: 'yes', title: "Invite automybiz@gmail.com as Administrator", notes: "Enables agency management under single login credentials." },
+        { visible: true, id: "cf_04", parentId: "cf_01", level: 1, order: 4, state: 'yes', title: "Deploy Sveltia CMS OAuth Authenticator Worker", notes: "Handles secure GitHub OAuth proxying without third-party auth." },
 
-        { visible: true, id: "gh_01", parentId: "", level: 0, order: 5, checked: true, title: "GitHub Repository & Sveltia CMS", notes: "Headless content management and Git repository access." },
-        { visible: true, id: "gh_02", parentId: "gh_01", level: 1, order: 6, checked: true, title: "Client creates GitHub account (EPWAdmin)", notes: "Gives client direct ownership credentials." },
-        { visible: true, id: "gh_03", parentId: "gh_01", level: 2, order: 7, checked: true, title: "Add client as repository collaborator", notes: "Allows client to commit changes via Sveltia CMS dashboard." },
-        { visible: true, id: "gh_04", parentId: "gh_01", level: 2, order: 8, checked: true, title: "Test 1-click 'Sign In with GitHub' at /admin/", notes: "Verify login opens Sveltia dashboard smoothly." },
+        { visible: true, id: "gh_01", parentId: "", level: 0, order: 5, state: 'yes', title: "GitHub Repository & Sveltia CMS", notes: "Headless content management and Git repository access." },
+        { visible: true, id: "gh_02", parentId: "gh_01", level: 1, order: 6, state: 'yes', title: "Client creates GitHub account (EPWAdmin)", notes: "Gives client direct ownership credentials." },
+        { visible: true, id: "gh_03", parentId: "gh_01", level: 2, order: 7, state: 'yes', title: "Add client as repository collaborator", notes: "Allows client to commit changes via Sveltia CMS dashboard." },
+        { visible: true, id: "gh_04", parentId: "gh_01", level: 2, order: 8, state: 'yes', title: "Test 1-click 'Sign In with GitHub' at /admin/", notes: "Verify login opens Sveltia dashboard smoothly." },
 
-        { visible: true, id: "st_01", parentId: "", level: 0, order: 9, checked: false, title: "Stripe Payment Gateway", notes: "Direct on-site merchant payments and bank routing." },
-        { visible: true, id: "st_02", parentId: "st_01", level: 1, order: 10, checked: false, title: "Client creates & verifies Stripe merchant account", notes: "Connects bank for direct automated payouts." },
-        { visible: true, id: "st_03", parentId: "st_01", level: 1, order: 11, checked: false, title: "Generate Stripe Payment Links / Buy Buttons", notes: "Checkout links for high-ticket catalog items." },
+        { visible: true, id: "st_01", parentId: "", level: 0, order: 9, state: 'blank', title: "Stripe Payment Gateway", notes: "Direct on-site merchant payments and bank routing." },
+        { visible: true, id: "st_02", parentId: "st_01", level: 1, order: 10, state: 'blank', title: "Client creates & verifies Stripe merchant account", notes: "Connects bank for direct automated payouts." },
+        { visible: true, id: "st_03", parentId: "st_01", level: 1, order: 11, state: 'blank', title: "Generate Stripe Payment Links / Buy Buttons", notes: "Checkout links for high-ticket catalog items." },
 
-        { visible: true, id: "sb_01", parentId: "", level: 0, order: 12, checked: false, title: "Supabase Member Portal & Google Auth", notes: "Customer authentication engine and database sync." },
-        { visible: true, id: "sb_02", parentId: "sb_01", level: 1, order: 13, checked: false, title: "Client signs up at supabase.com (via GitHub)", notes: "Creates client-owned 2-project free organization." },
-        { visible: true, id: "sb_03", parentId: "sb_01", level: 2, order: 14, checked: false, title: "Invite automybiz@gmail.com to Organization", notes: "Enables agency collaboration." },
-        { visible: true, id: "sb_04", parentId: "sb_01", level: 2, order: 15, checked: false, title: "Configure Google OAuth Provider", notes: "Enables 1-click customer login on web portal." },
+        { visible: true, id: "sb_01", parentId: "", level: 0, order: 12, state: 'blank', title: "Supabase Member Portal & Google Auth", notes: "Customer authentication engine and database sync." },
+        { visible: true, id: "sb_02", parentId: "sb_01", level: 1, order: 13, state: 'blank', title: "Client signs up at supabase.com (via GitHub)", notes: "Creates client-owned 2-project free organization." },
+        { visible: true, id: "sb_03", parentId: "sb_01", level: 2, order: 14, state: 'blank', title: "Invite automybiz@gmail.com to Organization", notes: "Enables agency collaboration." },
+        { visible: true, id: "sb_04", parentId: "sb_01", level: 2, order: 15, state: 'blank', title: "Configure Google OAuth Provider", notes: "Enables 1-click customer login on web portal." },
 
-        { visible: true, id: "ghl_01", parentId: "", level: 0, order: 16, checked: true, title: "AutoMyBiz & GoHighLevel Integration", notes: "CRM automation and workflow webhooks." },
-        { visible: true, id: "ghl_02", parentId: "ghl_01", level: 1, order: 17, checked: true, title: "Add Custom Menu Link: Products & Variants", notes: "Embeds Sveltia CMS iframe in HighLevel sidebar menu." },
-        { visible: true, id: "ghl_03", parentId: "ghl_01", level: 1, order: 18, checked: false, title: "Generate Private Integration Token (PIT)", notes: "Required for live contact custom fields lookups." }
+        { visible: true, id: "ghl_01", parentId: "", level: 0, order: 16, state: 'yes', title: "AutoMyBiz & GoHighLevel Integration", notes: "CRM automation and workflow webhooks." },
+        { visible: true, id: "ghl_02", parentId: "ghl_01", level: 1, order: 17, state: 'yes', title: "Add Custom Menu Link: Products & Variants", notes: "Embeds Sveltia CMS iframe in HighLevel sidebar menu." },
+        { visible: true, id: "ghl_03", parentId: "ghl_01", level: 1, order: 18, state: 'blank', title: "Generate Private Integration Token (PIT)", notes: "Required for live contact custom fields lookups." }
     ];
 
     // =========================================================================
@@ -2746,8 +2819,9 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
 
             sections.forEach(sec => {
                 const total = sec.tasks.length;
-                const completed = sec.tasks.filter(t => t.item.checked).length;
-                const allDone = total > 0 && completed === total;
+                const completed = sec.tasks.filter(t => taskState(t.item) === TASK_YES).length;
+                const ignoredCount = sec.tasks.filter(t => taskState(t.item) === TASK_NO).length;
+                const allDone = total > 0 && completed >= total - ignoredCount;
                 if (allDone) {
                     completedSections.push(sec);
                 } else {
@@ -2777,8 +2851,10 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
 
             const isCollapsed = Boolean(UI_STATE.sections[secId]);
             const totalTasks = sec.tasks.length;
-            const completedTasks = sec.tasks.filter(t => t.item.checked).length;
-            const allDone = totalTasks > 0 && completedTasks === totalTasks;
+            const completedTasks = sec.tasks.filter(t => taskState(t.item) === TASK_YES).length;
+            const ignoredTasks = sec.tasks.filter(t => taskState(t.item) === TASK_NO).length;
+            const applicableTasks = totalTasks - ignoredTasks;
+            const allDone = totalTasks > 0 && completedTasks >= applicableTasks;
 
             const deck = document.createElement('div');
             deck.className = 'section-deck ' + (isCollapsed ? 'is-collapsed ' : '') + (allDone ? 'all-tasks-completed' : '');
@@ -2830,14 +2906,14 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
                         <button type="button" class="btn-icon sec-action-btn" title="Paste tasks into this milestone (List Puncher format)" onclick="openYamlModal('section', ${sec.headerIndex})">
                             ${PASTE_SUBTASKS_SVG_ICON}
                         </button>
-                        <button type="button" class="btn-icon sec-action-btn check-all-btn" title="Check all tasks in this milestone (asks first; click again to clear them all)" onclick="confirmSectionCheckAll(${sec.headerIndex})">
-                            ${CHECK_ALL_SVG_ICON}
-                        </button>
+                        <button type="button" class="btn-icon sec-action-btn" style="color:var(--accent-green)" title="YesAll - approve every task in this milestone" onclick="confirmSectionState(${sec.headerIndex}, TASK_YES)">&#10003;</button>
+                        <button type="button" class="btn-icon sec-action-btn" style="color:var(--accent-no)" title="NoAll - reject/ignore every task in this milestone" onclick="confirmSectionState(${sec.headerIndex}, TASK_NO)">&#10005;</button>
+                        <button type="button" class="btn-icon sec-action-btn" title="BlankAll - reset every task in this milestone to untouched" onclick="confirmSectionState(${sec.headerIndex}, TASK_BLANK)">&#9633;</button>
                         <button type="button" class="btn-icon sec-action-btn delete-btn" title="Delete milestone and all its tasks" onclick="confirmDeleteSection(${sec.headerIndex})">✕</button>
                     </div>
 
                     <span class="section-counter-badge ${allDone ? 'all-done' : ''}">
-                        ${completedTasks} / ${totalTasks} Completed
+                        ${completedTasks} / ${applicableTasks} Completed${ignoredTasks > 0 ? ' - ' + ignoredTasks + ' no' : ''}
                     </span>
                     <span class="accordion-chevron">▼</span>
                 </div>
@@ -2925,7 +3001,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
                 const depthClass = `task-depth-${depth} ${depth % 2 === 1 ? 'task-depth-odd' : 'task-depth-even'}`;
 
                 const row = document.createElement('div');
-                row.className = `task-row ${depthClass} ${isNested ? 'is-nested ' : ''} ${t.checked ? 'is-checked' : ''}`;
+                row.className = `task-row ${depthClass} ${isNested ? 'is-nested ' : ''} ${taskStateClass(t)}`;
                 row.draggable = false;
                 row.dataset.index = realIdx;
                 row.dataset.taskId = taskId;
@@ -2967,7 +3043,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
                         </button>
 
                         <div class="task-checkbox-wrap">
-                            <input type="checkbox" class="task-checkbox" ${t.checked ? 'checked' : ''} onchange="toggleTask(${realIdx})" />
+                            ${renderStateButton(realIdx, t)}
                         </div>
 
                         <input type="text" class="task-title-input" value="${escapeHtml(t.title)}" oninput="updateTaskTitle(${realIdx}, this.value)" />
@@ -2977,7 +3053,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
                                 <button type="button" class="btn-icon" title="Outdent (Shift Left)" onclick="changeSubtreeLevel(${realIdx}, -1)">⇤</button>
                                 <button type="button" class="btn-icon" title="Indent (Nest Right)" onclick="changeSubtreeLevel(${realIdx}, 1)">⇥</button>
                                 <button type="button" class="btn-icon add-btn" title="Add subtask under this item" onclick="addSubtaskToBranch(${realIdx})">${PLUS_ADD_SVG_ICON}</button>
-                                ${hasChildren ? `<button type="button" class="btn-icon check-all-btn" title="Check this task and all ${childCount} sub-task(s) in its branch (asks first; click again to clear them)" onclick="confirmBranchCheckAll(${realIdx})">${CHECK_ALL_SVG_ICON}</button>` : ''}
+                                ${hasChildren ? `<button type="button" class="btn-icon check-all-btn" title="YesAll - approve this task and its ${childCount} sub-task(s)" onclick="confirmBranchState(${realIdx}, TASK_YES)">&#10003;</button><button type="button" class="btn-icon" style="color:var(--accent-no)" title="NoAll - reject this task and its sub-tasks" onclick="confirmBranchState(${realIdx}, TASK_NO)">&#10005;</button><button type="button" class="btn-icon" title="BlankAll - reset this branch to untouched" onclick="confirmBranchState(${realIdx}, TASK_BLANK)">&#9633;</button>` : ''}
                                 <button type="button" class="btn-icon copy-btn" title="Copy this task and its branch (List Puncher format)" onclick="copyTaskBranch(${realIdx})">${COPY_SVG_ICON}</button>
                                 <button type="button" class="btn-icon paste-btn" title="Paste subtasks into this branch (List Puncher format)" onclick="openYamlModal('branch', ${realIdx})">${PASTE_SUBTASKS_SVG_ICON}</button>
                                 <button type="button" class="btn-icon delete-btn" title="Delete task and branch" onclick="confirmDeleteTask(${realIdx})">✕</button>
@@ -3306,9 +3382,9 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         }
     }
 
-    function toggleTask(index) {
+    function cycleTaskState(index) {
         if (!TASKS_DATA[index]) return;
-        TASKS_DATA[index].checked = !TASKS_DATA[index].checked;
+        setTaskState(TASKS_DATA[index], nextTaskState(taskState(TASKS_DATA[index])));
         executeAutoSave();
         renderAll();
     }
@@ -3361,7 +3437,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
             parentId: '',
             level: 1,
             order: TASKS_DATA.length + 1,
-            checked: false,
+            state: 'blank',
             title: '',
             notes: ''
         };
@@ -3400,7 +3476,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
             parentId: parent.id,
             level: parentLevel + 1,
             order: TASKS_DATA.length + 1,
-            checked: false,
+            state: 'blank',
             title: '',
             notes: ''
         };
@@ -3429,7 +3505,13 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     // touches the tasks of THIS milestone:
     //   none or some checked -> check them all
     //   all checked          -> clear them all
-    function applySectionCheckAll(headerIdx) {
+    function stateLabel(state) {
+        if (state === TASK_YES) return 'Yes';
+        if (state === TASK_NO) return 'No';
+        return 'Blank';
+    }
+
+    function applySectionState(headerIdx, state) {
         if (!TASKS_DATA[headerIdx] || TASKS_DATA[headerIdx].level !== 0) return;
 
         const range = getSectionRange(headerIdx);
@@ -3441,16 +3523,16 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
 
         const secTitle = TASKS_DATA[headerIdx].title;
         const secId = TASKS_DATA[headerIdx].id;
-        // Toggle: none/some checked -> check them all; all checked -> clear them all.
-        const allDone = tasks.every(t => t.checked);
-        tasks.forEach(t => { t.checked = !allDone; });
+        // Explicit set: every task in this milestone becomes the requested state.
+        const allDone = (state === TASK_BLANK);
+        tasks.forEach(t => { setTaskState(t, state); });
 
         executeAutoSave();
         renderAll();
 
         // With "Bottom: ON" a milestone that just hit 100% jumps to the bottom of the
         // deck and gets renumbered, which looks like the section vanished. Follow it.
-        const movedToBottom = !allDone && Boolean(UI_STATE.completedAtBottom);
+        const movedToBottom = (state === TASK_YES) && Boolean(UI_STATE.completedAtBottom);
         if (secId) {
             const deck = document.getElementById('deck_' + secId);
             if (deck && typeof deck.scrollIntoView === 'function') {
@@ -3459,8 +3541,8 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         }
 
         showToast(allDone
-            ? `↩️ Cleared ${tasks.length} task(s) in "${secTitle}"`
-            : `✓ Completed ${tasks.length} task(s) in "${secTitle}"${movedToBottom ? ' - moved to the bottom' : ''}`);
+            ? `↩️ set on ${tasks.length} task(s) in "${secTitle}"`
+            : `✓ set on ${tasks.length} task(s) in "${secTitle}"${movedToBottom ? ' - moved to the bottom' : ''}`);
     }
 
     // True when every task of the milestone that owns taskIdx is checked (used only to word
@@ -3469,16 +3551,16 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         for (let i = taskIdx; i >= 0; i--) {
             if (TASKS_DATA[i].level === 0) {
                 const range = getSectionRange(i);
-                return TASKS_DATA.slice(range.start + 1, range.start + range.count).every(t => t.checked);
+                return TASKS_DATA.slice(range.start + 1, range.start + range.count).every(t => taskState(t) === TASK_YES);
             }
         }
         return false;
     }
 
-    // Performs the branch change the user confirmed. Mirrors applySectionCheckAll: the
+    // Performs the branch change the user confirmed. Mirrors applySectionState: the
     // milestone Check All and the branch Check All share the same toggle semantics
     // (none/some checked -> check all; all checked -> clear all).
-    function applyBranchCheckAll(branchIdx) {
+    function applyBranchState(branchIdx, state) {
         const task = TASKS_DATA[branchIdx];
         if (!task || task.level === 0) return;
 
@@ -3486,8 +3568,8 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         const branchTasks = TASKS_DATA.slice(range.start, range.start + range.count);
         if (!branchTasks.length) return;
 
-        const allDone = branchTasks.every(t => t.checked);
-        branchTasks.forEach(t => { t.checked = !allDone; });
+        const allDone = (state === TASK_BLANK);
+        branchTasks.forEach(t => { setTaskState(t, state); });
 
         executeAutoSave();
         renderAll();
@@ -3500,10 +3582,10 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
             row.scrollIntoView({ block: 'center', behavior: 'smooth' });
         }
 
-        const movedToBottom = !allDone && Boolean(UI_STATE.completedAtBottom) && isMilestoneCompleteFor(branchIdx);
+        const movedToBottom = (state === TASK_YES) && Boolean(UI_STATE.completedAtBottom) && isMilestoneCompleteFor(branchIdx);
         showToast(allDone
-            ? `↩️ Cleared ${branchTasks.length} task(s) in "${task.title}"`
-            : `✓ Completed ${branchTasks.length} task(s) in "${task.title}"${movedToBottom ? ' - milestone moved to the bottom' : ''}`);
+            ? `↩️ set on ${branchTasks.length} task(s) in "${task.title}"`
+            : `✓ set on ${branchTasks.length} task(s) in "${task.title}"${movedToBottom ? ' - milestone moved to the bottom' : ''}`);
     }
 
     function copySectionAsYaml(headerIdx) {
@@ -3528,7 +3610,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
                 parentId: '',
                 level: 0,
                 order: TASKS_DATA.length + 1,
-                checked: false,
+                state: 'blank',
                 title: cleanTitle,
                 notes: ''
             });
@@ -3599,7 +3681,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
 
     // The milestone Check/Uncheck All button asks first and says exactly what will
     // happen (how many tasks, and how many are already complete).
-    function confirmSectionCheckAll(headerIdx) {
+    function confirmSectionState(headerIdx, state) {
         if (!TASKS_DATA[headerIdx] || TASKS_DATA[headerIdx].level !== 0) return;
 
         const range = getSectionRange(headerIdx);
@@ -3610,11 +3692,11 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         }
 
         const secTitle = TASKS_DATA[headerIdx].title;
-        const completed = tasks.filter(t => t.checked).length;
-        const allDone = completed === tasks.length;
+        const completed = tasks.filter(t => taskState(t) === TASK_YES).length;
+        const allDone = (state === TASK_BLANK);
         const progress = `<br><span style="color:var(--text-secondary);">${completed} of ${tasks.length} task(s) are currently complete.</span>`;
 
-        CONFIRM_CONTEXT = { type: 'checkall', headerIdx };
+        CONFIRM_CONTEXT = { type: 'sectionstate', headerIdx: headerIdx, state: state };
 
         openConfirmModal({
             title: allDone ? '↩️ Confirm Uncheck All' : '✓ Confirm Check All',
@@ -3630,7 +3712,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     // under it (getSubtreeRange covers both). Same contract as the milestone button - it
     // asks first, names the counts, and the confirm button flips to "Uncheck All" when the
     // whole branch is already complete.
-    function confirmBranchCheckAll(branchIdx) {
+    function confirmBranchState(branchIdx, state) {
         const task = TASKS_DATA[branchIdx];
         if (!task || task.level === 0) return;
 
@@ -3641,11 +3723,11 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
             return;
         }
 
-        const completed = branchTasks.filter(t => t.checked).length;
-        const allDone = (completed === branchTasks.length);
+        const completed = branchTasks.filter(t => taskState(t) === TASK_YES).length;
+        const allDone = (state === TASK_BLANK);
         const progress = `<br><span style="color:var(--text-secondary);">${completed} of ${branchTasks.length} task(s) in this branch are currently complete.</span>`;
 
-        CONFIRM_CONTEXT = { type: 'checkallbranch', branchIdx };
+        CONFIRM_CONTEXT = { type: 'branchstate', branchIdx: branchIdx, state: state };
 
         openConfirmModal({
             title: allDone ? '↩️ Confirm Uncheck All' : '✓ Confirm Check All',
@@ -3679,15 +3761,17 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
             executeAutoSave();
             renderAll();
             showToast(`Deleted milestone "${secTitle}"`);
-        } else if (ctx.type === 'checkall') {
+        } else if (ctx.type === 'sectionstate') {
             const headerIdx = ctx.headerIdx;
+            const pendingState = ctx.state;
             closeConfirmModal();
-            applySectionCheckAll(headerIdx);
+            applySectionState(headerIdx, pendingState);
             return;
-        } else if (ctx.type === 'checkallbranch') {
+        } else if (ctx.type === 'branchstate') {
             const branchIdx = ctx.branchIdx;
+            const pendingState = ctx.state;
             closeConfirmModal();
-            applyBranchCheckAll(branchIdx);
+            applyBranchState(branchIdx, pendingState);
             return;
         }
 
@@ -3934,12 +4018,13 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
 
     function updateProgress() {
         const actionable = TASKS_DATA.filter(t => t.level > 0);
-        const completed = actionable.filter(t => t.checked).length;
-        const total = actionable.length;
-        const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
+        const completed = actionable.filter(t => taskState(t) === TASK_YES).length;
+        const noCount = actionable.filter(t => taskState(t) === TASK_NO).length;
+        const total = Math.max(0, actionable.length - noCount);
+        const pct = total > 0 ? Math.round((completed / total) * 100) : (actionable.length ? 100 : 0);
 
         document.getElementById('progressFill').style.width = `${pct}%`;
-        document.getElementById('progressStats').innerText = `${completed} / ${total} Completed (${pct}%)`;
+        document.getElementById('progressStats').innerText = `${completed} / ${total} Completed (${pct}%)` + (noCount > 0 ? ' - ' + noCount + ' no' : '');
     }
 
     // =========================================================================
@@ -3970,7 +4055,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         if (!text) return;
         const pad = ' '.repeat(keyIndent);
         const textLines = text.split(/\r?\n/);
-        const hasCheckboxLine = textLines.some(l => /^\s*-\s*\[[ xX]\]/.test(l));
+        const hasCheckboxLine = textLines.some(l => /^\s*-\s*\[[^\]]{0,3}\]/.test(l));
 
         if (textLines.length === 1 || hasCheckboxLine) {
             lines.push(`${pad}${key}: ${yamlQuote(text)}`);
@@ -4013,7 +4098,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     function formatTasksSliceAsYaml(tasks) {
         if (!tasks || !tasks.length) return '';
         const baseLevel = tasks[0].level || 0;
-        const lines = [];
+        const lines = [FORMAT_STAMP];
 
         // 1. Build a parent/child tree from the flat level-based array.
         const roots = [];
@@ -4032,7 +4117,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         const emitTaskNode = (node, indent) => {
             const keyIndent = indent + INDENT_SPACES_PER_LEVEL;
             const dashPad = ' '.repeat(indent);
-            const checkMark = node.task.checked ? '[x]' : '[ ]';
+            const checkMark = stateToMark(taskState(node.task));
             const title = String(node.task.title || 'Untitled').replace(/\r?\n/g, () => ' ');
 
             lines.push(`${dashPad}- ${checkMark} ${title}`);
@@ -4092,7 +4177,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
 
             if (blockBodyIndent !== -1) {
                 const bodyIndent = line.match(/^( *)/)[1].length;
-                const isCheckboxLine = /^-\s*\[[ xX]\]/.test(trimmed);
+                const isCheckboxLine = /^-\s*\[[^\]]{0,3}\]/.test(trimmed);
 
                 if (trimmed === '') {
                     clampedLines.push(line);
@@ -4116,7 +4201,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
                 continue;
             }
 
-            const taskMatch = line.match(/^(\s*)-\s*(?:\[[ xX]\])?/);
+            const taskMatch = line.match(/^(\s*)-\s*(?:\[[^\]]{0,3}\])?/);
 
             if (taskMatch) {
                 let indent = taskMatch[1].length;
@@ -4223,7 +4308,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
                     parentId: '',
                     level: 0,
                     order: result.length + 1,
-                    checked: false,
+                    state: 'blank',
                     title: 'Project Setup',
                     notes: ''
                 };
@@ -4242,7 +4327,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
                 parentId: '',
                 level: 0,
                 order: result.length + 1,
-                checked: false,
+                state: 'blank',
                 title: cleanTitle,
                 notes: ''
             };
@@ -4312,23 +4397,23 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
                 const body = dashMatch[2].trim();
 
                 let title = body;
-                let checked = false;
+                let rowState = TASK_BLANK;
 
                 const titleKeyMatch = body.match(/^["']?(?:task|title)["']?\s*:\s*(.*)$/i);
                 if (titleKeyMatch) {
                     title = unquoteYamlScalar(titleKeyMatch[1].trim());
                 } else {
-                    const boxMatch = body.match(/^\[([ xX])\]\s*(.*)$/);
+                    const boxMatch = body.match(/^\[([^\]]{0,3})\]\s*(.*)$/);
                     if (boxMatch) {
-                        checked = boxMatch[1].toLowerCase() === 'x';
+                        rowState = markerToState(boxMatch[1]);
                         title = boxMatch[2].trim();
                     }
                 }
 
                 // A "[ ] " / "[x] " prefix inside the value is the checkbox
-                const inlineBox = title.match(/^\[([ xX])\]\s*(.*)$/);
+                const inlineBox = title.match(/^\[([^\]]{0,3})\]\s*(.*)$/);
                 if (inlineBox) {
-                    checked = inlineBox[1].toLowerCase() === 'x';
+                    rowState = markerToState(inlineBox[1]);
                     title = inlineBox[2].trim();
                 }
 
@@ -4347,7 +4432,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
                     parentId: '',
                     level: parentEntry ? parentEntry.task.level + 1 : 1,
                     order: result.length + 1,
-                    checked: checked,
+                    state: rowState,
                     title: title || 'Untitled Task',
                     notes: ''
                 };
@@ -4372,7 +4457,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
                         const ownerTitle = unquoteYamlScalar(value);
                         if (ownerTitle) owner.title = ownerTitle;
                     } else if (key === 'checked') {
-                        owner.checked = parseYamlBoolean(value, owner.checked);
+                        owner.state = parseYamlBoolean(value, taskState(owner) === TASK_YES) ? TASK_YES : TASK_BLANK;
                     } else if (key === 'notes') {
                         if (isYamlBlockIndicator(value)) {
                             inNotesBlock = true;
@@ -4429,7 +4514,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
                 sectionBaseIndents.push(pendingBaseIndent === null ? 0 : pendingBaseIndent);
                 pendingBaseIndent = null;
             } else {
-                const m = line.match(/^(\s*)-\s*(?:\[[ xX]\])?/);
+                const m = line.match(/^(\s*)-\s*(?:\[[^\]]{0,3}\])?/);
                 if (m && pendingBaseIndent === null) {
                     pendingBaseIndent = m[1].length;
                 }
@@ -4488,7 +4573,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
                     parentId: '',
                     level: 0,
                     order: result.length + 1,
-                    checked: false,
+                    state: 'blank',
                     title: cleanTitle,
                     notes: ''
                 };
@@ -4528,10 +4613,10 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
                 continue;
             }
 
-            const taskMatch = rawLine.match(/^(\s*)-\s*(?:\[([ xX])\]\s*)?(.*?)$/);
+            const taskMatch = rawLine.match(/^(\s*)-\s*(?:\[([^\]]{0,3})\]\s*)?(.*?)$/);
             if (taskMatch) {
                 const indentSpaces = taskMatch[1].length;
-                const isChecked = taskMatch[2] ? (taskMatch[2].toLowerCase() === 'x') : false;
+                const rowState = taskMatch[2] ? markerToState(taskMatch[2]) : TASK_BLANK;
                 let title = taskMatch[3].trim();
 
                 if (result.length === 0 || !currentSection) {
@@ -4541,7 +4626,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
                         parentId: '',
                         level: 0,
                         order: 1,
-                        checked: false,
+                        state: 'blank',
                         title: 'Project Setup',
                         notes: ''
                     };
@@ -4558,7 +4643,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
                     parentId: '',
                     level: relativeLevel,
                     order: result.length + 1,
-                    checked: isChecked,
+                    state: rowState,
                     title: title || 'Untitled Task',
                     notes: ''
                 };
@@ -4778,7 +4863,7 @@ Format rules:
 - Output the list as clean plain text only - no conversational preamble.
 - This is NOT standard YAML, so do NOT try to "fix" it into strict YAML and do NOT add task: / checked: / subtasks: keys. Follow the shape below exactly.
 - Use strictly 2-space indentation for subtasks. Never use tabs.
-- Write tasks as standard Markdown checkboxes: "- [ ] Unfinished task" and "- [x] Finished task".
+- Write tasks with the three-state marker: "- [ ] untouched", "- [v] Yes (approved/done)", "- [x] No (rejected/ignored)". Never use [x] to mean done.
 - Nest subtasks exactly 2 additional spaces deeper than their parent task, one step per nesting level.
 - Each milestone uses metadata keys:
 \`\`\` 

@@ -23,6 +23,7 @@
     --accent-cyan: #0FF;
     --accent-blue: #3BF;
     --accent-green: #0F8;
+    --accent-no: #F50;
     --accent-yellow: #FA0;
     --accent-red: #F33;
     --text-primary: #FFF;
@@ -33,7 +34,7 @@
     --indent-step: 22px;
 
     /* Build marker: lets the app detect a stale cached stylesheet (compared against APP_BUILD in index.html) */
-    --lp-css-build: "1.30";
+    --lp-css-build: "1.32";
 
     --completed-opacity: 0.42;
 
@@ -834,11 +835,11 @@ body {
     background: var(--card-hover-bg);
 }
 
-.task-row.is-checked {
+.task-row.is-yes {
     opacity: var(--completed-opacity);
 }
 
-.task-row.is-checked:hover {
+.task-row.is-yes:hover {
     opacity: 1 !important;
 }
 
@@ -921,11 +922,22 @@ body {
     flex-shrink: 0;
 }
 
-.task-checkbox {
+.task-state {
     width: 17px;
     height: 17px;
     cursor: pointer;
-    accent-color: var(--accent-green);
+    padding: 0;
+    border-radius: 4px;
+    border: 1.5px solid rgba(255, 255, 255, 0.35);
+    background: transparent;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 800;
+    line-height: 1;
+    color: transparent;
+    transition: border-color .12s ease, background .12s ease, color .12s ease;
 }
 
 .task-title-input {
@@ -1556,7 +1568,7 @@ body.is-viewer-mode .drag-handle {
     display: none !important;
 }
 
-body.is-viewer-mode .task-checkbox {
+body.is-viewer-mode .task-state {
     pointer-events: none !important;
     opacity: 0.85;
 }
@@ -1749,4 +1761,36 @@ body.is-resizing .container-resize-handle {
     .width-control {
         display: none;
     }
+}
+/* ---- Task states: yes (green check) / no (orange x) / blank ---- */
+.task-state:hover {
+    border-color: var(--accent-cyan);
+}
+
+.task-state.state-yes {
+    border-color: var(--accent-green);
+    background: rgba(0, 255, 136, 0.14);
+    color: var(--accent-green);
+}
+
+.task-state.state-no {
+    border-color: var(--accent-no);
+    background: rgba(255, 85, 0, 0.14);
+    color: var(--accent-no);
+}
+
+/* Rejected / ignored: kept in the list, visibly set aside. */
+.task-row.is-no {
+    opacity: 0.58;
+}
+
+.task-row.is-no:hover {
+    opacity: 1 !important;
+}
+
+.task-row.is-no .task-title-input {
+    text-decoration: line-through;
+    text-decoration-color: var(--accent-no);
+    text-decoration-thickness: 2px;
+    color: var(--accent-no);
 }
