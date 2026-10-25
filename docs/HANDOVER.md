@@ -631,6 +631,44 @@ that had the only copy should say `browser (published to this sub-account)`.
 **Do not test this with an incognito window until the custom value exists** - before 1.39, that test
 was itself what created the split (the fresh session minted and published a second secret).
 
+## 19. Build 1.40 - the pill shows which tenant you are in (2026-10-25)
+
+1.39 made a mismatch *loud*, but the only way to read it was DevTools, and the obvious alternative -
+  reading the 43-character secret out of the GHL Custom Values screen and hashing it by hand - is
+  error-prone in exactly the situation where it matters (it was transcribed at 41 characters when this
+  was first tried).
+
+**`tenantFingerprint(secret)`** now computes `sha256(secret)` and shows the first 8 hex characters.
+That is *provably* the tenant, because the server defines
+`hash_secret(p_secret) = encode(sha256(convert_to(secret,'UTF8')),'hex')` - so the prefix of the local
+hash and the prefix of `tenants.secret_hash` are the same string. Confirmed end-to-end with a vector
+checked against the database itself: `sha256('abc123')` in Node = `list_puncher.hash_secret('abc123')`
+= `6ca13d52ca70c883e0f0bb101e425a89e8624de51db2d2392593af6a84118090`.
+
+Shown in three places, none of which ever prints the secret itself:
+- the **storage pill tooltip** (`#storageKeyBox`), next to the storage key -
+  `... | tenant 530bdffb (secret from browser (matches this sub-account))`;
+- `lpStorageReport()` → `tenant secret: <source>   fingerprint: <8 hex>`;
+- `lpTrace('cloud secret', ...)` on every resolution.
+
+In an insecure context (no `crypto.subtle`) it reports `unverifiable` rather than guessing.
+`refreshPillTooltip()` became the single writer of that tooltip text, so the key line and the tenant
+line cannot drift apart.
+
+### Expected fingerprints
+| Sub-account | Tenant | Expected |
+|---|---|---|
+| Euro Parts West (`A9eEmuUJ1FM6sBhYESfO`) | the real one, owns all 3 lists | **`530bdffb`** |
+
+If a machine shows anything other than `530bdffb` there it is writing to a different tenant, and the
+custom value `list_puncher_secret` needs to hold that machine's secret.
+
+### Verified
+35 asserts in `lp-secret-test.js` (5 new, including the DB-proven vector and the insecure-context
+fallback), 33 poll asserts, the empty-list harness unchanged, 3/3 inline scripts compile, and a
+headless-Chrome render whose tooltip reads
+`| tenant 67b11ae8 (secret from minted (this browser only))` on a fresh profile.
+
 ### Rollout (feature flag, NOT a fork - decided 2026-10-25)
 `?storage=rows` switches the backend; no param keeps today's blob path byte-for-byte. Revert is a URL
 change. A physical fork was rejected because two HTML files on the same origin share `localStorage` -
