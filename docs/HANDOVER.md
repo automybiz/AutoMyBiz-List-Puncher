@@ -13,7 +13,7 @@ Kickoff for a new Cline task:
 | Repo | `github.com/automybiz/AutoMyBiz-List-Puncher` (public, branch `main`) |
 | Local | `x:\DATA\_SOFTWARE\_3D_PRINTING\_PROJECTS\_WEB\CODE\AutoMyBiz List Puncher` |
 | App | single-file `index.html` + `index.css`, served by GitHub Pages, embedded in GoHighLevel via a Custom Menu Link |
-| Build | **1.30** (`APP_BUILD`, `index.css?v=`, `--lp-css-build` — keep all three in sync) |
+| Build | **1.38** (`APP_BUILD`, `index.css?v=`, `--lp-css-build` — keep all three in sync) |
 | Database | Supabase project ref `dhuhkinuruxbwddhffwk` (org AutoMyBiz, us-west-2, free plan), schema `list_puncher` |
 | Product goal | zero-touch onboarding per GHL sub-account (agency hosts the data, per-tenant isolation), with an optional upgrade path to a client's own Supabase project |
 
@@ -32,6 +32,13 @@ Then `finalizeCloudTarget()` resolves a **tenant secret** (link param `lp_secret
 
 Permissions: `evaluatePermissions()` reads editors/viewers from the link param → GHL custom values (`list_puncher_editors` / `_viewers`) → defaults `ADMINS` / `ALL`.
 
+### Read/write loop (build 1.38)
+
+- **Write:** `saveState()` → `localStorage` (instant) → `scheduleCloudSave()` → 800 ms debounce → `flushCloudSaves()` → `upsert_list`. A failed push stays queued, retries every 15 s and on the browser `online` event.
+- **Read:** `hydrateFromCloud(projId, announce)` is the **only** read path. It is called at load, on tab focus / `visibilitychange`, on a cross-tab `storage` event, and from `pollCloudOnce()` every **3 s** (`CLOUD_POLL_MS`) while the tab is visible and no dialog is open.
+- **Conflict rule:** still last-write-wins, comparing the row's `updated_at` with this device's `localSavedAt`. §16 replaces it.
+- **Pill:** `⚠ Cloud off` (no target) and `⚠ Not syncing` (target unreachable) are sticky red; `☁ Synced` flashes for 1.6 s after a real success.
+
 ## 3. Database state at this handover
 
 | Item | State |
@@ -43,8 +50,9 @@ Permissions: `evaluatePermissions()` reads editors/viewers from the link param �
 | **Phase 2** | ✅ applied + verified 2026-10-24 (`phase2_lock_table_and_add_ping`) — table access revoked, `lists_anon_all` dropped |
 | Table grants | **none** for `anon` / `authenticated` on any `list_puncher` table; RLS on all four tables, **zero policies** → `GET /rest/v1/lists` answers `401 permission denied` (`42501`) |
 | Backups | `lists_backup_pre1b` (1 row, 20,400 bytes, `A9eEmuUJ1FM6sBhYESfO` / `default_onboarding`) and `tenants_backup_pre1b` (2 rows) — RLS on, no grants |
-| `lists` rows | **1**: `A9eEmuUJ1FM6sBhYESfO` / `default_onboarding`, `tenant_hash` = `530bdffbfb1f…`, 20,400 bytes, byte-identical to the backup — re-pushed by the app 13:43 UTC after 1B |
-| `tenants` rows | **1**: `(A9eEmuUJ1FM6sBhYESfO, 530bdffbfb1f…)` — the browser's real secret, registered/proven by that push |
+| `lists` rows | **3** (2026-10-25 12:50 UTC), all location `A9eEmuUJ1FM6sBhYESfO`, all `tenant_hash` `530bdffbfb1f…`: `default_onboarding` 20,416 B (byte-identical to the backup apart from the re-push), `proj_supabase_setup_1792913084870` 2,690 B, `proj_supabase_setup_and_mcp_connection_1792913935559` 17,590 B |
+| ⚠ Fallback trap | A `location_id` **with no GHL custom values still resolves to `LEGACY_FALLBACK_CLOUD`**, so an unknown/test sub-account writes straight into the AGENCY project. Verified the hard way on 2026-10-25: a headless-Chrome run with `?location_id=loc_test_138` created a real `lists` row + `tenants` row, which had to be deleted by hand. **When testing locally, always pass a bogus `sb_url` as well**, or you are writing to production. |
+| `tenants` rows | **4**: `(A9eEmuUJ1FM6sBhYESfO, 530bdffbfb1f…)` — the real secret, registered/proven by that push — plus **3 leftover secrets for `default_subaccount`** (`8d0f21dd142d…`, `495440976386…`, `dd2a9dc75fdd…`, all created 2026-10-25 08:19–08:21 by local browser testing). They own no `lists` rows and are harmless; delete them whenever convenient. |
 
 ### Why Phase 1B matters
 Phase 1's `ensure_tenant` registers a tenant keyed **only by `location_id`, on first use**, so whoever calls first "owns" that location and can read its existing row. Reproduced live: `get_list` with a junk secret against the real location returned the full list (the pre-1B `tenants` row for `A9eEmuUJ1FM6sBhYESfO` hashed to `sha256('WRONG')`, i.e. the probe secret had claimed the location, which is why the real app could never read its own row). Phase 1B tags every row with the writer's `tenant_hash` and keys tenants by `(location_id, secret_hash)`.
@@ -352,3 +360,157 @@ little room instead of losing it. Under 860px the cluster stays static and left-
 Verification: `node --check` on all three inline script blocks, CSS braces balanced, and headless-Chrome
 screenshots of the real app with a 31-character and a 54-character list name (both fit, pills on the
 row below) plus a static render of the open menu proving it matches the pill's width.
+
+## 15. Build 1.38 - the shared list keeps itself current (2026-10-25)
+
+Two people on the same list now see each other's ticks with nobody alt-tabbing, and a dead Supabase
+target is impossible to miss.
+
+### Polling (not Realtime, and not instead of it)
+`CLOUD_POLL_MS = 3000` drives `pollCloudOnce()` from `startCloudPolling()`, armed once in
+`initCloudSync()` and re-armed by `resetCloudRuntime()` when the target changes. Each tick is
+`hydrateFromCloud(ACTIVE_PROJECT_ID, false)` - the same function the focus/visibility handlers already
+used, so there is exactly one read path.
+
+A GHL iframe is a poor place to hold a WebSocket open, and Supabase's own troubleshooting guide says
+Realtime delivery is not guaranteed across reconnects: *"treat the Realtime event as a signal to
+re-fetch state - not as the only source of truth."* So polling is the read path either way; a Realtime
+channel would only ever be a doorbell that shortens the delay below 3 s. Also: Realtime is **not
+currently enabled** on `list_puncher.lists` (`pg_publication_tables` for `supabase_realtime` is empty),
+and it would need the table added to the publication plus a `select` grant for the subscribing role.
+
+Every reason to skip a tick lives in `pollCloudOnce()` / `listIsBusyForCloudPull()`, in one readable
+block: hidden tab, `navigator.onLine === false`, push or pull already in flight, any of `yamlModal` /
+`deleteModal` / `cloudSetupModal` open, `AUTOSAVE_TIMER` set, or a queued push (which is flushed first
+and the pull deferred to the next tick).
+
+### Why `deleteModal` blocks polling
+`deleteModal` is the themed confirm card, and it holds `CONFIRM_CONTEXT` **indices** into `TASKS_DATA`
+(`targetIndex` / `headerIdx` / `branchIdx` / `range`). Adopting a new cloud copy underneath it would
+make "Confirm" delete the wrong row. Same reasoning for the YAML editor (unsaved copy of the list).
+
+### The pill answers "is my work reaching the cloud?"
+The failure states used to be drawn as `☁ Offline` / `☁ Not connected`, and 'offline' reverted after
+6 s. Now `basePillState()` returns `⚠ Cloud off` (no Supabase target) and `⚠ Not syncing` (target
+unreachable), both `status-restricted` (red, pulsing), and `setCloudStatus('offline')` writes them
+**persistently** - only a real success clears them. `⚠` is used for every failure so the glyph itself
+carries the meaning.
+
+### Two bugs found while wiring this up
+1. `executeAutoSave()` did `clearTimeout(AUTOSAVE_TIMER)` but never `AUTOSAVE_TIMER = null`.
+   `clearTimeout` does not clear the handle, so "is a save still pending?" answered **yes forever**
+   after the first keystroke - which silently disabled the cross-tab `storage` reload guard and would
+   have disabled the poll gate too. Fixed.
+2. `hydrateFromCloud()` called `setCloudStatus('synced')` unconditionally. At a 3 s cadence that
+   re-flashed `☁ Synced` every tick. It now only fires when the status actually changes.
+
+### Verification
+- `node --check` equivalent (`new Function`) on all three inline script blocks: 3/3 compile.
+- `$env:TEMP\lp-empty-list-test.js`: unchanged, exit 0, ALL CHECKS PASSED (no regression).
+- `$env:TEMP\lp-poll-test.js`: **33 asserts, all pass** - extracts the real `pollCloudOnce`,
+  `listIsBusyForCloudPull`, `startCloudPolling`, `stopCloudPolling`, `basePillState`, `setCloudStatus`
+  and `executeAutoSave`, then drives all 8 skip-gates, the flush-before-pull ordering, all four pill
+  states, and asserts no `☁ Offline` / `☁ Not connected` text survives anywhere.
+- Headless Chrome against the real `index.html`: boots and renders normally; with
+  `?sb_url=https://no-such-project.invalid` the DOM contains `<span id="pillText">⚠ Not syncing</span>`
+  and the screenshot shows the red pill beside the mode pill.
+
+### Conflict model - still unchanged
+The read still resolves by comparing `remote.updated_at` with this device's `localSavedAt`
+(`cloudWins = !localExists || cloudAt > localAt`). 1.38 does not change that; it shortens the window.
+Removing the clock comparison only makes sense together with §16, which deletes it.
+
+## 16. NEXT CHANGE (designed, not built) - one row per task
+
+### The problem it removes
+`lists.checklist_text` holds the **whole list** as one YAML string. Two people ticking different tasks
+therefore produce two whole-list writes, and whichever lands second silently reverts the other's tick.
+1.38 shortens the window to ~3 s; it does not remove the loss.
+
+### Why this is cheaper than it looks
+The page's model is **already a table**. Every item in `TASKS_DATA` is
+`{ visible, id, parentId, level, order, state, title, notes }` (`parseStrictPuncherYaml` ~4770). The
+YAML string is only a serialization of that array. So this change replaces the **transport**, not the
+data model - `renderAll()`, progress, switcher, modals, empty state and the pill are untouched.
+
+```
+today:      TASKS_DATA (rows) -> YAML string -> 1 row in lists
+row storage: TASKS_DATA (rows) -> diff -> N row upserts in tasks -> (other device) N rows -> TASKS_DATA
+```
+No blob exists anywhere on the page in the second pipeline. The blob survives only at the edges:
+copy/paste, the YAML editor modal, import/export, AI output, and the GHL custom field - all
+unchanged, because YAML is the *interchange* format (think CSV, not the database).
+
+### Two prerequisites, both small
+1. **Stable ids.** `generateSlugId('task', title, index)` derives the id from the title AND its
+   position, so a rename or a reorder changes it - fatal for row identity. Ids must be generated once
+   at creation (`crypto.randomUUID()`), then carried in the local cache and the DB.
+2. **`parentId` must be authoritative.** The strict parser sets `parentId: ''` and encodes nesting
+   with `level` + array order; user-created tasks DO set `parentId` (~3724). Derive `parentId` from the
+   parser's `taskStack` so rows always have a parent.
+
+Anything arriving as YAML has no ids, so it is an **import** (fresh ids) - correct, and paste therefore
+replaces rather than merges. Anything else would be a guess.
+
+### Schema
+```sql
+create table list_puncher.tasks (
+  id             uuid primary key default gen_random_uuid(),  -- DB row identity, never reused
+  location_id    text not null,
+  project_id     text not null,
+  tenant_hash    text not null,
+  task_id        text not null,          -- OUR id: stable across rename / reorder / reload
+  parent_task_id text,
+  level          int  not null default 0,
+  sort_order     int  not null default 0,
+  state          text not null default 'blank',
+  title          text not null default '',
+  notes          text not null default '',
+  visible        boolean not null default true,
+  updated_at     timestamptz not null default now(),
+  deleted_at     timestamptz,            -- soft delete ONLY
+  unique (location_id, project_id, tenant_hash, task_id)
+);
+```
+Both ids on purpose: the uuid PK is the database's own (never reused, never sent); `task_id` is the
+client's. Keeping `task_id` inside a composite unique (not as the PK) is what lets the same list - and
+therefore the same `task_id`s - be **copied into another project**.
+
+**Deletion is always explicit** (`deleted_at`), never inferred from absence. That single rule is what
+prevents the classic "my copy didn't have row 9, so row 9 got deleted" data loss.
+
+One RPC, `apply_task_changes(p_location, p_project, p_secret, p_changes jsonb)`: upsert the diff in
+one transaction and **return the full current list**, so the pusher converges in the same round trip.
+Different tasks touched by two people both survive; the same task is last-write-wins, which is the
+correct semantic for one cell.
+
+`EMPTY_LIST_SENTINEL` (`# lp-empty: 1`) disappears from the sync path - "empty" becomes "zero
+non-deleted rows", which is what the sentinel was working around.
+
+### Rollout (feature flag, NOT a fork - decided 2026-10-25)
+`?storage=rows` switches the backend; no param keeps today's blob path byte-for-byte. Revert is a URL
+change. A physical fork was rejected because two HTML files on the same origin share `localStorage` -
+the fork would read and write the live app's keys - and every later build would have to be applied
+twice.
+
+- Local cache in rows mode: JSON **with ids** under a namespaced key (`list_puncher_rows_...`), never
+  YAML, or every reload would regenerate ids and duplicate every row.
+- Backfill: first open in rows mode with no rows -> read the existing YAML (local key, else
+  `lists.checklist_text`), split into rows, write them. `lists` and the old keys stay untouched as the
+  live backup.
+- Seam (the only functions that swap): `loadCurrentProjectData`, `saveState`, `hydrateFromCloud`,
+  `scheduleCloudSave`, `flushCloudSaves`, `saveFromEditor`.
+- Once two-browser testing passes, flip the default and keep `?storage=blob` for one release.
+
+### What this makes easy afterwards
+- Realtime becomes genuinely cheap: one `postgres_changes` event = one row to apply, no merge problem.
+- Presence ("👤 Bob is viewing") is safe to add - an indicator, never a lock. Locks were rejected:
+  a closed laptop or an offline editor would lock everyone else out, and Google Sheets itself does not
+  lock cells (it does operational transform plus presence).
+
+### Also outstanding (from the original sync audit)
+- `PROJECTS_LIST` (which lists exist) is still local-only, so a brand-new list made by Person A does
+  not appear for Person B. Moving that directory to Supabase is a separate, smaller step.
+- Unsent edits are still lost if the tab closes during the 800 ms debounce; the fix is a persisted
+  per-project `pendingPush` flag, which the row design replaces with a persisted change set.
+

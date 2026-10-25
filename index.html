@@ -15,7 +15,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
     
     <!-- Separated Master Stylesheet (Zero Prism Crash) - version query busts the GitHub Pages 10min cache -->
-    <link rel="stylesheet" href="index.css?v=1.37">
+    <link rel="stylesheet" href="index.css?v=1.38">
 
     <script>
     /* Universal Dark Reader Kill Switch (Rule 9) */
@@ -338,7 +338,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     // =========================================================================
     const AUTOSAVE_DELAY_MS = 500;
     const INDENT_SPACES_PER_LEVEL = 2;
-    const APP_BUILD = '1.37'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
+    const APP_BUILD = '1.38'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
     // Bump whenever the UI_STATE defaults below change: a saved state older than this gets
     // the new defaults applied exactly ONCE (afterwards the user's own toggles win).
     const UI_STATE_DEFAULTS_VERSION = 2;
@@ -461,6 +461,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     const CLOUD_SAVE_DEBOUNCE_MS = 800;                 // local saves are instant; pushes are coalesced
     const CLOUD_REQUEST_TIMEOUT_MS = 12000;             // a stalled fetch must never freeze the pill
     const CLOUD_RETRY_MS = 15000;                       // retry window after a failed push (offline / 429)
+    const CLOUD_POLL_MS = 3000;                         // shared-list poll: how quickly another device's tick appears
     const CLOUD_REFRESH_ON_FOCUS = true;                // pull a newer shared copy when the tab regains focus
     const CLOUD_CONFIG_LOOKUP_TIMEOUT_MS = 4000;        // GHL custom-value lookup must never delay first paint
 
@@ -1003,6 +1004,10 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
 
     function executeAutoSave() {
         clearTimeout(AUTOSAVE_TIMER);
+        // clearTimeout() does NOT clear the handle itself. Leaving it truthy made "is a save
+        // still pending?" answer YES forever after the first keystroke, which silently
+        // disabled every guard that asked that question (cross-tab reload, cloud polling).
+        AUTOSAVE_TIMER = null;
         const savedOk = saveState();
         setStoragePillStatusTemporary(savedOk ? 'saved' : 'restricted', savedOk ? '✓ Saved' : '⚠ Save check failed', savedOk ? 1400 : 6000);
     }
@@ -1415,8 +1420,9 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     // The pill's resting state follows the cloud state, so "Not connected" / "Offline" survives
     // the local save engine's "✓ Saved" flash instead of being overwritten by it.
     function basePillState() {
-        if (!isCloudEnabled()) return { cls: 'restricted', text: '☁ Not connected' };
-        if (CLOUD_STATUS === 'offline') return { cls: 'restricted', text: '☁ Offline' };
+        // ⚠ (not ☁) for both failure states: an unreachable cloud is a warning, not a mood.
+        if (!isCloudEnabled()) return { cls: 'restricted', text: '⚠ Cloud off' };
+        if (CLOUD_STATUS === 'offline') return { cls: 'restricted', text: '⚠ Not syncing' };
         if (CLOUD_STATUS === 'saving') return { cls: 'saving', text: '☁ Saving...' };
         return { cls: 'healthy', text: 'LIST Storage' };
     }
@@ -1430,6 +1436,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         CLOUD_HYDRATING.clear();
         CLOUD_INFLIGHT = false;
         CLOUD_STATUS = 'off';
+        startCloudPolling();   // re-arm against the NEW target (a no-op when cloud is off)
     }
 
     function isCloudEnabled() {
@@ -1735,7 +1742,9 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         } else if (status === 'synced') {
             setStoragePillStatusTemporary('saved', '☁ Synced', 1600);
         } else if (status === 'offline') {
-            setStoragePillStatusTemporary('restricted', '☁ Offline', 6000);
+            // Deliberately NOT temporary: the warning stays up until a push or a poll really
+            // succeeds. Fading back to green after 6s would make a dead connection look fine.
+            setStoragePillStatus('restricted', '⚠ Not syncing');
         }
     }
 
@@ -1849,7 +1858,9 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
             } else if (localText.trim() && localText !== cloudText) {
                 scheduleCloudSave(localText);   // this device holds the newer copy
             }
-            setCloudStatus('synced');
+            // The poll calls this every few seconds; flipping the status to 'synced' each time
+            // would re-flash the "☁ Synced" pill forever, so only a real state change lights it.
+            if (CLOUD_STATUS !== 'synced') setCloudStatus('synced');
         } catch (e) {
             lpTrace('cloud load FAILED', 'project=' + projId + '  ' + e.message);
             setCloudStatus('offline');
@@ -1869,10 +1880,60 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         hydrateFromCloud(ACTIVE_PROJECT_ID, false);
     }
 
+    // =========================================================================
+    // SHARED-LIST POLLING (the "Google Sheets" feel)
+    // -------------------------------------------------------------------------
+    // Two people working the same list must see each other's ticks without anyone
+    // alt-tabbing. A GHL iframe is a poor place to hold a WebSocket open, so the app simply
+    // asks for the same row again on a slow timer: one keyed lookup of one row (a few
+    // hundred bytes, sub-millisecond on the database). This timer is also the safety net any
+    // realtime channel would need regardless - Supabase does not guarantee delivery of every
+    // event on a reconnect, so an event is a doorbell and the fetch is still the data.
+    // =========================================================================
+    let CLOUD_POLL_TIMER = null;
+
+    function stopCloudPolling() {
+        if (CLOUD_POLL_TIMER) clearInterval(CLOUD_POLL_TIMER);
+        CLOUD_POLL_TIMER = null;
+    }
+
+    function startCloudPolling() {
+        stopCloudPolling();
+        if (!isCloudEnabled() || !CLOUD_POLL_MS) return;
+        CLOUD_POLL_TIMER = setInterval(pollCloudOnce, CLOUD_POLL_MS);
+        lpTrace('cloud poll', 'every ' + CLOUD_POLL_MS + 'ms while this tab is visible');
+    }
+
+    // A silent pull must never run underneath a dialog that holds an INDEX into TASKS_DATA
+    // (the themed delete confirm) or an unsaved copy of the list (the YAML editor): adopting
+    // the shared copy mid-dialog would make "Confirm" delete the wrong row.
+    function listIsBusyForCloudPull() {
+        const ids = ['yamlModal', 'deleteModal', 'cloudSetupModal'];
+        for (let i = 0; i < ids.length; i++) {
+            const el = document.getElementById(ids[i]);
+            if (el && el.classList.contains('open')) return true;
+        }
+        return false;
+    }
+
+    // One tick of the timer. Every reason to skip is answered HERE rather than inside
+    // hydrateFromCloud(), so the rule stays readable: a hidden tab does nothing, an open
+    // dialog is never yanked away, a half-typed edit is saved before it is pulled over,
+    // and an offline browser does not hammer a dead network.
+    function pollCloudOnce() {
+        if (!isCloudEnabled() || document.hidden) return;
+        if (typeof navigator.onLine === 'boolean' && !navigator.onLine) return;
+        if (CLOUD_INFLIGHT || CLOUD_HYDRATING.size) return;
+        if (listIsBusyForCloudPull()) return;
+        if (AUTOSAVE_TIMER) return;                              // a keystroke is still waiting for saveState()
+        if (CLOUD_PENDING.size) { flushCloudSaves(); return; }   // this device's work goes out first
+        hydrateFromCloud(ACTIVE_PROJECT_ID, false);
+    }
+
     function initCloudSync() {
         if (!isCloudEnabled()) {
             lpTrace('cloud', 'OFF - no Supabase project connected for this sub-account');
-            setStoragePillStatus('restricted', '☁ Not connected');
+            setStoragePillStatus('restricted', '⚠ Cloud off');
             return;
         }
         lpTrace('cloud', 'ON ' + CLOUD_CONFIG.url + '/rest/v1/' + SUPABASE_LISTS_TABLE
@@ -1902,6 +1963,9 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
 
         // A push that was still queued when the page closed goes out on the next open.
         if (CLOUD_PENDING.size) flushCloudSaves();
+
+        // From here on the other devices' edits arrive on their own, no alt-tab required.
+        startCloudPolling();
     }
 
     // =========================================================================
