@@ -15,7 +15,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
     
     <!-- Separated Master Stylesheet (Zero Prism Crash) - version query busts the GitHub Pages 10min cache -->
-    <link rel="stylesheet" href="index.css?v=1.32">
+    <link rel="stylesheet" href="index.css?v=1.33">
 
     <script>
     /* Universal Dark Reader Kill Switch (Rule 9) */
@@ -304,7 +304,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     // =========================================================================
     const AUTOSAVE_DELAY_MS = 500;
     const INDENT_SPACES_PER_LEVEL = 2;
-    const APP_BUILD = '1.32'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
+    const APP_BUILD = '1.33'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
     // Bump whenever the UI_STATE defaults below change: a saved state older than this gets
     // the new defaults applied exactly ONCE (afterwards the user's own toggles win).
     const UI_STATE_DEFAULTS_VERSION = 2;
@@ -2908,7 +2908,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
                         </button>
                         <button type="button" class="btn-icon sec-action-btn" style="color:var(--accent-green)" title="YesAll - approve every task in this milestone" onclick="confirmSectionState(${sec.headerIndex}, TASK_YES)">&#10003;</button>
                         <button type="button" class="btn-icon sec-action-btn" style="color:var(--accent-no)" title="NoAll - reject/ignore every task in this milestone" onclick="confirmSectionState(${sec.headerIndex}, TASK_NO)">&#10005;</button>
-                        <button type="button" class="btn-icon sec-action-btn" title="BlankAll - reset every task in this milestone to untouched" onclick="confirmSectionState(${sec.headerIndex}, TASK_BLANK)">&#9633;</button>
+                        <button type="button" class="btn-icon sec-action-btn" title="BlankAll - reset every task in this milestone to untouched" onclick="confirmSectionState(${sec.headerIndex}, TASK_BLANK)"><span class="state-square"></span></button>
                         <button type="button" class="btn-icon sec-action-btn delete-btn" title="Delete milestone and all its tasks" onclick="confirmDeleteSection(${sec.headerIndex})">✕</button>
                     </div>
 
@@ -3053,7 +3053,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
                                 <button type="button" class="btn-icon" title="Outdent (Shift Left)" onclick="changeSubtreeLevel(${realIdx}, -1)">⇤</button>
                                 <button type="button" class="btn-icon" title="Indent (Nest Right)" onclick="changeSubtreeLevel(${realIdx}, 1)">⇥</button>
                                 <button type="button" class="btn-icon add-btn" title="Add subtask under this item" onclick="addSubtaskToBranch(${realIdx})">${PLUS_ADD_SVG_ICON}</button>
-                                ${hasChildren ? `<button type="button" class="btn-icon check-all-btn" title="YesAll - approve this task and its ${childCount} sub-task(s)" onclick="confirmBranchState(${realIdx}, TASK_YES)">&#10003;</button><button type="button" class="btn-icon" style="color:var(--accent-no)" title="NoAll - reject this task and its sub-tasks" onclick="confirmBranchState(${realIdx}, TASK_NO)">&#10005;</button><button type="button" class="btn-icon" title="BlankAll - reset this branch to untouched" onclick="confirmBranchState(${realIdx}, TASK_BLANK)">&#9633;</button>` : ''}
+                                ${hasChildren ? `<button type="button" class="btn-icon check-all-btn" title="YesAll - approve this task and its ${childCount} sub-task(s)" onclick="confirmBranchState(${realIdx}, TASK_YES)">&#10003;</button><button type="button" class="btn-icon" style="color:var(--accent-no)" title="NoAll - reject this task and its sub-tasks" onclick="confirmBranchState(${realIdx}, TASK_NO)">&#10005;</button><button type="button" class="btn-icon" title="BlankAll - reset this branch to untouched" onclick="confirmBranchState(${realIdx}, TASK_BLANK)"><span class="state-square"></span></button>` : ''}
                                 <button type="button" class="btn-icon copy-btn" title="Copy this task and its branch (List Puncher format)" onclick="copyTaskBranch(${realIdx})">${COPY_SVG_ICON}</button>
                                 <button type="button" class="btn-icon paste-btn" title="Paste subtasks into this branch (List Puncher format)" onclick="openYamlModal('branch', ${realIdx})">${PASTE_SUBTASKS_SVG_ICON}</button>
                                 <button type="button" class="btn-icon delete-btn" title="Delete task and branch" onclick="confirmDeleteTask(${realIdx})">✕</button>

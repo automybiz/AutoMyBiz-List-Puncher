@@ -34,7 +34,7 @@
     --indent-step: 22px;
 
     /* Build marker: lets the app detect a stale cached stylesheet (compared against APP_BUILD in index.html) */
-    --lp-css-build: "1.32";
+    --lp-css-build: "1.33";
 
     --completed-opacity: 0.42;
 
@@ -1789,8 +1789,18 @@ body.is-resizing .container-resize-handle {
 }
 
 .task-row.is-no .task-title-input {
-    text-decoration: line-through;
-    text-decoration-color: var(--accent-no);
-    text-decoration-thickness: 2px;
+    /* No strikethrough: it made ignored rows hard to read. The orange tint carries the meaning. */
     color: var(--accent-no);
+}
+
+/* BlankAll glyph: drawn rather than a font glyph, so it matches the check and cross
+   optically instead of rendering small, and it gets rounded corners. */
+.state-square {
+    width: 11px;
+    height: 11px;
+    border: 1.5px solid currentColor;
+    border-radius: 3px;
+    display: inline-block;
+    box-sizing: border-box;
+    vertical-align: middle;
 }
