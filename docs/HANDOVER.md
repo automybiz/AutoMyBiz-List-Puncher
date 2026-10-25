@@ -289,3 +289,36 @@ and the list count are unrelated:
 without `?location_id=` (a raw Pages visit, a `file://` open, a headless screenshot) mints its own
 tenant there. Nothing under it can leak into a real sub-account, because `get_list` filters on
 `location_id` **and** `project_id` **and** `tenant_hash`.
+
+
+---
+
+## 13. Build 1.36 - no more native dialogs (2026-10-25)
+
+`window.prompt()` / `confirm()` / `alert()` render as OS dialogs inside the GHL iframe and cannot be
+themed, so the list actions looked like a different product from the rest of the app. Everything in
+that path now uses the app's own cards (the same shell as the milestone Check All confirmation):
+
+| Action | Before | Now |
+|---|---|---|
+| New Project List... | `prompt()` | `#lpPromptModal`, name pre-filled |
+| Rename Active List... | `prompt()` | same card, current name pre-selected |
+| Delete Active List | `confirm()` | `openConfirmModal()` -> `CONFIRM_CONTEXT {type:'project'}` -> `deleteProjectList()` |
+| + New Section | `prompt()` | same card, via `addNewSection()` |
+| "paste a list first" / "could not read" | `alert()` | `showToast()` |
+
+**Prompt engine.** `openTextPrompt({title, label, value, placeholder, okLabel, hintHtml, validate,
+onSubmit})` plus `submitTextPrompt()` / `closeTextPrompt()` / `handlePromptKey(e)` /
+`setPromptError(msg)`. Enter submits, Escape closes, an overlay click closes, the field is
+pre-selected, and `validate` returns a string that is shown inline - a duplicate list name is refused
+*while the card is still open* instead of silently returning `null`. New CSS: `.prompt-field`,
+`.prompt-label`, `.prompt-input` (`.is-invalid`), `.prompt-hint`, `.prompt-error`,
+`.btn-modal-primary`.
+
+**Deleting a list now switches to another one.** `deleteProjectList()` drops the project's yaml + ui
+keys, removes the entry from `PROJECTS_LIST`, makes `PROJECTS_LIST[0]` active and reloads. The old
+inline code left the board pointing at the deleted list until the next switch.
+
+Verification: 55-assert harness (the `prompt` / `confirm` / `alert` stubs now THROW, so any regression
+fails the run instead of passing quietly), `node --check` on all three inline script blocks, CSS braces
+balanced, and headless-Chrome screenshots of the card in both its clean and rejected-name states.

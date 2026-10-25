@@ -15,7 +15,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
     
     <!-- Separated Master Stylesheet (Zero Prism Crash) - version query busts the GitHub Pages 10min cache -->
-    <link rel="stylesheet" href="index.css?v=1.35">
+    <link rel="stylesheet" href="index.css?v=1.36">
 
     <script>
     /* Universal Dark Reader Kill Switch (Rule 9) */
@@ -295,6 +295,31 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     </div>
 </div>
 
+<!-- Text Prompt Overlay (new / rename list, new milestone) -->
+<!-- Same shell as the confirm card above. window.prompt() cannot be styled, so it renders as
+     an OS dialog inside the GHL iframe - the one place this app looked unfinished. -->
+<div id="lpPromptModal" class="modal-overlay">
+    <div class="modal-card delete-modal-card confirm-accent" id="lpPromptCard">
+        <div class="modal-header delete-modal-header">
+            <div class="modal-title" id="lpPromptTitle">✏️ Rename Active List</div>
+            <button type="button" class="modal-close-btn" onclick="closeTextPrompt()">✕</button>
+        </div>
+        <div class="delete-modal-body">
+            <div class="prompt-field">
+                <label class="prompt-label" for="lpPromptInput" id="lpPromptLabel">List name</label>
+                <input type="text" id="lpPromptInput" class="prompt-input" autocomplete="off" spellcheck="false"
+                       onkeydown="handlePromptKey(event)">
+            </div>
+            <div class="prompt-hint" id="lpPromptHint"></div>
+            <div class="prompt-error" id="lpPromptError"></div>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn-action" onclick="closeTextPrompt()">Cancel</button>
+            <button type="button" class="btn-action btn-modal-primary" id="lpPromptOk" onclick="submitTextPrompt()">✓ Save</button>
+        </div>
+    </div>
+</div>
+
 <!-- Toast Popup Notification -->
 <div id="toast" class="toast">Action completed!</div>
 
@@ -304,7 +329,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     // =========================================================================
     const AUTOSAVE_DELAY_MS = 500;
     const INDENT_SPACES_PER_LEVEL = 2;
-    const APP_BUILD = '1.35'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
+    const APP_BUILD = '1.36'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
     // Bump whenever the UI_STATE defaults below change: a saved state older than this gets
     // the new defaults applied exactly ONCE (afterwards the user's own toggles win).
     const UI_STATE_DEFAULTS_VERSION = 2;
@@ -706,34 +731,68 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         showToast('Switched project list');
     }
 
+    // The three list actions open the app's own cards instead of window.prompt()/confirm(),
+    // which cannot be themed. Same shell as the milestone Check All confirmation.
     function promptCreateProject() {
         toggleProjectDropdown();
-        const name = prompt('Enter New Project List Name:', 'Project Tasks');
-        if (name && name.trim()) {
-            executeAutoSave();
-            const newId = generateSlugId('proj', name.trim(), Date.now());
-            PROJECTS_LIST.push({ id: newId, name: name.trim() });
-            localStorage.setItem(getProjectsStorageKey(), JSON.stringify(PROJECTS_LIST));
+        openTextPrompt({
+            title: '➕ New Project List',
+            label: 'List name',
+            value: 'Project Tasks',
+            okLabel: '✓ Create List',
+            hintHtml: 'A new list starts empty &mdash; the next screen shows the three ways to fill it.',
+            validate: (value) => {
+                const clash = PROJECTS_LIST.find(p => p.name.toLowerCase() === value.toLowerCase());
+                return clash
+                    ? `There is already a list called "${clash.name}". Pick a different name.`
+                    : null;
+            },
+            onSubmit: (name) => createProjectList(name)
+        });
+    }
 
-            ACTIVE_PROJECT_ID = newId;
-            localStorage.setItem(getActiveProjectStorageKey(), ACTIVE_PROJECT_ID);
+    function createProjectList(name) {
+        executeAutoSave();
+        const newId = generateSlugId('proj', name, Date.now());
+        PROJECTS_LIST.push({ id: newId, name: name });
+        localStorage.setItem(getProjectsStorageKey(), JSON.stringify(PROJECTS_LIST));
 
-            // A new list starts EMPTY on purpose: renderAll() then shows the guidance panel
-            // that teaches the three ways to fill it. Two things make that safe:
-            //   1. the project's own key must EXIST (the sentinel) - otherwise
-            //      loadCurrentProjectData() reads it as "never opened on this device" and
-            //      starts adopting another list (legacy cross-key, then any-key recovery);
-            //   2. no starter blueprint - seeding one here is what used to make a brand-new
-            //      list look like it already contained somebody else's tasks.
-            TASKS_DATA = [];
-            localStorage.removeItem(getProjectUiKey(newId));
-            localStorage.setItem(getProjectYamlKey(newId), EMPTY_LIST_SENTINEL);
-            saveState();
+        ACTIVE_PROJECT_ID = newId;
+        localStorage.setItem(getActiveProjectStorageKey(), ACTIVE_PROJECT_ID);
 
-            loadCurrentProjectData();
-            renderProjectDropdownUI();
-            showToast(`Created "${name.trim()}" - it's empty, pick a way to fill it`);
-        }
+        // A new list starts EMPTY on purpose: renderAll() then shows the guidance panel
+        // that teaches the three ways to fill it. Two things make that safe:
+        //   1. the project's own key must EXIST (the sentinel) - otherwise
+        //      loadCurrentProjectData() reads it as "never opened on this device" and
+        //      starts adopting another list (legacy cross-key, then any-key recovery);
+        //   2. no starter blueprint - seeding one here is what used to make a brand-new
+        //      list look like it already contained somebody else's tasks.
+        TASKS_DATA = [];
+        localStorage.removeItem(getProjectUiKey(newId));
+        localStorage.setItem(getProjectYamlKey(newId), EMPTY_LIST_SENTINEL);
+        saveState();
+
+        loadCurrentProjectData();
+        renderProjectDropdownUI();
+        showToast(`Created "${name}" - it's empty, pick a way to fill it`);
+    }
+
+    // Runs only after the confirmation card's Delete button. Deleting the active list means a
+    // different list becomes active, so this loads that one instead of leaving a stale board.
+    function deleteProjectList(projectId, projectName) {
+        localStorage.removeItem(getProjectYamlKey(projectId));
+        localStorage.removeItem(getProjectUiKey(projectId));
+
+        PROJECTS_LIST = PROJECTS_LIST.filter(p => p.id !== projectId);
+        localStorage.setItem(getProjectsStorageKey(), JSON.stringify(PROJECTS_LIST));
+
+        ACTIVE_PROJECT_ID = PROJECTS_LIST[0].id;
+        localStorage.setItem(getActiveProjectStorageKey(), ACTIVE_PROJECT_ID);
+
+        closeConfirmModal();
+        loadCurrentProjectData();
+        renderProjectDropdownUI();
+        showToast(`Deleted list "${projectName}"`);
     }
 
     function promptRenameProject() {
@@ -741,39 +800,49 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         const curProj = PROJECTS_LIST.find(p => p.id === ACTIVE_PROJECT_ID);
         if (!curProj) return;
 
-        const newName = prompt('Enter New Name for this Project List:', curProj.name);
-        if (newName && newName.trim() && newName.trim() !== curProj.name) {
-            curProj.name = newName.trim();
-            localStorage.setItem(getProjectsStorageKey(), JSON.stringify(PROJECTS_LIST));
-            renderProjectDropdownUI();
-            showToast(`Renamed project to "${curProj.name}"`);
-        }
+        openTextPrompt({
+            title: '✏️ Rename Active List',
+            label: 'List name',
+            value: curProj.name,
+            okLabel: '✓ Rename',
+            hintHtml: 'Only the name changes &mdash; the tasks stay exactly as they are.',
+            validate: (value) => {
+                const clash = PROJECTS_LIST.find(p => p.id !== curProj.id && p.name.toLowerCase() === value.toLowerCase());
+                return clash
+                    ? `There is already a list called "${clash.name}". Pick a different name.`
+                    : null;
+            },
+            onSubmit: (newName) => {
+                if (newName === curProj.name) return;   // nothing to do
+                curProj.name = newName;
+                localStorage.setItem(getProjectsStorageKey(), JSON.stringify(PROJECTS_LIST));
+                renderProjectDropdownUI();
+                showToast(`Renamed project to "${newName}"`);
+            }
+        });
     }
 
     function promptDeleteProject() {
         toggleProjectDropdown();
         if (PROJECTS_LIST.length <= 1) {
-            alert('Cannot delete the only remaining project list.');
+            showToast('This is your only list - create another one before deleting this one');
             return;
         }
 
         const curProj = PROJECTS_LIST.find(p => p.id === ACTIVE_PROJECT_ID);
         if (!curProj) return;
 
-        if (!confirm(`Are you sure you want to permanently delete the project list "${curProj.name}"?`)) return;
+        const itemCount = TASKS_DATA.length;
+        CONFIRM_CONTEXT = { type: 'project', projectId: curProj.id, projectName: curProj.name };
 
-        localStorage.removeItem(getProjectYamlKey(ACTIVE_PROJECT_ID));
-        localStorage.removeItem(getProjectUiKey(ACTIVE_PROJECT_ID));
-
-        PROJECTS_LIST = PROJECTS_LIST.filter(p => p.id !== ACTIVE_PROJECT_ID);
-        localStorage.setItem(getProjectsStorageKey(), JSON.stringify(PROJECTS_LIST));
-
-        ACTIVE_PROJECT_ID = PROJECTS_LIST[0].id;
-        localStorage.setItem(getActiveProjectStorageKey(), ACTIVE_PROJECT_ID);
-
-        loadCurrentProjectData();
-        renderProjectDropdownUI();
-        showToast('Project deleted');
+        openConfirmModal({
+            title: '✕ Delete Active List',
+            bodyHtml: `Permanently delete the list <strong>"${escapeHtml(curProj.name)}"</strong>`
+                + (itemCount ? ` and its <strong>${itemCount} item(s)</strong>?` : ' (it is empty)?')
+                + '<br><span style="color:var(--text-secondary);">This removes it from this sub-account and cannot be undone.</span>',
+            confirmLabel: '✕ Delete List',
+            accent: false
+        });
     }
 
     function loadCurrentProjectData() {
@@ -3736,23 +3805,30 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     }
 
     function addNewSection() {
-        const title = prompt('Enter New Milestone Title:', 'Milestone Name');
-        if (title && title.trim()) {
-            const cleanTitle = title.replace(/^\d+\.\s*/, () => '').trim();
-            TASKS_DATA.push({
-                visible: true,
-                id: generateSlugId('sec', cleanTitle, TASKS_DATA.length + 1),
-                parentId: '',
-                level: 0,
-                order: TASKS_DATA.length + 1,
-                state: 'blank',
-                title: cleanTitle,
-                notes: ''
-            });
-            executeAutoSave();
-            renderAll();
-            showToast(`Created milestone: ${cleanTitle}`);
-        }
+        openTextPrompt({
+            title: '➕ New Milestone',
+            label: 'Milestone title',
+            placeholder: 'Milestone Name',
+            okLabel: '✓ Add Milestone',
+            hintHtml: 'Add tasks and notes underneath it once it exists. A leading number is stripped &mdash; milestones are numbered automatically.',
+            validate: (value) => (value.replace(/^\d+\.\s*/, '').trim() ? null : 'Give the milestone a name.'),
+            onSubmit: (title) => {
+                const cleanTitle = title.replace(/^\d+\.\s*/, () => '').trim();
+                TASKS_DATA.push({
+                    visible: true,
+                    id: generateSlugId('sec', cleanTitle, TASKS_DATA.length + 1),
+                    parentId: '',
+                    level: 0,
+                    order: TASKS_DATA.length + 1,
+                    state: 'blank',
+                    title: cleanTitle,
+                    notes: ''
+                });
+                executeAutoSave();
+                renderAll();
+                showToast(`Created milestone: ${cleanTitle}`);
+            }
+        });
     }
 
     function autoExpandTextarea(el) {
@@ -3764,6 +3840,86 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     // =========================================================================
     // DELETE CONFIRMATION OVERLAY MODAL
     // =========================================================================
+    // =========================================================================
+    // TEXT PROMPT OVERLAY - replaces window.prompt()
+    // -------------------------------------------------------------------------
+    // window.prompt() cannot be themed and renders as an OS dialog inside the GHL
+    // iframe. This card is the same shell as the confirmation modal, so naming a list
+    // looks like the rest of the product, validates before it closes, and reports why
+    // a name was rejected instead of silently returning null.
+    // =========================================================================
+    let TEXT_PROMPT_CONTEXT = null;
+
+    function openTextPrompt(opts) {
+        const overlay = document.getElementById('lpPromptModal');
+        if (!overlay) return;
+        const options = opts || {};
+
+        TEXT_PROMPT_CONTEXT = {
+            onSubmit: typeof options.onSubmit === 'function' ? options.onSubmit : null,
+            validate: typeof options.validate === 'function' ? options.validate : null
+        };
+
+        document.getElementById('lpPromptTitle').innerText = options.title || 'Enter a value';
+        document.getElementById('lpPromptLabel').innerText = options.label || 'Value';
+        document.getElementById('lpPromptHint').innerHTML = options.hintHtml || '';
+        document.getElementById('lpPromptError').innerText = '';
+        document.getElementById('lpPromptOk').innerText = options.okLabel || '✓ Save';
+
+        const input = document.getElementById('lpPromptInput');
+        input.value = options.value || '';
+        input.placeholder = options.placeholder || '';
+        input.classList.remove('is-invalid');
+
+        overlay.classList.add('open');
+        // A native prompt pre-selected its default; keep that (type to replace).
+        setTimeout(() => { try { input.focus(); input.select(); } catch (e) {} }, 40);
+    }
+
+    function closeTextPrompt() {
+        const overlay = document.getElementById('lpPromptModal');
+        if (overlay) overlay.classList.remove('open');
+        TEXT_PROMPT_CONTEXT = null;
+    }
+
+    function handlePromptKey(e) {
+        if (!e) return;
+        if (e.key === 'Enter') { e.preventDefault(); submitTextPrompt(); }
+        else if (e.key === 'Escape') { e.preventDefault(); closeTextPrompt(); }
+    }
+
+    function setPromptError(message) {
+        const err = document.getElementById('lpPromptError');
+        const input = document.getElementById('lpPromptInput');
+        if (err) err.innerText = message || '';
+        if (input) input.classList.toggle('is-invalid', Boolean(message));
+    }
+
+    function submitTextPrompt() {
+        if (!TEXT_PROMPT_CONTEXT) return;
+
+        const input = document.getElementById('lpPromptInput');
+        const value = String((input && input.value) || '').trim();
+
+        if (!value) {
+            setPromptError('A name is required.');
+            if (input) input.focus();
+            return;
+        }
+        if (TEXT_PROMPT_CONTEXT.validate) {
+            const problem = TEXT_PROMPT_CONTEXT.validate(value);
+            if (problem) {
+                setPromptError(problem);
+                if (input) input.focus();
+                return;
+            }
+        }
+
+        const onSubmit = TEXT_PROMPT_CONTEXT.onSubmit;
+        closeTextPrompt();
+        if (onSubmit) onSubmit(value);
+    }
+
     // Shared confirmation overlay. Used by the delete flows AND by the milestone
     // Check/Uncheck All button: bulk-changing a long mixed list by accident is
     // exactly the kind of edit nobody wants to reconstruct by hand.
@@ -3907,6 +4063,9 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
             const pendingState = ctx.state;
             closeConfirmModal();
             applyBranchState(branchIdx, pendingState);
+            return;
+        } else if (ctx.type === 'project') {
+            deleteProjectList(ctx.projectId, ctx.projectName);
             return;
         }
 
@@ -4900,7 +5059,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         const yamlText = textarea.value.trim();
 
         if (!yamlText) {
-            alert('Please paste or enter your list.');
+            showToast('Paste or type a list first');
             return;
         }
 
@@ -4915,7 +5074,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
                 showToast('Applied full list!');
                 closeYamlModal();
             } else {
-                alert('Could not read any tasks from what you pasted.');
+                showToast('Could not read any tasks from what you pasted');
             }
         } else if (mode === 'section') {
             const parsed = parseYamlToTasks(yamlText);
@@ -5072,6 +5231,12 @@ tasks:
                 if (e.target === deleteModal) closeConfirmModal();
             });
         }
+        const promptModal = document.getElementById('lpPromptModal');
+        if (promptModal) {
+            promptModal.addEventListener('click', (e) => {
+                if (e.target === promptModal) closeTextPrompt();
+            });
+        }
         const cloudModal = document.getElementById('cloudSetupModal');
         if (cloudModal) {
             cloudModal.addEventListener('click', (e) => {
@@ -5091,6 +5256,7 @@ tasks:
         if (e.key === 'Escape') {
             closeYamlModal();
             closeConfirmModal();
+            closeTextPrompt();
             closeCloudSetupModal();
             const menu = document.getElementById('projectDropdownMenu');
             if (menu) menu.classList.remove('open');

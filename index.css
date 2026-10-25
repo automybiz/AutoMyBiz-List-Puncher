@@ -34,7 +34,7 @@
     --indent-step: 22px;
 
     /* Build marker: lets the app detect a stale cached stylesheet (compared against APP_BUILD in index.html) */
-    --lp-css-build: "1.35";
+    --lp-css-build: "1.36";
 
     --completed-opacity: 0.42;
 
@@ -1504,6 +1504,78 @@ body {
     background: rgba(0, 229, 255, 0.15);
     border-color: var(--accent-cyan);
     color: #fff;
+}
+
+/* ==========================================================================
+   TEXT PROMPT CARD - the in-app replacement for window.prompt()
+   --------------------------------------------------------------------------
+   Reuses .modal-overlay / .modal-card / .delete-modal-card.confirm-accent, so a
+   name prompt looks exactly like the Check All confirmation.
+   ========================================================================== */
+.btn-modal-primary {
+    background: var(--card-header-bg);
+    border: 1px solid var(--accent-cyan);
+    color: var(--accent-cyan);
+    font-weight: 700;
+}
+
+.btn-modal-primary:hover {
+    background: rgba(0, 229, 255, 0.15);
+    border-color: var(--accent-cyan);
+    color: #fff;
+}
+
+.prompt-field {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+}
+
+.prompt-label {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+
+.prompt-input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 10px 12px;
+    background: var(--card-header-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 0.95rem;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.prompt-input:focus {
+    outline: none;
+    border-color: var(--accent-cyan);
+    box-shadow: 0 0 0 2px rgba(0, 229, 255, 0.18);
+}
+
+.prompt-input.is-invalid {
+    border-color: var(--accent-red);
+    box-shadow: 0 0 0 2px rgba(255, 60, 60, 0.15);
+}
+
+.prompt-hint {
+    margin-top: 10px;
+    font-size: 0.78rem;
+    line-height: 1.5;
+    color: var(--text-muted);
+}
+
+.prompt-error {
+    margin-top: 8px;
+    min-height: 1.1em;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--accent-red);
 }
 
 /* ==========================================================================
