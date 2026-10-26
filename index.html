@@ -15,7 +15,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
     
     <!-- Separated Master Stylesheet (Zero Prism Crash) - version query busts the GitHub Pages 10min cache -->
-    <link rel="stylesheet" href="index.css?v=1.42">
+    <link rel="stylesheet" href="index.css?v=1.43">
 
     <script>
     /* Universal Dark Reader Kill Switch (Rule 9) */
@@ -338,7 +338,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     // =========================================================================
     const AUTOSAVE_DELAY_MS = 500;
     const INDENT_SPACES_PER_LEVEL = 2;
-    const APP_BUILD = '1.42'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
+    const APP_BUILD = '1.43'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
     // Bump whenever the UI_STATE defaults below change: a saved state older than this gets
     // the new defaults applied exactly ONCE (afterwards the user's own toggles win).
     const UI_STATE_DEFAULTS_VERSION = 2;
@@ -511,12 +511,14 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     // =========================================================================
     // STORAGE MODE - how list CONTENT is persisted in the cloud
     // -------------------------------------------------------------------------
-    //   'blob' (default) one YAML row per list in list_puncher.lists. Whole-list writes, so
-    //                    two people editing the same list at the same moment lose one edit.
-    //   'rows'           one row per task in list_puncher.tasks. Two people ticking DIFFERENT
+    //   'rows' (default) one row per task in list_puncher.tasks. Two people ticking DIFFERENT
     //                    tasks cannot touch each other's rows at all.
-    // Resolved once: ?storage=rows|blob -> this browser's choice -> 'blob'. The flag exists so
-    // the new transport can be switched off with a URL instead of a code change.
+    //   'blob'           one YAML row per list in list_puncher.lists. Whole-list writes, so two
+    //                    people editing the same list at the same moment lose one edit. Kept as
+    //                    the escape hatch: ?storage=blob or lpUseRows(false) goes straight back.
+    // An existing list is converted from its YAML blob the first time it is opened in rows mode,
+    // and the blob is never deleted, so switching back loses nothing.
+    // Resolved once: ?storage=rows|blob -> this browser's choice -> 'rows'.
     // =========================================================================
     const STORAGE_MODE_PARAM = 'storage';
     const STORAGE_MODE_KEY = `list_puncher_${LOCATION_ID}_storage_mode`;
@@ -528,7 +530,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
             const stored = String(localStorage.getItem(STORAGE_MODE_KEY) || '').toLowerCase();
             if (stored === 'rows' || stored === 'blob') return stored;
         } catch (e) { /* storage blocked - fall through to the default */ }
-        return 'blob';
+        return 'rows';
     })();
 
     // Console switch so nobody has to edit a GHL menu link: lpUseRows(true) / lpUseRows(false)
@@ -990,11 +992,27 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
             // blueprint may only be used when this browser has never cached this project.
             if (rowsStorageEnabled()) {
                 const cached = readRowsCache(ACTIVE_PROJECT_ID);
-                TASKS_DATA = cached ? cachedTasksToTasks(cached.tasks) : [];
+                let localYaml = null;
+                try { localYaml = localStorage.getItem(getProjectYamlKey(ACTIVE_PROJECT_ID)); } catch (e) { localYaml = null; }
+
+                if (cached) {
+                    TASKS_DATA = cachedTasksToTasks(cached.tasks);
+                } else if (localYaml) {
+                    // ONE-TIME CONVERSION. This list's real content lives in the YAML blob, so it
+                    // is the source for the first rows read. Falling through to "first run" here
+                    // would replace somebody's list with the starter blueprint - the single most
+                    // destructive way this flip could go wrong.
+                    TASKS_DATA = parseYamlToTasks(localYaml);
+                    lpTrace('rows convert (local)', 'project=' + ACTIVE_PROJECT_ID
+                        + '  ' + TASKS_DATA.length + ' task(s) from the YAML cache');
+                } else {
+                    TASKS_DATA = [];
+                }
                 lpTrace('load (rows)', 'key=' + getRowsCacheKey(ACTIVE_PROJECT_ID)
-                    + '  items=' + TASKS_DATA.length + '  cached=' + (cached ? 'yes' : 'no'));
+                    + '  items=' + TASKS_DATA.length + '  cached=' + (cached ? 'yes' : (localYaml ? 'yaml' : 'no')));
                 renderAll();
-                const maySeed = !cached && ACTIVE_PROJECT_ID === DEFAULT_PROJECT_ID;
+                // The blueprint may ONLY appear for a list this browser has never had any copy of.
+                const maySeed = !cached && !localYaml && ACTIVE_PROJECT_ID === DEFAULT_PROJECT_ID;
                 hydrateTasksFromCloud(ACTIVE_PROJECT_ID, true, maySeed ? seedOnboardingBlueprint : null);
                 return;
             }
@@ -2234,15 +2252,31 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         return 'task_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
     }
 
+    // PURE: who is this task's parent, according to the LEVELS the renderer actually draws?
+    // The nearest task above it with a strictly smaller level. Deriving it is deliberate: the
+    // parser has several branches (strict YAML, checklist shorthand, blueprints) and only some
+    // of them know a parentId, while `level` + order is what the tree is built from. Deriving
+    // here means the DB can never disagree with the screen - and it needs no per-branch fixes.
+    function parentTaskIdFromLevel(tasks, index) {
+        const level = Number(tasks[index] && tasks[index].level) || 0;
+        if (level <= 0) return null;
+        for (let i = index - 1; i >= 0; i--) {
+            const above = Number(tasks[i] && tasks[i].level) || 0;
+            if (above < level) return tasks[i] && tasks[i].id ? String(tasks[i].id) : null;
+        }
+        return null;
+    }
+
     // PURE: TASKS_DATA -> wire rows. Sort order IS the array position, because that is what the
     // screen shows. A task without an id gets one here and keeps it (the array is mutated on
     // purpose, so the next diff compares the same identity).
     function buildTaskRows(tasks) {
-        return (Array.isArray(tasks) ? tasks : []).map((t, i) => {
+        const list = Array.isArray(tasks) ? tasks : [];
+        return list.map((t, i) => {
             if (!t.id) t.id = newTaskId();
             return {
                 task_id: String(t.id),
-                parent_task_id: t.parentId ? String(t.parentId) : null,
+                parent_task_id: parentTaskIdFromLevel(list, i),
                 level: Number(t.level) || 0,
                 sort_order: i,
                 state: (t.state === 'yes' || t.state === 'no') ? t.state : 'blank',
@@ -2439,11 +2473,29 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
             if (!Array.isArray(rows)) return;
 
             if (!rows.length && !rowsAreSeeded(projId)) {
-                // Nothing shared and this browser+list has never seeded: this is a first run, not
-                // a list somebody emptied. A brand-new default list still gets the starter
-                // blueprint, exactly like the blob path does.
-                if (!TASKS_DATA.length && typeof onNoCloud === 'function') {
-                    onNoCloud();
+                // ONE-TIME CONVERSION from the YAML blob. Local copy first (instant), then the
+                // shared row - another machine may hold the only blob - and only a list this
+                // browser has never had ANY copy of may fall back to the starter blueprint.
+                if (!TASKS_DATA.length) {
+                    let text = '';
+                    try { text = localStorage.getItem(getProjectYamlKey(projId)) || ''; } catch (e) { text = ''; }
+                    if (!text.trim() || text.trim() === EMPTY_LIST_SENTINEL) {
+                        try {
+                            const blob = await cloudRpc('get_list', {
+                                p_location: LOCATION_ID,
+                                p_project: projId,
+                                p_secret: CLOUD_CONFIG.secret
+                            });
+                            if (Array.isArray(blob) && blob.length) text = blob[0].checklist_text || '';
+                        } catch (e) { /* no readable blob just means there is nothing to convert */ }
+                    }
+                    const converted = text ? parseYamlToTasks(text) : [];
+                    if (converted.length) {
+                        TASKS_DATA = converted;
+                        lpTrace('rows convert (cloud)', 'project=' + projId + '  ' + converted.length + ' task(s)');
+                    } else if (typeof onNoCloud === 'function') {
+                        onNoCloud();
+                    }
                     renderAll();
                 }
                 markRowsSeeded(projId);

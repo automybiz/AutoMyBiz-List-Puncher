@@ -13,7 +13,7 @@ Kickoff for a new Cline task:
 | Repo | `github.com/automybiz/AutoMyBiz-List-Puncher` (public, branch `main`) |
 | Local | `x:\DATA\_SOFTWARE\_3D_PRINTING\_PROJECTS\_WEB\CODE\AutoMyBiz List Puncher` |
 | App | single-file `index.html` + `index.css`, served by GitHub Pages, embedded in GoHighLevel via a Custom Menu Link |
-| Build | **1.42** (`APP_BUILD`, `index.css?v=`, `--lp-css-build` — keep all three in sync) |
+| Build | **1.43** (`APP_BUILD`, `index.css?v=`, `--lp-css-build` — keep all three in sync) |
 | Database | Supabase project ref `dhuhkinuruxbwddhffwk` (org AutoMyBiz, us-west-2, free plan), schema `list_puncher` |
 | Product goal | zero-touch onboarding per GHL sub-account (agency hosts the data, per-tenant isolation), with an optional upgrade path to a client's own Supabase project |
 
@@ -812,6 +812,55 @@ clamping) would both be worse than a wider sanity bound.
   §20). Orphaned rows are harmless but should be swept some day.
 - **A YAML import can reuse an existing id**, because parser ids are content+position derived. That is
   treated as an update to that task, which is the sane reading of "same title at the same place".
+
+## 22. Build 1.43 - rows is the default (2026-10-25)
+
+`STORAGE_MODE` now falls back to `'rows'`. `?storage=blob` or `lpUseRows(false)` is the escape hatch,
+and **the YAML blob is never deleted**, so switching back loses nothing.
+
+### The bug that had to be fixed BEFORE flipping
+1.42 shipped the transport but **not the one-time conversion**. Every existing list has YAML content
+and zero task rows, so the first rows-mode load fell through to the "first run" branch and seeded the
+**starter blueprint** - i.e. flipping the default would have made every real list look replaced by 22
+demo tasks. That is the single most destructive way this change could go wrong, and it was one branch
+away.
+
+Two places now convert from the blob instead:
+- `loadCurrentProjectData()` (rows mode): no JSON cache but a YAML cache -> `parseYamlToTasks` and use
+  that. The starter blueprint is only allowed when this browser has **no copy of any kind** of the list.
+- `hydrateTasksFromCloud()` (seed branch): local YAML first, then the **shared row via `get_list`** -
+  another machine may hold the only blob - and only then `onNoCloud()`.
+
+### Parent links are now derived, not trusted
+The parser has several task-creation branches (strict YAML, checklist shorthand, blueprints) and only
+some of them set a `parentId`; `level` + array order is what the tree is actually drawn from. So
+`parentTaskIdFromLevel()` derives the parent at the wire boundary: the nearest task above with a
+strictly smaller level. One implementation, always consistent with the screen, no per-branch fixes.
+Verified the difference: the same 18-row conversion produced **0 parent links before the fix and 13 of
+18 after** (the 5 sections are roots) across 8 distinct parents - level-2 tasks hang off level-1 tasks,
+which is correct.
+
+### Verified
+- `lp-rows-test.js`: **69 asserts** (6 new for parent derivation, 1 for the default flip, 1 for the
+  escape hatch), all pass.
+- **Two-pass upgrade test against the live database**, which is exactly the real-world path:
+  1. a fresh profile loads a throwaway location in blob mode -> creates the YAML row (2,690 bytes);
+  2. the SAME profile reopens it with `?storage=rows` -> the blob is converted to **18 task rows**
+     and the YAML row is left untouched at 2,690 bytes.
+  All throwaway rows deleted afterwards (`tasks` 0, `directories` 3, `lists` 3, `tenants` 4).
+- `lp-directory-test.js` 23/23, `lp-secret-test.js` 35/35, `lp-poll-test.js` 34/34,
+  `lp-empty-list-test.js` unchanged, 3/3 inline scripts compile.
+
+### How to roll back
+`lpUseRows(false)` in the console (persists), or `?storage=blob` in the URL (one-off). The list comes
+back from the untouched YAML blob. To go forward again, `lpUseRows(true)` — the conversion is guarded
+by `..._rows_seeded`, so it happens once per browser+list and never re-runs.
+
+### Still open
+- Each list converts the **first time it is opened**, not all at once (the pull is per active list).
+- `get_task_revision` is still unused; the poll fetches every row each tick.
+- Deleting a list leaves its task rows behind (§20/§21).
+- The intro tour for Day.
 
 ### Rollout (feature flag, NOT a fork - decided 2026-10-25)
 `?storage=rows` switches the backend; no param keeps today's blob path byte-for-byte. Revert is a URL
