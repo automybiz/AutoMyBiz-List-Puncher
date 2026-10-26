@@ -13,7 +13,7 @@ Kickoff for a new Cline task:
 | Repo | `github.com/automybiz/AutoMyBiz-List-Puncher` (public, branch `main`) |
 | Local | `x:\DATA\_SOFTWARE\_3D_PRINTING\_PROJECTS\_WEB\CODE\AutoMyBiz List Puncher` |
 | App | single-file `index.html` + `index.css`, served by GitHub Pages, embedded in GoHighLevel via a Custom Menu Link |
-| Build | **1.43** (`APP_BUILD`, `index.css?v=`, `--lp-css-build` — keep all three in sync) |
+| Build | **1.44** (`APP_BUILD`, `index.css?v=`, `--lp-css-build` — keep all three in sync) |
 | Database | Supabase project ref `dhuhkinuruxbwddhffwk` (org AutoMyBiz, us-west-2, free plan), schema `list_puncher` |
 | Product goal | zero-touch onboarding per GHL sub-account (agency hosts the data, per-tenant isolation), with an optional upgrade path to a client's own Supabase project |
 
@@ -861,6 +861,74 @@ by `..._rows_seeded`, so it happens once per browser+list and never re-runs.
 - `get_task_revision` is still unused; the poll fetches every row each tick.
 - Deleting a list leaves its task rows behind (§20/§21).
 - The intro tour for Day.
+
+## 23. Build 1.44 - the format is called LPF, and "yaml" is gone (2026-10-25)
+
+### The name
+**LPF = List Puncher Format.** In prose the app already said "List Puncher format" in every
+user-visible string (Copy LIST, Copy milestone, Paste tasks, Paste subtasks, the editor button) - so this
+is not a new name, it is the name the UI already used, finally reflected in the code.
+
+Rejected, and why:
+- **LPML** - "Markup Language" is the wrong suffix. This is a serialization *format*, not a language
+  anybody writes code in, and four consonants with one vowel is unpronounceable.
+- **PUML** - drops "List" (the product is *List* Puncher), and worse, `.puml` is PlantUML's extension.
+  Searching for it would return a diagramming tool.
+
+### The rename
+`index.html` had **206** occurrences of "yaml". It now has **2**, on one line: the AI prompt that says
+*"This is NOT standard YAML, so do NOT try to fix it into strict YAML"*. That one is **functional** - it
+stops a language model from "correcting" the format into real YAML with `task:`/`checked:` keys - so it
+stays deliberately. `index.css`: 0.
+
+| Was | Now |
+|---|---|
+| `parseYamlToTasks` | `parseChecklistText` |
+| `formatTasksSliceAsYaml` | `formatChecklistText` |
+| `parseStrictPuncherYaml` / `parseLegacyShorthandYaml` | `parseStrictChecklist` / `parseLegacyShorthand` |
+| `isStrictPuncherYaml` | `isStrictChecklistShape` |
+| `isYamlBlockIndicator` | `isBlockScalarIndicator` |
+| `unquoteYamlScalar` / `yamlQuote` | `unquoteScalar` / `quoteScalar` |
+| `parseYamlBoolean` | `parseChecklistBoolean` |
+| `openYamlModal` / `closeYamlModal` | `openChecklistEditor` / `closeChecklistEditor` |
+| `applyYamlModalChanges` / `handleYamlModalKeydown` | `applyChecklistEditorChanges` / `handleChecklistEditorKeydown` |
+| `prettifyModalYaml` / `modalYamlTextarea` | `prettifyModalChecklist` / `modalChecklistTextarea` |
+| `copyAllAsYamlToClipboard` / `copySectionAsYaml` | `copyAllChecklistToClipboard` / `copySectionChecklist` |
+| `getProjectYamlKey` | `getProjectChecklistKey` |
+| `clampYamlNestingSteps` | `clampChecklistNestingSteps` |
+| `pushYamlTextValue` | `pushTextValue` |
+| `yamlText` / `yamlStr` / `yaml` (param) | `checklistText` / `checklistStr` / `source` |
+| `fullYaml` / `rawYaml` / `legacyYaml` / `localYaml` | `fullText` / `rawText` / `legacyText` / `localBlobText` |
+| `LAST_SAVED_YAML` | `LAST_SAVED_TEXT` |
+| DOM id `yamlModal` | `checklistModal` |
+| localStorage `…_proj_<id>_yaml`, `list_puncher_yaml` | `…_proj_<id>_checklist`, `list_puncher_checklist` |
+
+**Consequence of the key rename, accepted deliberately:** lists that existed only in this browser under
+the old `_yaml` key are no longer read locally. Nothing is lost - the `lists` blob row is untouched and
+rows mode reads `list_puncher.tasks` - but a pre-1.44 list will no longer paint instantly from
+localStorage. No read-through shim was added, on the owner's instruction (backups exist).
+
+### Verified
+- 3/3 inline scripts compile after 200+ identifier replacements.
+- All five harnesses green: rows 69, directory 23, secret 35, poll 34, empty-list unchanged.
+  Two harness fixes were needed and are the suite doing its job: `lp-empty-list-test.js` extracts
+  functions **by name** (`LAST_SAVED_YAML`, `pushYamlTextValue`, `prevYaml`…), and `lp-poll-test.js`
+  pinned the old `yamlModal` id - that one failed loudly as "skipped: the LPF editor is open".
+- Live rows-mode run after the rename: tooltip reports
+  `Key: list_puncher_<loc>_proj_default_onboarding_checklist`, and 18 rows were written with 13
+  parent links - identical to the pre-rename run.
+
+### Production conversion status at this handover (2026-10-26)
+All three lists have been opened in rows mode and converted:
+
+| project_id | rows | sections | tasks | checked | tasks with a parent |
+|---|---|---|---|---|---|
+| `default_onboarding` | 109 | 11 | 98 | 7 | 98 of 98 |
+| `proj_supabase_setup_1792913084870` | 18 | 5 | 13 | 7 | 13 of 13 |
+| `proj_supabase_setup_and_mcp_connection_1792913935559` | 165 | 9 | 156 | 3 | 156 of 156 |
+
+Every task is parented, every section is a level-0 root, and the tick counts match what was on screen
+before the flip. The `lists` YAML rows are still present and untouched.
 
 ### Rollout (feature flag, NOT a fork - decided 2026-10-25)
 `?storage=rows` switches the backend; no param keeps today's blob path byte-for-byte. Revert is a URL

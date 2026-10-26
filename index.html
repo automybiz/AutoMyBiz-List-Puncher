@@ -15,7 +15,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
     
     <!-- Separated Master Stylesheet (Zero Prism Crash) - version query busts the GitHub Pages 10min cache -->
-    <link rel="stylesheet" href="index.css?v=1.43">
+    <link rel="stylesheet" href="index.css?v=1.44">
 
     <script>
     /* Universal Dark Reader Kill Switch (Rule 9) */
@@ -95,7 +95,7 @@
 
             <!-- Mode Status Pill -->
             <div class="header-pill-wrap">
-                <button id="modeStatusPill" class="status-pill status-editor" onclick="openYamlModal('full')" aria-label="Click to view permissions and rules">
+                <button id="modeStatusPill" class="status-pill status-editor" onclick="openChecklistEditor('full')" aria-label="Click to view permissions and rules">
                     <span id="modeIcon">✏️</span>
                     <span id="modeText">Editor Mode</span>
                 </button>
@@ -121,7 +121,7 @@
 
             <!-- Live Auto-Save Storage Pill -->
             <div class="header-pill-wrap">
-                <button id="storageStatusPill" class="status-pill status-saved" onclick="openYamlModal('full')" aria-label="Click to view and edit the full list">
+                <button id="storageStatusPill" class="status-pill status-saved" onclick="openChecklistEditor('full')" aria-label="Click to view and edit the full list">
                     <span id="pillIcon">💾</span>
                     <span id="pillText">LIST Storage</span>
                 </button>
@@ -131,7 +131,7 @@
                         <span>List Puncher Storage Engine</span>
                     </div>
                     <div id="tooltipStatusNotice">Auto-saved with 500ms live debounce. The line below shows the exact storage key, the size of this project's saved list and every list key found in this browser.</div>
-                    <div class="tooltip-code-box" id="storageKeyBox">Key: list_puncher_yaml</div>
+                    <div class="tooltip-code-box" id="storageKeyBox">Key: list_puncher_checklist</div>
                     <span class="tooltip-footer-note">Click the pill to open the List Puncher list editor. Console: lpStorageReport() dumps every storage key.</span>
                 </div>
             </div>
@@ -176,10 +176,10 @@
                 <button type="button" class="btn-action btn-toggle" id="btnDepthColors" onclick="toggleDepthColors()" title="Toggle alternating color depths vs solid theme color">
                     🎨 Colors: ALT
                 </button>
-                <button type="button" class="btn-action" onclick="openYamlModal('full')" title="Open the List Puncher list editor">
+                <button type="button" class="btn-action" onclick="openChecklistEditor('full')" title="Open the List Puncher list editor">
                     📝 LIST Editor
                 </button>
-                <button type="button" class="btn-action" onclick="copyAllAsYamlToClipboard()" title="Copy the whole list in List Puncher format (ready for Notepad++)">
+                <button type="button" class="btn-action" onclick="copyAllChecklistToClipboard()" title="Copy the whole list in List Puncher format (ready for Notepad++)">
                     📋 Copy LIST
                 </button>
                 <button type="button" class="btn-action" onclick="openCloudSetupModal()" title="Connect this GHL sub-account to its own Supabase project">
@@ -227,29 +227,29 @@
 </div>
 
 <!-- List Modal Overlay -->
-<div id="yamlModal" class="modal-overlay">
+<div id="checklistModal" class="modal-overlay">
     <div class="modal-card">
         <div class="modal-header">
             <div class="modal-title-wrap">
                 <div class="modal-title" id="modalTitle">📋 Full LIST Editor</div>
                 <div class="modal-subtitle" id="modalSubtitle">Paste from AI Studio or Notepad++</div>
             </div>
-            <button type="button" class="modal-close-btn" onclick="closeYamlModal()">✕</button>
+            <button type="button" class="modal-close-btn" onclick="closeChecklistEditor()">✕</button>
         </div>
         <div class="modal-body">
-            <textarea id="modalYamlTextarea" class="modal-textarea" spellcheck="false" placeholder="Paste your list here..." onkeydown="handleYamlModalKeydown(event, this)"></textarea>
+            <textarea id="modalChecklistTextarea" class="modal-textarea" spellcheck="false" placeholder="Paste your list here..." onkeydown="handleChecklistEditorKeydown(event, this)"></textarea>
         </div>
         <div class="modal-footer">
             <div style="display: flex; align-items: center; gap: 8px;">
                 <span class="modal-hint" style="white-space: pre-line; line-height: 1.35;">Easily Indent Large Blocks of Highlighted Data using Tab (right->) OR Shift+Tab (<-left)
 Paste straight from any AI - List Puncher tidies the indentation on Apply.</span>
-                <button type="button" class="btn-action btn-sm" onclick="prettifyModalYaml()" title="Tidy up a pasted List Puncher list (indentation and notes)">
+                <button type="button" class="btn-action btn-sm" onclick="prettifyModalChecklist()" title="Tidy up a pasted List Puncher list (indentation and notes)">
                     ✨ Prettify LIST
                 </button>
             </div>
             <div style="display: flex; gap: 8px;">
-                <button type="button" class="btn-action" onclick="closeYamlModal()">Cancel</button>
-                <button type="button" class="btn-action btn-primary" onclick="applyYamlModalChanges()">✓ Apply LIST</button>
+                <button type="button" class="btn-action" onclick="closeChecklistEditor()">Cancel</button>
+                <button type="button" class="btn-action btn-primary" onclick="applyChecklistEditorChanges()">✓ Apply LIST</button>
             </div>
         </div>
     </div>
@@ -338,7 +338,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     // =========================================================================
     const AUTOSAVE_DELAY_MS = 500;
     const INDENT_SPACES_PER_LEVEL = 2;
-    const APP_BUILD = '1.43'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
+    const APP_BUILD = '1.44'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
     // Bump whenever the UI_STATE defaults below change: a saved state older than this gets
     // the new defaults applied exactly ONCE (afterwards the user's own toggles win).
     const UI_STATE_DEFAULTS_VERSION = 2;
@@ -455,8 +455,8 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     const SUPABASE_SCHEMA = 'list_puncher';             // exposed separately from public in the Data API
     const SUPABASE_LISTS_TABLE = 'lists';
     // The text column is named after the CONTENT, never a format: this text is List Puncher's
-    // own checklist shorthand (YAML-flavoured headers + markdown-flavoured checkboxes), so
-    // calling it "yaml" was misleading.
+    // own checklist shorthand (LPF-flavoured headers + markdown-flavoured checkboxes), so
+    // calling it "source" was misleading.
     const SUPABASE_TEXT_COLUMN = 'checklist_text';
     const CLOUD_SAVE_DEBOUNCE_MS = 800;                 // local saves are instant; pushes are coalesced
     const CLOUD_REQUEST_TIMEOUT_MS = 12000;             // a stalled fetch must never freeze the pill
@@ -513,10 +513,10 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     // -------------------------------------------------------------------------
     //   'rows' (default) one row per task in list_puncher.tasks. Two people ticking DIFFERENT
     //                    tasks cannot touch each other's rows at all.
-    //   'blob'           one YAML row per list in list_puncher.lists. Whole-list writes, so two
+    //   'blob'           one LPF row per list in list_puncher.lists. Whole-list writes, so two
     //                    people editing the same list at the same moment lose one edit. Kept as
     //                    the escape hatch: ?storage=blob or lpUseRows(false) goes straight back.
-    // An existing list is converted from its YAML blob the first time it is opened in rows mode,
+    // An existing list is converted from its LPF blob the first time it is opened in rows mode,
     // and the blob is never deleted, so switching back loses nothing.
     // Resolved once: ?storage=rows|blob -> this browser's choice -> 'rows'.
     // =========================================================================
@@ -650,8 +650,8 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         return `list_puncher_${LOCATION_ID}_active_proj_id`;
     }
 
-    function getProjectYamlKey(projId) {
-        return `list_puncher_${LOCATION_ID}_proj_${projId}_yaml`;
+    function getProjectChecklistKey(projId) {
+        return `list_puncher_${LOCATION_ID}_proj_${projId}_checklist`;
     }
 
     function getProjectUiKey(projId) {
@@ -792,7 +792,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     function refreshPillTooltip() {
         const storageBox = document.getElementById('storageKeyBox');
         if (!storageBox) return;
-        storageBox.innerText = `Key: list_puncher_${LOCATION_ID}_proj_${ACTIVE_PROJECT_ID}_yaml`
+        storageBox.innerText = `Key: list_puncher_${LOCATION_ID}_proj_${ACTIVE_PROJECT_ID}_checklist`
             + describeStorage() + describeTenant();
     }
 
@@ -800,13 +800,13 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     // not come back after a refresh (wrong key, empty key, blocked storage).
     function describeStorage() {
         try {
-            const projectKey = getProjectYamlKey(ACTIVE_PROJECT_ID);
+            const projectKey = getProjectChecklistKey(ACTIVE_PROJECT_ID);
             const mine = localStorage.getItem(projectKey) || '';
-            const legacy = localStorage.getItem('list_puncher_yaml') || '';
+            const legacy = localStorage.getItem('list_puncher_checklist') || '';
             const found = [];
             for (let i = 0; i < localStorage.length; i++) {
                 const k = localStorage.key(i);
-                if (k && k.indexOf('list_puncher_') === 0 && k.indexOf('_yaml') !== -1) {
+                if (k && k.indexOf('list_puncher_') === 0 && k.indexOf('_checklist') !== -1) {
                     found.push(k + ' (' + ((localStorage.getItem(k) || '').length) + 'b)');
                 }
             }
@@ -881,7 +881,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         //      list look like it already contained somebody else's tasks.
         TASKS_DATA = [];
         localStorage.removeItem(getProjectUiKey(newId));
-        localStorage.setItem(getProjectYamlKey(newId), EMPTY_LIST_SENTINEL);
+        localStorage.setItem(getProjectChecklistKey(newId), EMPTY_LIST_SENTINEL);
         saveState();
 
         loadCurrentProjectData();
@@ -892,7 +892,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     // Runs only after the confirmation card's Delete button. Deleting the active list means a
     // different list becomes active, so this loads that one instead of leaving a stale board.
     function deleteProjectList(projectId, projectName) {
-        localStorage.removeItem(getProjectYamlKey(projectId));
+        localStorage.removeItem(getProjectChecklistKey(projectId));
         localStorage.removeItem(getProjectUiKey(projectId));
 
         PROJECTS_LIST = PROJECTS_LIST.filter(p => p.id !== projectId);
@@ -992,56 +992,56 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
             // blueprint may only be used when this browser has never cached this project.
             if (rowsStorageEnabled()) {
                 const cached = readRowsCache(ACTIVE_PROJECT_ID);
-                let localYaml = null;
-                try { localYaml = localStorage.getItem(getProjectYamlKey(ACTIVE_PROJECT_ID)); } catch (e) { localYaml = null; }
+                let localBlobText = null;
+                try { localBlobText = localStorage.getItem(getProjectChecklistKey(ACTIVE_PROJECT_ID)); } catch (e) { localBlobText = null; }
 
                 if (cached) {
                     TASKS_DATA = cachedTasksToTasks(cached.tasks);
-                } else if (localYaml) {
-                    // ONE-TIME CONVERSION. This list's real content lives in the YAML blob, so it
+                } else if (localBlobText) {
+                    // ONE-TIME CONVERSION. This list's real content lives in the LPF blob, so it
                     // is the source for the first rows read. Falling through to "first run" here
                     // would replace somebody's list with the starter blueprint - the single most
                     // destructive way this flip could go wrong.
-                    TASKS_DATA = parseYamlToTasks(localYaml);
+                    TASKS_DATA = parseChecklistText(localBlobText);
                     lpTrace('rows convert (local)', 'project=' + ACTIVE_PROJECT_ID
-                        + '  ' + TASKS_DATA.length + ' task(s) from the YAML cache');
+                        + '  ' + TASKS_DATA.length + ' task(s) from the LPF cache');
                 } else {
                     TASKS_DATA = [];
                 }
                 lpTrace('load (rows)', 'key=' + getRowsCacheKey(ACTIVE_PROJECT_ID)
-                    + '  items=' + TASKS_DATA.length + '  cached=' + (cached ? 'yes' : (localYaml ? 'yaml' : 'no')));
+                    + '  items=' + TASKS_DATA.length + '  cached=' + (cached ? 'yes' : (localBlobText ? 'source' : 'no')));
                 renderAll();
                 // The blueprint may ONLY appear for a list this browser has never had any copy of.
-                const maySeed = !cached && !localYaml && ACTIVE_PROJECT_ID === DEFAULT_PROJECT_ID;
+                const maySeed = !cached && !localBlobText && ACTIVE_PROJECT_ID === DEFAULT_PROJECT_ID;
                 hydrateTasksFromCloud(ACTIVE_PROJECT_ID, true, maySeed ? seedOnboardingBlueprint : null);
                 return;
             }
 
             // Load the list content for this project
-            const projectKey = getProjectYamlKey(ACTIVE_PROJECT_ID);
-            const rawYaml = localStorage.getItem(projectKey);
+            const projectKey = getProjectChecklistKey(ACTIVE_PROJECT_ID);
+            const rawText = localStorage.getItem(projectKey);
 
             // PRESENCE of this project's own key is authoritative - including when it holds
             // nothing but the empty sentinel. A list must never inherit another list's tasks
             // just because its own copy is empty; that is exactly how a newly created list
             // ended up showing the previously active list.
-            if (rawYaml !== null) {
-                const parsed = parseYamlToTasks(rawYaml);
+            if (rawText !== null) {
+                const parsed = parseChecklistText(rawText);
                 if (parsed.length) {
                     TASKS_DATA = parsed;
-                    lpTrace('load OK', 'key=' + projectKey + '  items=' + parsed.length + '  bytes=' + rawYaml.length);
+                    lpTrace('load OK', 'key=' + projectKey + '  items=' + parsed.length + '  bytes=' + rawText.length);
                     renderAll();
                     // Cached list is on screen instantly; the shared row may still be newer.
                     hydrateFromCloud(ACTIVE_PROJECT_ID, true);
                     return;
                 }
 
-                const storedText = rawYaml.trim();
+                const storedText = rawText.trim();
                 if (storedText && storedText !== EMPTY_LIST_SENTINEL) {
                     // Stored text that does not parse is NEVER overwritten - keep it on disk
                     // (it can still be recovered by hand) and say so in the storage pill.
-                    lpTrace('load UNREADABLE', 'key=' + projectKey + '  bytes=' + rawYaml.length + '  -> left untouched');
-                    console.warn('[List Puncher] Stored list in ' + projectKey + ' (' + rawYaml.length + ' chars) could not be parsed. Left untouched.');
+                    lpTrace('load UNREADABLE', 'key=' + projectKey + '  bytes=' + rawText.length + '  -> left untouched');
+                    console.warn('[List Puncher] Stored list in ' + projectKey + ' (' + rawText.length + ' chars) could not be parsed. Left untouched.');
                     TASKS_DATA = [];
                     setStoragePillStatus('restricted', '⚠ Stored list unreadable');
                     renderAll();
@@ -1064,12 +1064,12 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
             // lying around in this browser - a list the user created has to start empty rather
             // than pick up whatever else happens to be stored here.
             if (ACTIVE_PROJECT_ID === DEFAULT_PROJECT_ID) {
-                const legacyYaml = localStorage.getItem('list_puncher_yaml');
-                if (legacyYaml && legacyYaml.trim()) {
-                    const parsedLegacy = parseYamlToTasks(legacyYaml);
+                const legacyText = localStorage.getItem('list_puncher_checklist');
+                if (legacyText && legacyText.trim()) {
+                    const parsedLegacy = parseChecklistText(legacyText);
                     if (parsedLegacy.length) {
                         TASKS_DATA = parsedLegacy;
-                        lpTrace('load LEGACY KEY', 'key=list_puncher_yaml  items=' + parsedLegacy.length + '  -> re-homed to ' + projectKey);
+                        lpTrace('load LEGACY KEY', 'key=list_puncher_checklist  items=' + parsedLegacy.length + '  -> re-homed to ' + projectKey);
                         saveState();
                         renderAll();
                         return;
@@ -1146,7 +1146,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     //     copy(lpStorageReport())    -> copies that dump to the clipboard
     // =========================================================================
     const LP_TRACE = [];
-    let LAST_SAVED_YAML = null;
+    let LAST_SAVED_TEXT = null;
 
     function lpTrace(tag, detail) {
         const stamp = new Date().toTimeString().slice(0, 8);
@@ -1179,13 +1179,13 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         lines.push('LOCATION_ID:     ' + LOCATION_ID + '   (URL location_id: ' + (urlParams.get('location_id') || 'none') + ')');
         lines.push('URL project:     ' + (URL_PROJECT || '(none)'));
         lines.push('ACTIVE_PROJECT:  ' + ACTIVE_PROJECT_ID);
-        lines.push('project key:     ' + getProjectYamlKey(ACTIVE_PROJECT_ID));
+        lines.push('project key:     ' + getProjectChecklistKey(ACTIVE_PROJECT_ID));
         lines.push('items in memory: ' + TASKS_DATA.length);
         lines.push('cloud sync:      ' + (isCloudEnabled()
             ? ('ON -> ' + CLOUD_CONFIG.url + '/rest/v1/' + SUPABASE_LISTS_TABLE
                 + '  schema ' + CLOUD_CONFIG.schema + '  source ' + CLOUD_CONFIG.source)
             : 'OFF - no project connected for this sub-account'));
-        lines.push('storage mode:    ' + STORAGE_MODE + (rowsStorageEnabled() ? '  (one row per task)' : '  (one YAML row per list)')
+        lines.push('storage mode:    ' + STORAGE_MODE + (rowsStorageEnabled() ? '  (one row per task)' : '  (one LPF row per list)')
             + '   switch: lpUseRows(true|false) or ?storage=rows|blob');
         lines.push('tenant secret:   ' + CLOUD_SECRET_SOURCE + '   fingerprint: ' + (CLOUD_TENANT_FINGERPRINT || '(unresolved)'));
         lines.push('                 ^ two people see the same list only if this fingerprint matches on both');
@@ -1198,8 +1198,8 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
                 const k = localStorage.key(i);
                 if (!k || k.indexOf('list_puncher_') !== 0) continue;
                 const v = localStorage.getItem(k) || '';
-                const isList = k.indexOf('_yaml') !== -1;
-                rows.push('  ' + k + '  [' + v.length + ' bytes' + (isList ? ', ' + parseYamlToTasks(v).length + ' items' : '') + ']');
+                const isList = k.indexOf('_checklist') !== -1;
+                rows.push('  ' + k + '  [' + v.length + ' bytes' + (isList ? ', ' + parseChecklistText(v).length + ' items' : '') + ']');
             }
             lines.push('list_puncher_* keys (' + rows.length + '):');
             lines.push(rows.length ? rows.join('\n') : '  (none found)');
@@ -1294,21 +1294,21 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
             // An empty list is written as the SENTINEL, not a blank string, so this project's
             // key still exists - that is what tells loadCurrentProjectData() the list is
             // deliberately empty rather than "never opened on this device".
-            const fullYaml = TASKS_DATA.length ? formatTasksSliceAsYaml(TASKS_DATA) : EMPTY_LIST_SENTINEL;
-            localStorage.setItem(getProjectYamlKey(ACTIVE_PROJECT_ID), fullYaml);
+            const fullText = TASKS_DATA.length ? formatChecklistText(TASKS_DATA) : EMPTY_LIST_SENTINEL;
+            localStorage.setItem(getProjectChecklistKey(ACTIVE_PROJECT_ID), fullText);
             localStorage.setItem(getProjectUiKey(ACTIVE_PROJECT_ID), JSON.stringify(projectUiStateSnapshot()));
             // The legacy cross-key is the DEFAULT list's safety net only. Writing it while a
             // user-created list is active would overwrite the very backup the default list
             // recovers from, so it stays frozen until that list is active again.
             if (ACTIVE_PROJECT_ID === DEFAULT_PROJECT_ID) {
-                localStorage.setItem('list_puncher_yaml', fullYaml); // Legacy backup + cross-key safety net
+                localStorage.setItem('list_puncher_checklist', fullText); // Legacy backup + cross-key safety net
             }
 
             // Only trace real changes - autosave runs on every keystroke (debounced).
-            if (fullYaml !== LAST_SAVED_YAML) {
-                LAST_SAVED_YAML = fullYaml;
-                lpTrace('save OK', 'key=' + getProjectYamlKey(ACTIVE_PROJECT_ID)
-                    + '  items=' + TASKS_DATA.length + '  bytes=' + fullYaml.length);
+            if (fullText !== LAST_SAVED_TEXT) {
+                LAST_SAVED_TEXT = fullText;
+                lpTrace('save OK', 'key=' + getProjectChecklistKey(ACTIVE_PROJECT_ID)
+                    + '  items=' + TASKS_DATA.length + '  bytes=' + fullText.length);
                 // Conflict resolution compares "when did THIS device last change the list" with
                 // the cloud row's updated_at, so the moment of a real change is recorded here.
                 touchCloudLocalSavedAt(ACTIVE_PROJECT_ID);
@@ -1317,7 +1317,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
             // Round-trip self check: if the list we just wrote cannot be read back into the same
             // number of items, the saved list would silently lose tasks on refresh.
             try {
-                const reloaded = parseYamlToTasks(fullYaml);
+                const reloaded = parseChecklistText(fullText);
                 if (TASKS_DATA.length && reloaded.length !== TASKS_DATA.length) {
                     console.warn('[List Puncher] Save round-trip mismatch: wrote ' + TASKS_DATA.length + ' items, reloaded ' + reloaded.length);
                     return false;
@@ -1327,7 +1327,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
             }
 
             // ROWS MODE: keep the local JSON cache (ids included) and send only what changed.
-            // The YAML above is still written as the escape hatch, but the blob is NEVER pushed
+            // The LPF above is still written as the escape hatch, but the blob is NEVER pushed
             // here - two transports writing the same list would fight each other.
             if (rowsStorageEnabled()) {
                 writeRowsCache(ACTIVE_PROJECT_ID);
@@ -1342,14 +1342,14 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
             // list anyone ever opens. Once a row exists, an empty list IS pushed - that is how
             // deleting every task reaches the other devices.
             if (TASKS_DATA.length || readCloudMeta(ACTIVE_PROJECT_ID).syncedAt) {
-                scheduleCloudSave(fullYaml);
+                scheduleCloudSave(fullText);
             }
             return true;
         } catch (e) {
             // Storage writes can throw (quota, or a blocked / sandboxed context). Never
             // fail silently: the pill is the user's only signal that a refresh is safe.
-            lpTrace('save FAILED', 'key=' + getProjectYamlKey(ACTIVE_PROJECT_ID) + '  ' + e.name + ': ' + e.message);
-            console.warn('[List Puncher] Storage write FAILED for key ' + getProjectYamlKey(ACTIVE_PROJECT_ID) + ':', e);
+            lpTrace('save FAILED', 'key=' + getProjectChecklistKey(ACTIVE_PROJECT_ID) + '  ' + e.name + ': ' + e.message);
+            console.warn('[List Puncher] Storage write FAILED for key ' + getProjectChecklistKey(ACTIVE_PROJECT_ID) + ':', e);
             setStoragePillStatus('restricted', '⚠ Storage blocked');
             return false;
         }
@@ -1959,7 +1959,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     // side changed LAST wins, and an empty local cache always loses - a brand new device must
     // never overwrite the list the agency already built with a starter blueprint.
     async function hydrateFromCloud(projId, announce, onNoCloud) {
-        // Rows mode owns the content path completely: the blob is not even read, so an old YAML
+        // Rows mode owns the content path completely: the blob is not even read, so an old LPF
         // row can never be adopted on top of the shared tasks.
         if (rowsStorageEnabled()) return;
         if (!isCloudEnabled()) {
@@ -1972,13 +1972,13 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
             const remote = await cloudSelectList(projId);
             if (projId !== ACTIVE_PROJECT_ID) return;   // the user switched lists while waiting
 
-            const rawLocalText = localStorage.getItem(getProjectYamlKey(projId));
+            const rawLocalText = localStorage.getItem(getProjectChecklistKey(projId));
             const localExists = rawLocalText !== null;   // a key holding only the sentinel counts
             const localText = rawLocalText || '';
             if (!remote) {
                 // Only a list with real tasks seeds a shared row. The empty sentinel would
                 // otherwise create a task-less row for every list a user ever opens.
-                if (localText.trim() && parseYamlToTasks(localText).length) {
+                if (localText.trim() && parseChecklistText(localText).length) {
                     scheduleCloudSave(localText);       // first contact: seed the shared row
                 } else if (typeof onNoCloud === 'function') {
                     onNoCloud();
@@ -1990,7 +1990,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
             const cloudAt = Date.parse(remote.updated_at || '') || 0;
             const meta = readCloudMeta(projId);
             const localAt = meta.localSavedAt ? (Date.parse(meta.localSavedAt) || 0) : 0;
-            const localItems = localText.trim() ? parseYamlToTasks(localText).length : 0;
+            const localItems = localText.trim() ? parseChecklistText(localText).length : 0;
 
             // A row that exists but holds no text is as good as no row: if this device has
             // nothing either, still seed the starter list instead of showing an empty board.
@@ -2004,7 +2004,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
             const cloudWins = (!localExists || cloudAt > localAt);
 
             if (cloudWins && cloudText && cloudText !== localText) {
-                const parsed = parseYamlToTasks(cloudText);
+                const parsed = parseChecklistText(cloudText);
                 const cloudIsEmptyList = cloudText.trim() === EMPTY_LIST_SENTINEL;
                 if (!parsed.length && !cloudIsEmptyList) {
                     // Never trade a readable local list for an unreadable cloud one.
@@ -2013,7 +2013,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
                     TASKS_DATA = parsed;
                     saveState();                                    // refresh the local cache
                     CLOUD_PENDING.delete(projId);                   // this IS the cloud copy now
-                    CLOUD_LAST_PUSHED.set(projId, localStorage.getItem(getProjectYamlKey(projId)) || '');
+                    CLOUD_LAST_PUSHED.set(projId, localStorage.getItem(getProjectChecklistKey(projId)) || '');
                     const freshMeta = readCloudMeta(projId);
                     freshMeta.syncedAt = remote.updated_at;
                     writeCloudMeta(projId, freshMeta);
@@ -2207,7 +2207,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     // -------------------------------------------------------------------------
     // TASKS_DATA does not change shape: it was ALREADY a table of
     //   {visible, id, parentId, level, order, state, title, notes}
-    // so only the WIRE changes: instead of serialising the whole list into one YAML row, the
+    // so only the WIRE changes: instead of serialising the whole list into one LPF row, the
     // app diffs the array against the last server-confirmed copy and upserts only the tasks
     // that actually changed. Two people ticking different tasks therefore write different rows
     // and neither can erase the other's tick.
@@ -2241,7 +2241,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         try { return localStorage.getItem(getRowsSeededKey(projId)) === '1'; } catch (e) { return false; }
     }
 
-    // Parser-generated ids are content+position derived, fine for a YAML import but not for a
+    // Parser-generated ids are content+position derived, fine for a LPF import but not for a
     // row identity. New tasks get an id ONCE and keep it forever.
     function newTaskId() {
         try {
@@ -2254,7 +2254,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
 
     // PURE: who is this task's parent, according to the LEVELS the renderer actually draws?
     // The nearest task above it with a strictly smaller level. Deriving it is deliberate: the
-    // parser has several branches (strict YAML, checklist shorthand, blueprints) and only some
+    // parser has several branches (strict LPF, checklist shorthand, blueprints) and only some
     // of them know a parentId, while `level` + order is what the tree is built from. Deriving
     // here means the DB can never disagree with the screen - and it needs no per-branch fixes.
     function parentTaskIdFromLevel(tasks, index) {
@@ -2344,7 +2344,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         return changes;
     }
 
-    // ---- local cache (JSON, WITH ids: a YAML cache would regenerate ids on every load) ------
+    // ---- local cache (JSON, WITH ids: a LPF cache would regenerate ids on every load) ------
     function writeRowsCache(projId) {
         try {
             localStorage.setItem(getRowsCacheKey(projId), JSON.stringify({
@@ -2473,12 +2473,12 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
             if (!Array.isArray(rows)) return;
 
             if (!rows.length && !rowsAreSeeded(projId)) {
-                // ONE-TIME CONVERSION from the YAML blob. Local copy first (instant), then the
+                // ONE-TIME CONVERSION from the LPF blob. Local copy first (instant), then the
                 // shared row - another machine may hold the only blob - and only a list this
                 // browser has never had ANY copy of may fall back to the starter blueprint.
                 if (!TASKS_DATA.length) {
                     let text = '';
-                    try { text = localStorage.getItem(getProjectYamlKey(projId)) || ''; } catch (e) { text = ''; }
+                    try { text = localStorage.getItem(getProjectChecklistKey(projId)) || ''; } catch (e) { text = ''; }
                     if (!text.trim() || text.trim() === EMPTY_LIST_SENTINEL) {
                         try {
                             const blob = await cloudRpc('get_list', {
@@ -2489,7 +2489,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
                             if (Array.isArray(blob) && blob.length) text = blob[0].checklist_text || '';
                         } catch (e) { /* no readable blob just means there is nothing to convert */ }
                     }
-                    const converted = text ? parseYamlToTasks(text) : [];
+                    const converted = text ? parseChecklistText(text) : [];
                     if (converted.length) {
                         TASKS_DATA = converted;
                         lpTrace('rows convert (cloud)', 'project=' + projId + '  ' + converted.length + ' task(s)');
@@ -2513,7 +2513,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
             if (taskRowSignatureList(TASKS_DATA) !== taskRowSignatureList(next)) {
                 TASKS_DATA = next;
                 writeRowsCache(projId);
-                saveState();          // keeps the YAML escape hatch + this project's UI state in step
+                saveState();          // keeps the LPF escape hatch + this project's UI state in step
                 renderAll();
                 if (announce) showToast('☁ Loaded the shared list');
                 lpTrace('rows load OK', 'project=' + projId + '  tasks=' + next.length);
@@ -2532,7 +2532,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     // the same 3 s timer (see pollCloudOnce), so the switcher keeps up too.
     function refreshFromCloudOnFocus() {
         if (!isCloudEnabled() || !CLOUD_REFRESH_ON_FOCUS) return;
-        const modal = document.getElementById('yamlModal');
+        const modal = document.getElementById('checklistModal');
         if (modal && modal.classList.contains('open')) return;   // never yank the list from under an open editor
         if (CLOUD_PENDING.size) { flushCloudSaves(); return; }
         if (rowsStorageEnabled()) {
@@ -2568,10 +2568,10 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     }
 
     // A silent pull must never run underneath a dialog that holds an INDEX into TASKS_DATA
-    // (the themed delete confirm) or an unsaved copy of the list (the YAML editor): adopting
+    // (the themed delete confirm) or an unsaved copy of the list (the LPF editor): adopting
     // the shared copy mid-dialog would make "Confirm" delete the wrong row.
     function listIsBusyForCloudPull() {
-        const ids = ['yamlModal', 'deleteModal', 'cloudSetupModal'];
+        const ids = ['checklistModal', 'deleteModal', 'cloudSetupModal'];
         for (let i = 0; i < ids.length; i++) {
             const el = document.getElementById(ids[i]);
             if (el && el.classList.contains('open')) return true;
@@ -2629,7 +2629,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
                 loadProjectsDirectory();
                 return;
             }
-            if (!ev || ev.key !== getProjectYamlKey(ACTIVE_PROJECT_ID)) return;
+            if (!ev || ev.key !== getProjectChecklistKey(ACTIVE_PROJECT_ID)) return;
             if (CLOUD_PENDING.size || AUTOSAVE_TIMER) return;   // this tab still holds unsaved work
             lpTrace('storage event', 'another tab saved this project -> reloading');
             loadCurrentProjectData();
@@ -3632,11 +3632,11 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
 
         const candidates = [];
         keys.forEach(key => {
-            if (!key || key.indexOf('list_puncher_') !== 0 || key.indexOf('_yaml') === -1) return;
+            if (!key || key.indexOf('list_puncher_') !== 0 || key.indexOf('_checklist') === -1) return;
             let raw = null;
             try { raw = localStorage.getItem(key); } catch (e) { return; }
             if (!raw || !raw.trim()) return;
-            const items = parseYamlToTasks(raw);
+            const items = parseChecklistText(raw);
             if (items.length) candidates.push({ key: key, items: items });
         });
 
@@ -3645,7 +3645,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         candidates.sort((a, b) => b.items.length - a.items.length);
         const best = candidates[0];
         lpTrace('RECOVERY', 'adopted ' + best.items.length + ' items from "' + best.key + '" -> re-homed to '
-            + getProjectYamlKey(ACTIVE_PROJECT_ID));
+            + getProjectChecklistKey(ACTIVE_PROJECT_ID));
         console.warn('[List Puncher] Recovered ' + best.items.length + ' items from storage key "' + best.key + '"');
         TASKS_DATA = best.items;
         saveState();
@@ -3659,7 +3659,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         if (ACTIVE_PROJECT_ID !== DEFAULT_PROJECT_ID) {
             TASKS_DATA = [];
             lpTrace('no blueprint', 'project=' + ACTIVE_PROJECT_ID + '  -> list stays empty');
-            localStorage.setItem(getProjectYamlKey(ACTIVE_PROJECT_ID), EMPTY_LIST_SENTINEL);
+            localStorage.setItem(getProjectChecklistKey(ACTIVE_PROJECT_ID), EMPTY_LIST_SENTINEL);
             saveState();
             renderAll();
             return;
@@ -3717,7 +3717,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
                     <p>Copy the prompt, drop it into the ChatGPT / Claude / Gemini conversation you already have, then paste the code block it hands back into the List Editor.</p>
                     <div class="empty-actions">
                         <button type="button" class="btn-action" onclick="copyAiPromptToClipboard()">🤖 Copy AI Prompt</button>
-                        <button type="button" class="btn-action" onclick="openYamlModal('full')">📝 Open List Editor</button>
+                        <button type="button" class="btn-action" onclick="openChecklistEditor('full')">📝 Open List Editor</button>
                     </div>
                 </div>
 
@@ -3889,10 +3889,10 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
                         <button type="button" class="btn-icon sec-action-btn" title="Add task to this milestone" onclick="quickAddTaskToSection(${sec.headerIndex})">
                             ${PLUS_ADD_SVG_ICON}
                         </button>
-                        <button type="button" class="btn-icon sec-action-btn" title="Copy this milestone (List Puncher format)" onclick="copySectionAsYaml(${sec.headerIndex})">
+                        <button type="button" class="btn-icon sec-action-btn" title="Copy this milestone (List Puncher format)" onclick="copySectionChecklist(${sec.headerIndex})">
                             ${COPY_SVG_ICON}
                         </button>
-                        <button type="button" class="btn-icon sec-action-btn" title="Paste tasks into this milestone (List Puncher format)" onclick="openYamlModal('section', ${sec.headerIndex})">
+                        <button type="button" class="btn-icon sec-action-btn" title="Paste tasks into this milestone (List Puncher format)" onclick="openChecklistEditor('section', ${sec.headerIndex})">
                             ${PASTE_SUBTASKS_SVG_ICON}
                         </button>
                         <button type="button" class="btn-icon sec-action-btn" style="color:var(--accent-green)" title="YesAll - approve every task in this milestone" onclick="confirmSectionState(${sec.headerIndex}, TASK_YES)">&#10003;</button>
@@ -4044,7 +4044,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
                                 <button type="button" class="btn-icon add-btn" title="Add subtask under this item" onclick="addSubtaskToBranch(${realIdx})">${PLUS_ADD_SVG_ICON}</button>
                                 ${hasChildren ? `<button type="button" class="btn-icon check-all-btn" title="YesAll - approve this task and its ${childCount} sub-task(s)" onclick="confirmBranchState(${realIdx}, TASK_YES)">&#10003;</button><button type="button" class="btn-icon" style="color:var(--accent-no)" title="NoAll - reject this task and its sub-tasks" onclick="confirmBranchState(${realIdx}, TASK_NO)">&#10005;</button><button type="button" class="btn-icon" title="BlankAll - reset this branch to untouched" onclick="confirmBranchState(${realIdx}, TASK_BLANK)"><span class="state-square"></span></button>` : ''}
                                 <button type="button" class="btn-icon copy-btn" title="Copy this task and its branch (List Puncher format)" onclick="copyTaskBranch(${realIdx})">${COPY_SVG_ICON}</button>
-                                <button type="button" class="btn-icon paste-btn" title="Paste subtasks into this branch (List Puncher format)" onclick="openYamlModal('branch', ${realIdx})">${PASTE_SUBTASKS_SVG_ICON}</button>
+                                <button type="button" class="btn-icon paste-btn" title="Paste subtasks into this branch (List Puncher format)" onclick="openChecklistEditor('branch', ${realIdx})">${PASTE_SUBTASKS_SVG_ICON}</button>
                                 <button type="button" class="btn-icon delete-btn" title="Delete task and branch" onclick="confirmDeleteTask(${realIdx})">✕</button>
                             </div>
 
@@ -4577,14 +4577,14 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
             : `✓ set on ${branchTasks.length} task(s) in "${task.title}"${movedToBottom ? ' - milestone moved to the bottom' : ''}`);
     }
 
-    function copySectionAsYaml(headerIdx) {
+    function copySectionChecklist(headerIdx) {
         if (!TASKS_DATA[headerIdx] || TASKS_DATA[headerIdx].level !== 0) return;
 
         const range = getSectionRange(headerIdx);
         const sectionSlice = TASKS_DATA.slice(range.start, range.start + range.count);
-        const yamlStr = formatTasksSliceAsYaml(sectionSlice);
+        const checklistStr = formatChecklistText(sectionSlice);
 
-        navigator.clipboard.writeText(yamlStr).then(() => {
+        navigator.clipboard.writeText(checklistStr).then(() => {
             showToast(`📋 Copied milestone "${TASKS_DATA[headerIdx].title}"!`);
         });
     }
@@ -5109,12 +5109,12 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     // =========================================================================
     // LIST FORMAT PARSER & SERIALIZER ENGINE (Pure JavaScript)
     // The app WRITES the Markdown-checklist list format; it can also READ real
-    // YAML (1.14/1.15 lists, or an AI that reformatted the file).
+    // LPF (1.14/1.15 lists, or an AI that reformatted the file).
     // =========================================================================
     // Double-quotes a scalar (escaping backslashes FIRST, then quotes and tabs) so
     // notes, descriptions and milestone names round-trip exactly: a Windows path or
     // a quote inside a note would otherwise come back mangled.
-    function yamlQuote(value) {
+    function quoteScalar(value) {
         const text = String(value === undefined || value === null ? '' : value)
             .replace(/\\/g, () => '\\\\')
             .replace(/"/g, () => '\\"')
@@ -5127,9 +5127,9 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     // block ("|") when the value spans multiple lines. A note containing a checkbox
     // line is written as a QUOTED scalar instead, because inside a block such a line
     // is ambiguous (note text vs a mis-indented child task) - quoting removes the
-    // ambiguity and still round-trips exactly (yamlQuote escapes, unquoteYamlScalar
+    // ambiguity and still round-trips exactly (quoteScalar escapes, unquoteScalar
     // decodes).
-    function pushYamlTextValue(lines, keyIndent, key, value) {
+    function pushTextValue(lines, keyIndent, key, value) {
         const text = String(value || '').trim();
         if (!text) return;
         const pad = ' '.repeat(keyIndent);
@@ -5137,7 +5137,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         const hasCheckboxLine = textLines.some(l => /^\s*-\s*\[[^\]]{0,3}\]/.test(l));
 
         if (textLines.length === 1 || hasCheckboxLine) {
-            lines.push(`${pad}${key}: ${yamlQuote(text)}`);
+            lines.push(`${pad}${key}: ${quoteScalar(text)}`);
             return;
         }
 
@@ -5149,8 +5149,8 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
 
     // Expands tabs used for INDENTATION into 2 spaces. Tabs inside a note or a
     // description are content, not layout, so they stay untouched.
-    function expandLeadingTabs(yamlText) {
-        return String(yamlText || '')
+    function expandLeadingTabs(checklistText) {
+        return String(checklistText || '')
             .split(/\r?\n/)
             .map(line => line.replace(/^[ \t]*/, ws => ws.replace(/\t/g, () => '  ')))
             .join('\n');
@@ -5163,18 +5163,18 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
 
     // The app WRITES the checklist shorthand ("- [ ] Title"), so anything made of
     // "- task:" / "- title:" / "- section:" list items is the 1.14/1.15 strict
-    // shape (or AI output that was "fixed" into real YAML) - read it with the
+    // shape (or AI output that was "fixed" into real LPF) - read it with the
     // strict reader so it still imports.
-    function isStrictPuncherYaml(yamlText) {
-        return /^[ \t]*-[ \t]*["']?(task|title|section)["']?[ \t]*:/m.test(String(yamlText || ''));
+    function isStrictChecklistShape(checklistText) {
+        return /^[ \t]*-[ \t]*["']?(task|title|section)["']?[ \t]*:/m.test(String(checklistText || ''));
     }
 
     // SERIALIZER - writes the List Puncher list format: a Markdown-checklist DSL
     // with metadata keys (section / description / tasks / notes), NOT standard
-    // YAML. Do not "fix" this into strict YAML: "[ ]" is an empty flow sequence to
-    // a real YAML parser, and a scalar list item can never carry mapping keys, so
+    // LPF. Do not "fix" this into strict LPF: "[ ]" is an empty flow sequence to
+    // a real LPF parser, and a scalar list item can never carry mapping keys, so
     // a strict parser rejects this shape by design. See .conductor section 3.
-    function formatTasksSliceAsYaml(tasks) {
+    function formatChecklistText(tasks) {
         if (!tasks || !tasks.length) return '';
         const baseLevel = tasks[0].level || 0;
         const lines = [FORMAT_STAMP];
@@ -5200,7 +5200,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
             const title = String(node.task.title || 'Untitled').replace(/\r?\n/g, () => ' ');
 
             lines.push(`${dashPad}- ${checkMark} ${title}`);
-            pushYamlTextValue(lines, keyIndent, 'notes', node.task.notes);
+            pushTextValue(lines, keyIndent, 'notes', node.task.notes);
 
             node.children.forEach(child => emitTaskNode(child, indent + INDENT_SPACES_PER_LEVEL));
         };
@@ -5215,8 +5215,8 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
                 lines.push('# ==========================================');
                 lines.push(`# ${String(sectionTitle).replace(/\r?\n/g, () => ' ').toUpperCase()}`);
                 lines.push('# ==========================================');
-                lines.push(`section: ${yamlQuote(sectionTitle)}`);
-                pushYamlTextValue(lines, 0, 'description', root.task.notes);
+                lines.push(`section: ${quoteScalar(sectionTitle)}`);
+                pushTextValue(lines, 0, 'description', root.task.notes);
                 lines.push('tasks:');
                 root.children.forEach(child => emitTaskNode(child, INDENT_SPACES_PER_LEVEL));
             } else {
@@ -5243,8 +5243,8 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     // So a CHECKBOX line at the body indent closes the block and is clamped as a
     // task. A block that OPENS with a checkbox line is a checklist note and stays
     // content in full; plain "- " bullets are always content.
-    function clampYamlNestingSteps(yamlText) {
-        const lines = yamlText.split(/\r?\n/);
+    function clampChecklistNestingSteps(checklistText) {
+        const lines = checklistText.split(/\r?\n/);
         const clampedLines = [];
         let prevTaskIndent = -1;
         let blockBodyIndent = -1;         // > -1 while inside a notes: / description: block
@@ -5305,32 +5305,32 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     }
 
     // List Parser: the checklist format this app writes goes to the checklist
-    // reader; real YAML (1.14/1.15 lists, reformatted AI output) to the strict one.
-    function parseYamlToTasks(yamlText) {
-        if (!yamlText || !yamlText.trim()) return [];
+    // reader; real LPF (1.14/1.15 lists, reformatted AI output) to the strict one.
+    function parseChecklistText(checklistText) {
+        if (!checklistText || !checklistText.trim()) return [];
 
         // 1. Tabs used for indentation become 2 spaces (content tabs are kept)
-        const sanitized = expandLeadingTabs(yamlText);
+        const sanitized = expandLeadingTabs(checklistText);
 
-        // 2. Real YAML -> strict reader
-        if (isStrictPuncherYaml(sanitized)) return parseStrictPuncherYaml(sanitized);
+        // 2. Real LPF -> strict reader
+        if (isStrictChecklistShape(sanitized)) return parseStrictChecklist(sanitized);
 
         // 3. The List Puncher checklist ("- [ ] Title") -> clamp depths, read it
-        return parseLegacyShorthandYaml(sanitized);
+        return parseLegacyShorthand(sanitized);
     }
 
-    // REAL-YAML READER: used for 1.14/1.15 lists (and for AI output that was
-    // "fixed" into strict YAML). Nesting comes from the "- " dash indent stack, so
+    // REAL-LPF READER: used for 1.14/1.15 lists (and for AI output that was
+    // "fixed" into strict LPF). Nesting comes from the "- " dash indent stack, so
     // any step width is tolerated and "tasks:"/"subtasks:" are just containers.
     // Checklist "- [ ] Title" dash lines are accepted too, so a mixed paste loads.
-    function isYamlBlockIndicator(value) {
+    function isBlockScalarIndicator(value) {
         return /^[|>][-+]?\d*$/.test(String(value || '').trim());
     }
 
     // Turns a quoted scalar into plain text: strips the quotes and undoes the
-    // escapes yamlQuote() writes. A single left-to-right pass keeps "\\n" a
+    // escapes quoteScalar() writes. A single left-to-right pass keeps "\\n" a
     // literal \n while turning "\n" into a real newline.
-    function unquoteYamlScalar(value) {
+    function unquoteScalar(value) {
         const text = String(value === undefined || value === null ? '' : value).trim();
         if (text.length >= 2 && text.startsWith('"') && text.endsWith('"')) {
             const escapes = { '\\': '\\', '"': '"', 'n': '\n', 't': '\t', 'r': '\r' };
@@ -5342,15 +5342,15 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         return text;
     }
 
-    function parseYamlBoolean(value, fallback) {
-        const text = unquoteYamlScalar(value).toLowerCase();
+    function parseChecklistBoolean(value, fallback) {
+        const text = unquoteScalar(value).toLowerCase();
         if (['true', 'yes', 'y', 'on', '1', '[x]', 'x', 'done', 'checked'].includes(text)) return true;
         if (['false', 'no', 'n', 'off', '0', '[ ]', 'todo', 'unchecked'].includes(text)) return false;
         return !!fallback;
     }
 
-    function parseStrictPuncherYaml(yamlText) {
-        const lines = yamlText.split(/\r?\n/);
+    function parseStrictChecklist(checklistText) {
+        const lines = checklistText.split(/\r?\n/);
         const result = [];
 
         let currentSection = null;
@@ -5399,7 +5399,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         // "- section: \"Name\"" (a root list item) and a bare "section: \"Name\""
         // both open a new milestone.
         const startSection = (rawTitle) => {
-            const cleanTitle = stripLeadingSectionNumber(unquoteYamlScalar(rawTitle));
+            const cleanTitle = stripLeadingSectionNumber(unquoteScalar(rawTitle));
             currentSection = {
                 visible: true,
                 id: generateSlugId('sec', cleanTitle, result.length),
@@ -5451,12 +5451,12 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
             const descMatch = rawLine.match(/^(\s*)description\s*:\s*(.*)$/i);
             if (descMatch && currentSection && !taskStack.length) {
                 const descVal = descMatch[2].trim();
-                if (isYamlBlockIndicator(descVal)) {
+                if (isBlockScalarIndicator(descVal)) {
                     inDescBlock = true;
                     descIndent = descMatch[1].length + 2;
                     descLines = [];
                 } else {
-                    currentSection.notes = unquoteYamlScalar(descVal);
+                    currentSection.notes = unquoteScalar(descVal);
                 }
                 return;
             }
@@ -5480,7 +5480,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
 
                 const titleKeyMatch = body.match(/^["']?(?:task|title)["']?\s*:\s*(.*)$/i);
                 if (titleKeyMatch) {
-                    title = unquoteYamlScalar(titleKeyMatch[1].trim());
+                    title = unquoteScalar(titleKeyMatch[1].trim());
                 } else {
                     const boxMatch = body.match(/^\[([^\]]{0,3})\]\s*(.*)$/);
                     if (boxMatch) {
@@ -5535,18 +5535,18 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
                 if (ownerEntry) {
                     const owner = ownerEntry.task;
                     if (key === 'task' || key === 'title') {
-                        const ownerTitle = unquoteYamlScalar(value);
+                        const ownerTitle = unquoteScalar(value);
                         if (ownerTitle) owner.title = ownerTitle;
                     } else if (key === 'checked') {
-                        owner.state = parseYamlBoolean(value, taskState(owner) === TASK_YES) ? TASK_YES : TASK_BLANK;
+                        owner.state = parseChecklistBoolean(value, taskState(owner) === TASK_YES) ? TASK_YES : TASK_BLANK;
                     } else if (key === 'notes') {
-                        if (isYamlBlockIndicator(value)) {
+                        if (isBlockScalarIndicator(value)) {
                             inNotesBlock = true;
                             notesIndent = keyIndent + 2;
                             noteLines = [];
                             notesOwner = owner;
                         } else {
-                            owner.notes = unquoteYamlScalar(value);
+                            owner.notes = unquoteScalar(value);
                         }
                     }
                     // 'subtasks' / 'tasks' / 'children' are pure containers.
@@ -5566,11 +5566,11 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     // LEGACY READER: the List Puncher checklist ("- [ ] Title"), nesting at +2 and
     // the notes key at +2 with its body at +4. Also used to upgrade anything that
     // was saved in an older shape.
-    function parseLegacyShorthandYaml(yamlText) {
-        if (!yamlText || !yamlText.trim()) return [];
+    function parseLegacyShorthand(checklistText) {
+        if (!checklistText || !checklistText.trim()) return [];
 
         // Clamp illogical jump steps (max one step deeper than the previous task)
-        const sanitized = clampYamlNestingSteps(yamlText);
+        const sanitized = clampChecklistNestingSteps(checklistText);
 
         const lines = sanitized.split(/\r?\n/);
         const result = [];
@@ -5645,7 +5645,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
 
             const sectionMatch = trimmed.match(/^section\s*:\s*(.*)$/i);
             if (sectionMatch) {
-                const rawTitle = unquoteYamlScalar(sectionMatch[1].trim());
+                const rawTitle = unquoteScalar(sectionMatch[1].trim());
                 const cleanTitle = stripLeadingSectionNumber(rawTitle);
 
                 currentSection = {
@@ -5669,13 +5669,13 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
             const descMatch = trimmed.match(/^description\s*:\s*(.*)$/i);
             if (descMatch && currentSection && !currentTask) {
                 const descVal = descMatch[1].trim();
-                if (isYamlBlockIndicator(descVal)) {
+                if (isBlockScalarIndicator(descVal)) {
                     inDescBlock = true;
                     const indentMatch = rawLine.match(/^(\s*)/);
                     descIndent = (indentMatch ? indentMatch[1].length : 0) + 2;
                     descLines = [];
                 } else {
-                    currentSection.notes = unquoteYamlScalar(descVal);
+                    currentSection.notes = unquoteScalar(descVal);
                 }
                 continue;
             }
@@ -5683,13 +5683,13 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
             const noteMatch = trimmed.match(/^notes\s*:\s*(.*)$/i);
             if (noteMatch && currentTask) {
                 const noteVal = noteMatch[1].trim();
-                if (isYamlBlockIndicator(noteVal)) {
+                if (isBlockScalarIndicator(noteVal)) {
                     inNotesBlock = true;
                     const indentMatch = rawLine.match(/^(\s*)/);
                     notesIndent = (indentMatch ? indentMatch[1].length : 0) + 2;
                     noteLines = [];
                 } else {
-                    currentTask.notes = unquoteYamlScalar(noteVal);
+                    currentTask.notes = unquoteScalar(noteVal);
                 }
                 continue;
             }
@@ -5747,17 +5747,17 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     // =========================================================================
     // LIST MODAL OVERLAY LOGIC
     // =========================================================================
-    function openYamlModal(mode, targetIndex = null) {
+    function openChecklistEditor(mode, targetIndex = null) {
         MODAL_CONTEXT = { mode, targetIndex };
-        const modal = document.getElementById('yamlModal');
+        const modal = document.getElementById('checklistModal');
         const title = document.getElementById('modalTitle');
         const subtitle = document.getElementById('modalSubtitle');
-        const textarea = document.getElementById('modalYamlTextarea');
+        const textarea = document.getElementById('modalChecklistTextarea');
 
         if (mode === 'full') {
             title.innerHTML = '📋 Full LIST Editor';
             subtitle.innerText = 'Edit, copy, or paste your entire list directly.';
-            textarea.value = formatTasksSliceAsYaml(TASKS_DATA);
+            textarea.value = formatChecklistText(TASKS_DATA);
         } else if (mode === 'section') {
             title.innerHTML = '📥 Paste Tasks into Milestone';
             subtitle.innerText = 'Paste tasks to insert into this milestone (List Puncher format).';
@@ -5777,8 +5777,8 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         }, 50);
     }
 
-    function closeYamlModal() {
-        const modal = document.getElementById('yamlModal');
+    function closeChecklistEditor() {
+        const modal = document.getElementById('checklistModal');
         modal.classList.remove('open');
         MODAL_CONTEXT = { mode: 'full', targetIndex: null };
     }
@@ -5789,7 +5789,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     // =========================================================================
     const LIST_TAB_STEP = 2;
 
-    function handleYamlModalKeydown(e, textarea) {
+    function handleChecklistEditorKeydown(e, textarea) {
         if (!textarea || e.key !== 'Tab') return;
         e.preventDefault();
 
@@ -5826,26 +5826,26 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         textarea.setSelectionRange(newStart, newEnd);
     }
 
-    function prettifyModalYaml() {
-        const textarea = document.getElementById('modalYamlTextarea');
+    function prettifyModalChecklist() {
+        const textarea = document.getElementById('modalChecklistTextarea');
         if (!textarea || !textarea.value.trim()) return;
 
         // Tabs and legacy shorthand are handled inside the parser, so this is a
         // pure "read it, then write it back in the standard-valid shape" pass.
-        const parsed = parseYamlToTasks(textarea.value);
+        const parsed = parseChecklistText(textarea.value);
         if (parsed.length > 0) {
-            textarea.value = formatTasksSliceAsYaml(parsed);
+            textarea.value = formatChecklistText(parsed);
             showToast('✨ LIST prettified!');
         } else {
             showToast('Could not read a list to format.');
         }
     }
 
-    function applyYamlModalChanges() {
-        const textarea = document.getElementById('modalYamlTextarea');
-        const yamlText = textarea.value.trim();
+    function applyChecklistEditorChanges() {
+        const textarea = document.getElementById('modalChecklistTextarea');
+        const checklistText = textarea.value.trim();
 
-        if (!yamlText) {
+        if (!checklistText) {
             showToast('Paste or type a list first');
             return;
         }
@@ -5853,18 +5853,18 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         const { mode, targetIndex } = MODAL_CONTEXT;
 
         if (mode === 'full') {
-            const parsed = parseYamlToTasks(yamlText);
+            const parsed = parseChecklistText(checklistText);
             if (parsed.length > 0) {
                 TASKS_DATA = parsed;
                 executeAutoSave();
                 renderAll();
                 showToast('Applied full list!');
-                closeYamlModal();
+                closeChecklistEditor();
             } else {
                 showToast('Could not read any tasks from what you pasted');
             }
         } else if (mode === 'section') {
-            const parsed = parseYamlToTasks(yamlText);
+            const parsed = parseChecklistText(checklistText);
             const tasksOnly = parsed.filter(t => t.level > 0);
 
             if (tasksOnly.length > 0) {
@@ -5879,13 +5879,13 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
                 executeAutoSave();
                 renderAll();
                 showToast(`Inserted ${tasksOnly.length} tasks into milestone!`);
-                closeYamlModal();
+                closeChecklistEditor();
             }
         } else if (mode === 'branch') {
             const parent = TASKS_DATA[targetIndex];
             if (!parent) return;
 
-            const parsed = parseYamlToTasks(yamlText);
+            const parsed = parseChecklistText(checklistText);
             const tasksOnly = parsed.filter(t => t.level > 0);
 
             if (tasksOnly.length > 0) {
@@ -5906,7 +5906,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
                 executeAutoSave();
                 renderAll();
                 showToast(`Inserted ${tasksOnly.length} subtask(s) under "${parent.title}"!`);
-                closeYamlModal();
+                closeChecklistEditor();
             }
         }
     }
@@ -5914,18 +5914,18 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     function copyTaskBranch(index) {
         const range = getSubtreeRange(index);
         const subtree = TASKS_DATA.slice(range.start, range.start + range.count);
-        const yamlStr = formatTasksSliceAsYaml(subtree);
+        const checklistStr = formatChecklistText(subtree);
 
-        navigator.clipboard.writeText(yamlStr).then(() => {
+        navigator.clipboard.writeText(checklistStr).then(() => {
             showToast(`📋 Copied ${range.count} task(s) in branch!`);
         }).catch(() => {
             showToast('Failed to copy. Please allow clipboard permissions.');
         });
     }
 
-    function copyAllAsYamlToClipboard() {
-        const yamlStr = formatTasksSliceAsYaml(TASKS_DATA);
-        navigator.clipboard.writeText(yamlStr).then(() => {
+    function copyAllChecklistToClipboard() {
+        const checklistStr = formatChecklistText(TASKS_DATA);
+        navigator.clipboard.writeText(checklistStr).then(() => {
             showToast('📋 Copied full list (ready for Notepad++)!');
         }).catch(() => {
             showToast('Failed to copy. Please allow clipboard permissions.');
@@ -6006,10 +6006,10 @@ tasks:
     }
 
     function initModals() {
-        const yamlModal = document.getElementById('yamlModal');
-        if (yamlModal) {
-            yamlModal.addEventListener('click', (e) => {
-                if (e.target === yamlModal) closeYamlModal();
+        const checklistModal = document.getElementById('checklistModal');
+        if (checklistModal) {
+            checklistModal.addEventListener('click', (e) => {
+                if (e.target === checklistModal) closeChecklistEditor();
             });
         }
         const deleteModal = document.getElementById('deleteModal');
@@ -6041,7 +6041,7 @@ tasks:
 
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
-            closeYamlModal();
+            closeChecklistEditor();
             closeConfirmModal();
             closeTextPrompt();
             closeCloudSetupModal();

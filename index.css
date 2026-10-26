@@ -34,7 +34,7 @@
     --indent-step: 22px;
 
     /* Build marker: lets the app detect a stale cached stylesheet (compared against APP_BUILD in index.html) */
-    --lp-css-build: "1.43";
+    --lp-css-build: "1.44";
 
     --completed-opacity: 0.42;
 
@@ -1337,7 +1337,7 @@ body {
 }
 
 /* ==========================================================================
-   Modals (YAML Overlay & Delete Confirmation)
+   Modals (List Puncher editor overlay & Delete Confirmation)
    ========================================================================== */
 .modal-overlay {
     position: fixed;
