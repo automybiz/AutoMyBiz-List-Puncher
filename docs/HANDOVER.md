@@ -1119,6 +1119,53 @@ three tables.
 - A comment mangled by the earlier "yaml → source" substitution ("calling it \"source\" was
   misleading") was found and rewritten while in the file.
 
+## 27. Build 1.47 - the final table names (2026-10-26)
+
+| table | what a row is |
+|---|---|
+| `list_headers` | one list: name, `sort_order`, tenant, lifecycle |
+| `list_items` | one task **or section** (`level = 0` is a section) |
+| `legacy_list_blobs` | the retiring BLOB transport: one whole LPF document per list |
+
+`list_headers` + `list_items` share the `list_` prefix because they are the pair (`lists 1-N items`);
+`legacy_list_blobs` is marked `legacy_` so it cannot be read as part of that pair.
+
+**`lists_and_blobs` was considered and rejected.** The `x_and_y` convention means a many-to-many
+junction (`posts_and_tags`), so that name would have promised a join between two tables that do not both
+exist, for a relation that is 1:1. A table name must not imply the wrong cardinality.
+
+Migrations: `rename_to_list_headers_list_items_legacy_list_blobs`.
+
+### Renamed with the tables
+- constraints/indexes: `list_headers_pkey`, `list_headers_identity_key`, `list_headers_live_idx`,
+  `list_items_pkey`, `list_items_identity_key`, `list_items_state_check`, `list_items_level_check`,
+  `list_items_live_idx`, `legacy_list_blobs_pkey`, `legacy_list_blobs_location_project_tenant_key`
+- RPCs: `get_task_rows` → **`get_list_items`**, `apply_task_changes` → **`apply_list_item_changes`**,
+  `get_task_revision` → **`get_list_item_revision`** (all regenerated from their own definitions, then
+  the old names dropped)
+- **Deliberately NOT renamed:** `get_directory` / `apply_directory_changes` still say "directory" while
+  reading `list_headers`. They were out of scope for this change; renaming them is 2 client call sites
+  whenever it is wanted.
+
+### Dropped
+`lists_backup_pre1b` (1 row, 20,400 bytes, snapshot from 2026-10-24 10:27) and
+`tenants_backup_pre1b` (2 superseded tenant hashes). Both were confirmed unreferenced by any code, and
+the live `legacy_list_blobs` rows had superseded their content. The `setup-agency-hub.sql` block that
+recreated them now just records that they existed and were retired.
+
+### Verified
+- Function bodies audited in SQL: `hdr`/`itm`/`blob` flags correct per function, and **zero** functions
+  referencing `list_puncher.lists`, `list_puncher.tasks` or `list_puncher.list_blobs`.
+- Live smoke test: `apply_list_item_changes` wrote 2 items with the correct parent link;
+  `get_list_items` read them; `get_list_item_revision` returned `live_count = 2`;
+  `upsert_list`/`get_list` still work against `legacy_list_blobs`; `delete_list` removed its row.
+- Client: `SUPABASE_LISTS_TABLE = 'legacy_list_blobs'` and the two item RPC call sites updated;
+  3/3 scripts compile, build 1.47.
+- Harnesses: rows 69 (two wiring assertions updated to the new RPC names - they failed loudly first,
+  which is the suite doing its job), directory 23, secret 35, poll 34, empty-list green.
+- Both setup scripts updated again (29 table refs + 3 REST paths), so they can no longer touch a table
+  that does not exist.
+
 ### Rollout (feature flag, NOT a fork - decided 2026-10-25)
 `?storage=rows` switches the backend; no param keeps today's blob path byte-for-byte. Revert is a URL
 change. A physical fork was rejected because two HTML files on the same origin share `localStorage` -

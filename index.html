@@ -15,7 +15,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
     
     <!-- Separated Master Stylesheet (Zero Prism Crash) - version query busts the GitHub Pages 10min cache -->
-    <link rel="stylesheet" href="index.css?v=1.46">
+    <link rel="stylesheet" href="index.css?v=1.47">
 
     <script>
     /* Universal Dark Reader Kill Switch (Rule 9) */
@@ -338,7 +338,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     // =========================================================================
     const AUTOSAVE_DELAY_MS = 500;
     const INDENT_SPACES_PER_LEVEL = 2;
-    const APP_BUILD = '1.46'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
+    const APP_BUILD = '1.47'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
     // Bump whenever the UI_STATE defaults below change: a saved state older than this gets
     // the new defaults applied exactly ONCE (afterwards the user's own toggles win).
     const UI_STATE_DEFAULTS_VERSION = 2;
@@ -460,7 +460,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     // The BLOB transport: one LPF row per list. Renamed from `lists` in 1.46 so that name could
     // go to the table which actually lists things (HANDOVER §26). Kept alive on purpose - it is
     // what the ?storage=blob escape hatch reads and writes.
-    const SUPABASE_LISTS_TABLE = 'list_blobs';
+    const SUPABASE_LISTS_TABLE = 'legacy_list_blobs';
     // The text column is named after the CONTENT, never a format: this text is LPF (its own
     // section headers plus markdown-flavoured checkboxes), so naming it after a format was
     // misleading.
@@ -2455,7 +2455,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
             if (!bucket.size) { TASK_ROWS_PENDING.delete(projId); continue; }
             const changes = Array.from(bucket.values());
             try {
-                const rows = await cloudRpc('apply_task_changes', {
+                const rows = await cloudRpc('apply_list_item_changes', {
                     p_location: LOCATION_ID,
                     p_project: projId,
                     p_secret: CLOUD_CONFIG.secret,
@@ -2489,7 +2489,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         if (!rowsStorageEnabled() || TASK_ROWS_HYDRATING.has(projId)) return;
         TASK_ROWS_HYDRATING.add(projId);
         try {
-            let rows = await cloudRpc('get_task_rows', {
+            let rows = await cloudRpc('get_list_items', {
                 p_location: LOCATION_ID,
                 p_project: projId,
                 p_secret: CLOUD_CONFIG.secret
