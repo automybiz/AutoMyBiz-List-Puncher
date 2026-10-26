@@ -997,6 +997,66 @@ storage detail.
   (not `default_onboarding`), 13 with parents, and the tooltip key reading
   `list_puncher_<loc>_proj_client_onboarding_0_checklist`.
 
+## 25. All three project ids now follow the same shape (2026-10-26)
+
+### The other two ids were shortened too
+`newProjectId()` only affects lists created *from now on*, so the two lists made before 1.45 still had
+13-digit timestamp seeds. They were migrated with the same copy-first procedure:
+
+| from | to | rows carried |
+|---|---|---|
+| `proj_supabase_setup_1792913084870` | `proj_supabase_setup_k3m9x2` | 18 |
+| `proj_supabase_setup_and_mcp_connection_1792913935559` | `proj_supabase_setup_and_mcp_connection_p7q4w1` | 165 |
+
+`tasks` and `lists` were **copied** (originals kept as the net); `directories` was **moved**, so the
+switcher cannot show a duplicate label. Verified after: the new ids carry the same row counts, the same
+98/13/156 parent links and the same `last_order`, and the directory has exactly 3 live rows in
+sort_order 0/1/2.
+
+**No code deploy was needed** - project ids are data. `grep` confirmed `index.html`/`index.css` contain
+zero references to either old id.
+
+**Why the ids cannot be renamed by hand** (asked during this change): renaming only the `directories`
+row leaves `tasks` and `lists` on the old id and every browser cache keyed by the old id. The app would
+find zero rows for the new id, treat the list as brand new, drop the old label and show an empty board -
+with the 165 real tasks still sitting in `tasks` under an id nothing points at. All three tables plus
+the caches have to move together, which is why it is done in SQL, never in the Table Editor.
+
+### `created_at` added to `directories` and `tasks`
+`updated_at` was being asked to answer two questions ("when was this made" and "when did it last
+change"), which it cannot. Both tables now have `created_at timestamptz not null default now()`.
+Existing rows were backfilled from `updated_at` **before** the default was applied, so no row is
+stamped with the migration time. Verified: 0 nulls, 0 future timestamps,
+`created_at = updated_at` on every pre-existing directory row. Not yet returned by any RPC - it exists
+for humans reading the table.
+
+### `deleted_at` is a soft delete, and the app never issues DELETE
+Worth writing down because it reads as nonsense at first glance ("if a row is deleted there is nothing
+left in it"):
+
+- Deleting a task or a list sets `deleted_at = now()` and **leaves every other column intact**. Every
+  read filters `WHERE deleted_at IS NULL`.
+- All rows showing `NULL` simply means nothing has been deleted yet.
+- A manual delete in the Supabase Table Editor genuinely removes the row - that path bypasses the app.
+- Why soft delete: undo (`deleted_at = null`), audit (when it was removed), and the wire protocol
+  (`diffTaskRows` sends `{ task_id, deleted: true }`, and the server needs to record that without
+  destroying the row).
+- If the accumulation ever matters, purge with
+  `delete from list_puncher.tasks where deleted_at < now() - interval '90 days'` from the existing
+  keep-alive workflow.
+
+### Also cleaned up
+A hand-inserted test directory row (`location_id = 'A9'`, `tenant_hash = '53'`,
+`project_id = 'proj__client_onboarding'`, empty name) was deleted. It used a fake location and tenant
+hash so the app could never match it, but it was litter. **Test id/sort experiments in a throwaway
+`location_id`, not the production tenant.**
+
+### Pending cleanup
+The old-id copies are still present as the safety net: 109 + 18 + 165 task rows and 3 `lists` rows under
+`default_onboarding`, `proj_supabase_setup_1792913084870` and
+`proj_supabase_setup_and_mcp_connection_1792913935559`. Delete them once the owner has confirmed the
+switcher looks right.
+
 ### Rollout (feature flag, NOT a fork - decided 2026-10-25)
 `?storage=rows` switches the backend; no param keeps today's blob path byte-for-byte. Revert is a URL
 change. A physical fork was rejected because two HTML files on the same origin share `localStorage` -
