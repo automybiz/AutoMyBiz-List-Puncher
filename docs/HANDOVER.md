@@ -1051,11 +1051,22 @@ A hand-inserted test directory row (`location_id = 'A9'`, `tenant_hash = '53'`,
 hash so the app could never match it, but it was litter. **Test id/sort experiments in a throwaway
 `location_id`, not the production tenant.**
 
-### Pending cleanup
-The old-id copies are still present as the safety net: 109 + 18 + 165 task rows and 3 `lists` rows under
-`default_onboarding`, `proj_supabase_setup_1792913084870` and
-`proj_supabase_setup_and_mcp_connection_1792913935559`. Delete them once the owner has confirmed the
-switcher looks right.
+### Cleanup DONE (2026-10-26)
+The old-id copies were deleted once the owner confirmed, scoped to `location_id = 'A9eEmuUJ1FM6sBhYESfO'`
+so nothing else could be caught: **292 task rows (109 + 18 + 165) and 3 `lists` rows**.
+
+Final state, verified:
+
+| | |
+|---|---|
+| `tasks` | **292** - and **0 orphan task rows**, i.e. every task belongs to a project the switcher lists |
+| `lists` | **3** - the blob escape hatch, now carrying the copies under the new ids |
+| `directories` | **3** |
+| `tenants` | **4** (1 real + 3 known `default_subaccount` leftovers) |
+| rows for any old id | **0** |
+
+The blob escape hatch (`?storage=blob` / `lpUseRows(false)`) still works: the `lists` copies were made
+under the *new* ids, so a fallback shows the content as of the migration, not an empty list.
 
 ### Rollout (feature flag, NOT a fork - decided 2026-10-25)
 `?storage=rows` switches the backend; no param keeps today's blob path byte-for-byte. Revert is a URL
