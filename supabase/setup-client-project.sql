@@ -1,6 +1,10 @@
 -- =============================================================================
 -- LIST PUNCHER - one-time setup for a CLIENT'S OWN Supabase project
 -- -----------------------------------------------------------------------------
+-- The table here is `list_puncher.list_blobs`: one LPF row per list, the blob transport.
+-- It was called `lists` before build 1.46; that name now belongs to the shared DIRECTORY in
+-- the agency hub (a client's own project has no directory table - it sees only its own lists).
+-- -----------------------------------------------------------------------------
 -- Run this in the SQL Editor of the client's project (the one that client owns).
 -- Safe to re-run: every statement is idempotent.
 --
@@ -15,7 +19,7 @@ begin;
 
 create schema if not exists list_puncher;
 
-create table if not exists list_puncher.lists (
+create table if not exists list_puncher.list_blobs (
   id uuid primary key default gen_random_uuid(),
   location_id text not null,
   project_id text not null,
@@ -27,35 +31,35 @@ create table if not exists list_puncher.lists (
 );
 
 -- The unique key the app's upsert targets:
---   POST /rest/v1/lists?on_conflict=location_id,project_id
+--   POST /rest/v1/list_blobs?on_conflict=location_id,project_id
 do $$
 begin
   if not exists (
     select 1 from pg_constraint
-    where conrelid = 'list_puncher.lists'::regclass
+    where conrelid = 'list_puncher.list_blobs'::regclass
       and conname = 'lists_location_id_project_id_key'
   ) then
-    alter table list_puncher.lists
+    alter table list_puncher.list_blobs
       add constraint lists_location_id_project_id_key unique (location_id, project_id);
   end if;
 end $$;
 
 -- NULLs do NOT collide in a UNIQUE constraint, so a NULL tenant column would let the
 -- upsert insert duplicates forever. Both are always supplied by the app.
-alter table list_puncher.lists alter column location_id set not null;
-alter table list_puncher.lists alter column project_id set not null;
+alter table list_puncher.list_blobs alter column location_id set not null;
+alter table list_puncher.list_blobs alter column project_id set not null;
 
-alter table list_puncher.lists enable row level security;
+alter table list_puncher.list_blobs enable row level security;
 
 -- The app talks to this table with the PUBLISHABLE key from inside a GHL iframe, and
 -- GHL is the only login boundary, so the API roles need these table privileges. RLS is
 -- the gate. NOTE: DELETE is deliberately NOT granted - the app only ever inserts or
 -- updates, so nothing in the browser can destroy a row.
 grant usage on schema list_puncher to anon, authenticated;
-grant select, insert, update on list_puncher.lists to anon, authenticated;
+grant select, insert, update on list_puncher.list_blobs to anon, authenticated;
 
-drop policy if exists lists_anon_all on list_puncher.lists;
-create policy lists_anon_all on list_puncher.lists
+drop policy if exists lists_anon_all on list_puncher.list_blobs;
+create policy lists_anon_all on list_puncher.list_blobs
   for all
   to anon, authenticated
   using (true)
@@ -64,7 +68,7 @@ create policy lists_anon_all on list_puncher.lists
 commit;
 
 -- Verify (expect rls_enabled = true, privilege rows for anon/authenticated):
---   select relrowsecurity from pg_class where oid = 'list_puncher.lists'::regclass;
+--   select relrowsecurity from pg_class where oid = 'list_puncher.list_blobs'::regclass;
 --   select grantee, string_agg(privilege_type, ', ')
 --     from information_schema.role_table_grants
 --    where table_schema = 'list_puncher' group by grantee;

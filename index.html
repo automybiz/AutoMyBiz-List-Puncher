@@ -15,7 +15,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
     
     <!-- Separated Master Stylesheet (Zero Prism Crash) - version query busts the GitHub Pages 10min cache -->
-    <link rel="stylesheet" href="index.css?v=1.45">
+    <link rel="stylesheet" href="index.css?v=1.46">
 
     <script>
     /* Universal Dark Reader Kill Switch (Rule 9) */
@@ -338,7 +338,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     // =========================================================================
     const AUTOSAVE_DELAY_MS = 500;
     const INDENT_SPACES_PER_LEVEL = 2;
-    const APP_BUILD = '1.45'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
+    const APP_BUILD = '1.46'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
     // Bump whenever the UI_STATE defaults below change: a saved state older than this gets
     // the new defaults applied exactly ONCE (afterwards the user's own toggles win).
     const UI_STATE_DEFAULTS_VERSION = 2;
@@ -457,10 +457,13 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     // =========================================================================
     const SYNC_BACKEND = 'supabase';                    // 'supabase' | 'off'
     const SUPABASE_SCHEMA = 'list_puncher';             // exposed separately from public in the Data API
-    const SUPABASE_LISTS_TABLE = 'lists';
-    // The text column is named after the CONTENT, never a format: this text is List Puncher's
-    // own checklist shorthand (LPF-flavoured headers + markdown-flavoured checkboxes), so
-    // calling it "source" was misleading.
+    // The BLOB transport: one LPF row per list. Renamed from `lists` in 1.46 so that name could
+    // go to the table which actually lists things (HANDOVER §26). Kept alive on purpose - it is
+    // what the ?storage=blob escape hatch reads and writes.
+    const SUPABASE_LISTS_TABLE = 'list_blobs';
+    // The text column is named after the CONTENT, never a format: this text is LPF (its own
+    // section headers plus markdown-flavoured checkboxes), so naming it after a format was
+    // misleading.
     const SUPABASE_TEXT_COLUMN = 'checklist_text';
     const CLOUD_SAVE_DEBOUNCE_MS = 800;                 // local saves are instant; pushes are coalesced
     const CLOUD_REQUEST_TIMEOUT_MS = 12000;             // a stalled fetch must never freeze the pill

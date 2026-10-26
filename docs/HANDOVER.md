@@ -1068,6 +1068,57 @@ Final state, verified:
 The blob escape hatch (`?storage=blob` / `lpUseRows(false)`) still works: the `lists` copies were made
 under the *new* ids, so a fallback shows the content as of the migration, not an empty list.
 
+## 26. Build 1.46 - `lists` now means the thing that lists things (2026-10-26)
+
+The names were backwards: the table called `lists` held **one blob per list**, while the table that
+actually listed the lists was called `directories`. Fixed by renaming both, which also keeps the blob
+transport alive (deleting it, as originally planned, would have killed the `?storage=blob` escape hatch).
+
+| was | now | is |
+|---|---|---|
+| `list_puncher.lists` | `list_puncher.list_blobs` | the BLOB transport - one LPF row per list |
+| `list_puncher.directories` | `list_puncher.lists` | the DIRECTORY - one row per list |
+
+Migration `rename_lists_to_list_blobs_and_directories_to_lists`. Constraints and indexes were renamed
+with their tables (`lists_pkey` → `list_blobs_pkey`, `directories_identity_key` → `lists_identity_key`,
+`directories_live_idx` → `lists_live_idx`) so their names cannot lie about what they belong to.
+
+**The five functions were regenerated from their own definitions**, not retyped:
+
+```sql
+d := pg_get_functiondef(r.oid);
+d := replace(d, 'list_puncher.directories', 'list_puncher.lists');
+execute d;
+```
+Hand-editing five `plpgsql` bodies at midnight is how you lose a `tenant_hash` filter. Bodies audited
+afterwards: `get_list` / `upsert_list` / `delete_list` reference **only** `list_blobs`;
+`get_directory` / `apply_directory_changes` reference **only** `lists`; no stale constraint name.
+
+### The code change that was mandatory
+`SUPABASE_LISTS_TABLE` was `'lists'`. Left alone, blob mode would have written LPF text **into the
+directory table**. It is now `'list_blobs'`. This is the one line that made the rename safe.
+
+**RPC names were deliberately NOT renamed** - `get_directory` / `apply_directory_changes` still say
+"directory" while reading `lists`. Renaming them means changing two client call sites and leaving any
+stale cached page calling a function that no longer exists. Worth doing, but not in the same change.
+
+### Setup scripts had to be fixed too
+`setup-agency-hub.sql` and `setup-client-project.sql` treated `list_puncher.lists` as the blob table.
+Run against the current schema, `alter table list_puncher.lists add column tenant_hash` would have
+altered the **directory**. All 29 table references and 3 REST paths were updated (with a negative
+lookahead, so `lists_backup_pre1b` was untouched), and both files now carry a header describing the
+three tables.
+
+### Verified
+- Function bodies audited in SQL (see above).
+- Live smoke test on a throwaway tenant: `upsert_list` → row in `list_blobs` → `get_list` reads it back;
+  `apply_directory_changes` → row in `lists` with the right name → `get_directory` returns it;
+  `delete_list` removed the blob row.
+- 3/3 inline scripts compile, build 1.46, `SUPABASE_LISTS_TABLE=list_blobs`; all five harnesses green
+  (rows 69, directory 23, secret 35, poll 34, empty-list).
+- A comment mangled by the earlier "yaml → source" substitution ("calling it \"source\" was
+  misleading") was found and rewritten while in the file.
+
 ### Rollout (feature flag, NOT a fork - decided 2026-10-25)
 `?storage=rows` switches the backend; no param keeps today's blob path byte-for-byte. Revert is a URL
 change. A physical fork was rejected because two HTML files on the same origin share `localStorage` -

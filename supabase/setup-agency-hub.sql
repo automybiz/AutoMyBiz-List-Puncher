@@ -2,6 +2,16 @@
 -- LIST PUNCHER - AGENCY HUB
 -- One project, many clients, REAL tenant isolation, zero setup for a new client.
 -- -----------------------------------------------------------------------------
+-- TABLE NAMES AS OF BUILD 1.46 (the renames happened in migration
+-- `rename_lists_to_list_blobs_and_directories_to_lists`):
+--   list_puncher.list_blobs  the BLOB transport - one LPF row per list. This is the table
+--                            every function below refers to. `?storage=blob` reads/writes it.
+--   list_puncher.lists       the DIRECTORY - one row per list (name, sort_order, tenant_hash),
+--                            written by get_directory / apply_directory_changes.
+--   list_puncher.tasks       the row transport - one row per task.
+-- This script predates the last two tables; they are created by the phase3_* / phase4_*
+-- migrations and documented in docs/HANDOVER.md.
+-- -----------------------------------------------------------------------------
 -- How it works
 --   * each GHL sub-account (location) gets its own random secret, stored as the GHL
 --     custom value "list_puncher_secret" so every device in that sub-account has it
@@ -9,7 +19,7 @@
 --     headers/params), so SECURITY DEFINER functions verify it and only ever touch
 --     that one tenant's row
 --   * anon gets NO table privileges - only EXECUTE on the functions below, so direct
---     REST access to list_puncher.lists becomes impossible
+--     REST access to list_puncher.list_blobs becomes impossible
 --
 -- PHASE 1 (run now)   : creates tenants + functions, leaves the old policy alone so the
 --                       currently deployed build keeps working.
@@ -81,7 +91,7 @@ begin
 
   return query
     select l.checklist_text, l.updated_at
-    from list_puncher.lists l
+    from list_puncher.list_blobs l
     where l.location_id = p_location
       and l.project_id  = p_project
     limit 1;
@@ -101,7 +111,7 @@ begin
     raise exception 'invalid tenant secret' using errcode = '28000';
   end if;
 
-  insert into list_puncher.lists (location_id, project_id, checklist_text, updated_at)
+  insert into list_puncher.list_blobs (location_id, project_id, checklist_text, updated_at)
   values (p_location, p_project, coalesce(p_text, ''), v_now)
   on conflict (location_id, project_id)
   do update set checklist_text = excluded.checklist_text,
@@ -126,7 +136,7 @@ begin
     raise exception 'invalid tenant secret' using errcode = '28000';
   end if;
 
-  delete from list_puncher.lists
+  delete from list_puncher.list_blobs
   where location_id = p_location and project_id = p_project;
   get diagnostics v_count = row_count;
   return v_count > 0;
@@ -147,16 +157,16 @@ commit;
 -- APPLIED to the agency project on 2026-10-24 (migration phase2_lock_table_and_add_ping)
 -- after Phase 1B was verified and the real row had been re-pushed by the app.
 --
--- From here on the ONLY way into list_puncher.lists is the tenant functions: anon and
+-- From here on the ONLY way into list_puncher.list_blobs is the tenant functions: anon and
 -- authenticated hold no table privileges at all and RLS has no policies, so
--- GET /rest/v1/lists answers 401 while POST /rest/v1/rpc/get_list still works.
+-- GET /rest/v1/list_blobs answers 401 while POST /rest/v1/rpc/get_list still works.
 -- -----------------------------------------------------------------------------
 begin;
 
-revoke all on list_puncher.lists from anon, authenticated;
-drop policy if exists lists_anon_all on list_puncher.lists;
+revoke all on list_puncher.list_blobs from anon, authenticated;
+drop policy if exists lists_anon_all on list_puncher.list_blobs;
 
--- Health check for the daily keep-alive workflow (it used to probe /rest/v1/lists,
+-- Health check for the daily keep-alive workflow (it used to probe /rest/v1/list_blobs,
 -- which is now closed). Returns the server clock, writes nothing, leaks nothing.
 create or replace function list_puncher.ping()
 returns timestamptz
@@ -174,8 +184,8 @@ commit;
 
 -- ROLLBACK (only if something still needs the old table path - it re-opens the hole):
 --   grant usage on schema list_puncher to anon, authenticated;
---   grant select, insert, update on list_puncher.lists to anon, authenticated;
---   create policy lists_anon_all on list_puncher.lists for all to anon, authenticated
+--   grant select, insert, update on list_puncher.list_blobs to anon, authenticated;
+--   create policy lists_anon_all on list_puncher.list_blobs for all to anon, authenticated
 --     using (true) with check (true);
 
 -- Verify (expect 5 functions, and NO grant rows for anon/authenticated on any table):
@@ -206,7 +216,7 @@ commit;
 -- =============================================================================
 
 -- 0. safety copies (DBA-only: RLS on, no API roles) - same as the applied migration
-create table if not exists list_puncher.lists_backup_pre1b   as select * from list_puncher.lists;
+create table if not exists list_puncher.lists_backup_pre1b   as select * from list_puncher.list_blobs;
 create table if not exists list_puncher.tenants_backup_pre1b as select * from list_puncher.tenants;
 alter table list_puncher.lists_backup_pre1b   enable row level security;
 alter table list_puncher.tenants_backup_pre1b enable row level security;
@@ -232,19 +242,19 @@ end
 $do$;
 
 -- 2. lists: tag each row with the tenant that wrote it
-alter table list_puncher.lists add column if not exists tenant_hash text;
-alter table list_puncher.lists drop constraint if exists lists_location_id_project_id_key;
-delete from list_puncher.lists where tenant_hash is null;   -- pre-fix row; the app re-pushes it
-alter table list_puncher.lists alter column tenant_hash set not null;
+alter table list_puncher.list_blobs add column if not exists tenant_hash text;
+alter table list_puncher.list_blobs drop constraint if exists lists_location_id_project_id_key;
+delete from list_puncher.list_blobs where tenant_hash is null;   -- pre-fix row; the app re-pushes it
+alter table list_puncher.list_blobs alter column tenant_hash set not null;
 
 do $do$
 begin
   if not exists (
     select 1 from pg_constraint
-    where conrelid = 'list_puncher.lists'::regclass
+    where conrelid = 'list_puncher.list_blobs'::regclass
       and conname  = 'lists_location_project_tenant_key'
   ) then
-    alter table list_puncher.lists
+    alter table list_puncher.list_blobs
       add constraint lists_location_project_tenant_key
       unique (location_id, project_id, tenant_hash);
   end if;
@@ -288,7 +298,7 @@ begin
 
   return query
     select l.checklist_text, l.updated_at
-    from list_puncher.lists l
+    from list_puncher.list_blobs l
     where l.location_id = p_location
       and l.project_id  = p_project
       and l.tenant_hash = v_hash
@@ -310,7 +320,7 @@ begin
     raise exception 'invalid tenant secret' using errcode = '28000';
   end if;
 
-  insert into list_puncher.lists (location_id, project_id, tenant_hash, checklist_text, updated_at)
+  insert into list_puncher.list_blobs (location_id, project_id, tenant_hash, checklist_text, updated_at)
   values (p_location, p_project, v_hash, coalesce(p_text, ''), v_now)
   on conflict (location_id, project_id, tenant_hash)
   do update set checklist_text = excluded.checklist_text,
@@ -334,7 +344,7 @@ begin
     raise exception 'invalid tenant secret' using errcode = '28000';
   end if;
 
-  delete from list_puncher.lists
+  delete from list_puncher.list_blobs
   where location_id = p_location
     and project_id  = p_project
     and tenant_hash = v_hash;
