@@ -34,7 +34,7 @@
     --indent-step: 22px;
 
     /* Build marker: lets the app detect a stale cached stylesheet (compared against APP_BUILD in index.html) */
-    --lp-css-build: "1.47";
+    --lp-css-build: "1.48";
 
     --completed-opacity: 0.42;
 
@@ -1052,6 +1052,15 @@ body {
     border-color: var(--accent-cyan);
     background: rgba(0, 0, 0, 0.35);
     color: #fff;
+}
+
+/* Notes and descriptions are free-form text: keep the user's own line breaks and
+   leading whitespace so indented payloads (JSON, YAML, code, nested bullets)
+   render exactly as they were pasted instead of being collapsed by HTML. */
+.task-notes-view,
+.section-description-view {
+    white-space: pre-wrap;
+    tab-size: 4;
 }
 
 .notes-placeholder {
