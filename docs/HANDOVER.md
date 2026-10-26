@@ -930,6 +930,73 @@ All three lists have been opened in rows mode and converted:
 Every task is parented, every section is a level-0 root, and the tick counts match what was on screen
 before the flip. The `lists` YAML rows are still present and untouched.
 
+## 24. Build 1.45 - the built-in list id, short seeds, and the business name (2026-10-26)
+
+### The built-in list is now `proj_client_onboarding_0`
+`DEFAULT_PROJECT_ID` was `default_onboarding`, which was the one id that did not follow the
+`proj_<slug>_<seed>` shape of every user-created list. It is now `proj_client_onboarding_0`, where the
+`_0` seed marks it as the built-in one.
+
+**It must stay a constant.** Every device has to agree on which list is "the default" **before** any
+sync happens. A generated id would give each device its own default list, both named "Client
+Onboarding", each with its own content, and they would never converge - the directory would show
+duplicates forever. That is why the odd-looking constant was correct and a "consistent" generated id
+would have been a bug.
+
+**Migration (non-destructive by design).** Moving the rows would leave a gap in which an open tab could
+fetch `[]`, adopt an empty list and diff 109 ids into 109 soft deletes. So instead:
+- `tasks` and `lists` were **copied** to the new id (`on conflict do nothing`) - the originals stay put,
+  so *no* build running *any* order can find an empty list;
+- `directories` was **moved** (an update) - a copy would show "Client Onboarding" twice in the switcher.
+- After the owner confirms the list looks right, the `default_onboarding` copies get deleted.
+
+Verified immediately after: 109 live tasks, 98 with a parent, 7 checked, 20,426-byte blob, 1 directory
+row for the new id, 3 directories with 3 distinct names for the tenant.
+
+### 6-character project seeds
+`createProjectList` used `Date.now()` as the id seed, producing `proj_supabase_setup_1792913084870` -
+13 digits for a value nobody reads. `newProjectId()` now builds a **6-char base36** seed
+(`proj_supabase_setup_k3m9x2`): 2.18 billion combinations per location, re-rolled until it does not
+collide with an existing id, so a clash is impossible rather than merely unlikely. Existing ids are
+untouched - only newly created lists get the short form.
+
+### The business name is display-only, never in a key
+The pill tooltip now leads with a human line:
+
+```
+Euro Parts West · location A9eEmuUJ1FM6sBhYESfO
+Key: list_puncher_A9eEmuUJ1FM6sBhYESfO_proj_client_onboarding_0_checklist | … | tenant 530bdffb
+```
+
+Deliberately **not** part of any key: `location_name` is a URL param that is not always present (the
+code already falls back to `'Euro Parts West'`), so a key containing it would change depending on how
+the app was opened - and the list would look lost. Renaming the business would do the same.
+`LOCATION_ID` is the stable identifier; the business name is the label for humans and AI readers.
+`lpStorageReport()` gained a matching `business:` line.
+
+### Storage key shape (final)
+```
+list_puncher_<location>_<projectId>_checklist      LPF text cache + blob-mode escape hatch
+list_puncher_<location>_<projectId>_ui_state       collapsed sections / open notes, per list
+list_puncher_<location>_<projectId>_rows           JSON cache WITH task ids (rows mode)
+list_puncher_<location>_<projectId>_rows_seeded    1-byte "already converted/synced"
+list_puncher_<location>_<projectId>_cloud_<t>_meta syncedAt / localSavedAt per cloud target
+list_puncher_<location>_{projects, active_proj_id, view_prefs, cloud_target, cloud_secret, dir_seeded}
+```
+The redundant literal `_proj_` was dropped from the per-list keys, because every project id already
+begins with `proj_` - the key used to read `_proj_proj_supabase_setup_…`.
+
+New task ids are 8 chars (`task_1a2b3c4d`, was 20) - never shown to a human, so length is only a
+storage detail.
+
+### Verified
+- 3/3 inline scripts compile; rows 69, directory 23, secret 35, poll 34, empty-list all green. The
+  empty-list harness gained `newProjectId` and now asserts the id matches
+  `^proj_[a-z0-9_]+_[0-9a-z]{6}$`.
+- Live rows-mode run on a throwaway location: 18 rows written under **`proj_client_onboarding_0`**
+  (not `default_onboarding`), 13 with parents, and the tooltip key reading
+  `list_puncher_<loc>_proj_client_onboarding_0_checklist`.
+
 ### Rollout (feature flag, NOT a fork - decided 2026-10-25)
 `?storage=rows` switches the backend; no param keeps today's blob path byte-for-byte. Revert is a URL
 change. A physical fork was rejected because two HTML files on the same origin share `localStorage` -

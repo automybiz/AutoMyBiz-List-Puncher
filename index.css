@@ -34,7 +34,7 @@
     --indent-step: 22px;
 
     /* Build marker: lets the app detect a stale cached stylesheet (compared against APP_BUILD in index.html) */
-    --lp-css-build: "1.44";
+    --lp-css-build: "1.45";
 
     --completed-opacity: 0.42;
 
@@ -396,6 +396,7 @@ body {
     padding: 6px 8px;
     margin: 6px 0;
     word-break: break-all;
+    white-space: pre-wrap;   /* the first line carries the business name on its own row */
     color: #fff;
     user-select: all;
 }

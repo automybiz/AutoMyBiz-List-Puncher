@@ -15,7 +15,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
     
     <!-- Separated Master Stylesheet (Zero Prism Crash) - version query busts the GitHub Pages 10min cache -->
-    <link rel="stylesheet" href="index.css?v=1.44">
+    <link rel="stylesheet" href="index.css?v=1.45">
 
     <script>
     /* Universal Dark Reader Kill Switch (Rule 9) */
@@ -338,7 +338,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     // =========================================================================
     const AUTOSAVE_DELAY_MS = 500;
     const INDENT_SPACES_PER_LEVEL = 2;
-    const APP_BUILD = '1.44'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
+    const APP_BUILD = '1.45'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
     // Bump whenever the UI_STATE defaults below change: a saved state older than this gets
     // the new defaults applied exactly ONCE (afterwards the user's own toggles win).
     const UI_STATE_DEFAULTS_VERSION = 2;
@@ -350,7 +350,11 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     // so resizing never re-renders the list.
     const CONTAINER_MIN_WIDTH = 600;
     const CONTAINER_DEFAULT_WIDTH = 980;
-    const DEFAULT_PROJECT_ID = 'default_onboarding';
+    // The built-in list's id. It MUST be a constant, never generated: every device has to agree
+    // on which list is "the default" BEFORE any sync happens, or each device would invent its own
+    // default list and they would never converge. The `_0` seed marks it as the built-in one and
+    // follows the same proj_<slug>_<seed> shape as a user-created list.
+    const DEFAULT_PROJECT_ID = 'proj_client_onboarding_0';
         // =========================================================================
     // TASK STATES - YES / NO / BLANK
     //   [ ]  blank - untouched / undecided
@@ -651,11 +655,11 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     }
 
     function getProjectChecklistKey(projId) {
-        return `list_puncher_${LOCATION_ID}_proj_${projId}_checklist`;
+        return `list_puncher_${LOCATION_ID}_${projId}_checklist`;
     }
 
     function getProjectUiKey(projId) {
-        return `list_puncher_${LOCATION_ID}_proj_${projId}_ui_state`;
+        return `list_puncher_${LOCATION_ID}_${projId}_ui_state`;
     }
 
     // Browser-local view prefs (toggles + container width) - one record per GHL location,
@@ -792,7 +796,11 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     function refreshPillTooltip() {
         const storageBox = document.getElementById('storageKeyBox');
         if (!storageBox) return;
-        storageBox.innerText = `Key: list_puncher_${LOCATION_ID}_proj_${ACTIVE_PROJECT_ID}_checklist`
+        // The business name is DISPLAY ONLY and never part of a key: a missing location_name URL
+        // param, or the business being renamed, would otherwise change the key and make a list
+        // look lost. LOCATION_ID is the stable identifier; this line is the human label for it.
+        storageBox.innerText = `${CLIENT_NAME} · location ${LOCATION_ID}\n`
+            + `Key: list_puncher_${LOCATION_ID}_${ACTIVE_PROJECT_ID}_checklist`
             + describeStorage() + describeTenant();
     }
 
@@ -862,9 +870,22 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         });
     }
 
+    // A 6-character base36 seed: 2.18 billion combinations per location - vastly more than any
+    // sub-account will ever hold, and far kinder to read in a storage key than a 13-digit
+    // millisecond timestamp. Re-rolled until it is unique, so a clash is impossible rather than
+    // merely unlikely.
+    function newProjectId(name) {
+        for (let attempt = 0; attempt < 50; attempt++) {
+            const seed = (Math.random().toString(36).slice(2) + '000000').slice(0, 6);
+            const candidate = generateSlugId('proj', name, seed);
+            if (!PROJECTS_LIST.some(p => p && p.id === candidate)) return candidate;
+        }
+        return generateSlugId('proj', name, Date.now());   // unreachable in practice
+    }
+
     function createProjectList(name) {
         executeAutoSave();
-        const newId = generateSlugId('proj', name, Date.now());
+        const newId = newProjectId(name);
         PROJECTS_LIST.push({ id: newId, name: name });
         localStorage.setItem(getProjectsStorageKey(), JSON.stringify(PROJECTS_LIST));
         scheduleDirectorySave({ project_id: newId, name: name, sort_order: PROJECTS_LIST.length - 1 });
@@ -1187,6 +1208,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
             : 'OFF - no project connected for this sub-account'));
         lines.push('storage mode:    ' + STORAGE_MODE + (rowsStorageEnabled() ? '  (one row per task)' : '  (one LPF row per list)')
             + '   switch: lpUseRows(true|false) or ?storage=rows|blob');
+        lines.push('business:        ' + CLIENT_NAME + '   (display only - the stable id is the location below)');
         lines.push('tenant secret:   ' + CLOUD_SECRET_SOURCE + '   fingerprint: ' + (CLOUD_TENANT_FINGERPRINT || '(unresolved)'));
         lines.push('                 ^ two people see the same list only if this fingerprint matches on both');
         lines.push('cloud status:    ' + CLOUD_STATUS + '   queued pushes: ' + CLOUD_PENDING.size
@@ -1625,7 +1647,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     }
 
     function getCloudMetaKey(projId) {
-        return `list_puncher_${LOCATION_ID}_proj_${projId}_cloud_${cloudTargetId(CLOUD_CONFIG.url)}_meta`;
+        return `list_puncher_${LOCATION_ID}_${projId}_cloud_${cloudTargetId(CLOUD_CONFIG.url)}_meta`;
     }
 
     // ---- tenant secret (agency-hub mode) ------------------------------------
@@ -2226,11 +2248,11 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     }
 
     function getRowsCacheKey(projId) {
-        return `list_puncher_${LOCATION_ID}_proj_${projId}_rows`;
+        return `list_puncher_${LOCATION_ID}_${projId}_rows`;
     }
 
     function getRowsSeededKey(projId) {
-        return `list_puncher_${LOCATION_ID}_proj_${projId}_rows_seeded`;
+        return `list_puncher_${LOCATION_ID}_${projId}_rows_seeded`;
     }
 
     function markRowsSeeded(projId) {
@@ -2246,7 +2268,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     function newTaskId() {
         try {
             if (window.crypto && typeof window.crypto.randomUUID === 'function') {
-                return 'task_' + window.crypto.randomUUID().replace(/-/g, '').slice(0, 20);
+                return 'task_' + window.crypto.randomUUID().replace(/-/g, '').slice(0, 8);
             }
         } catch (e) { /* fall through */ }
         return 'task_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
