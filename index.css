@@ -34,7 +34,7 @@
     --indent-step: 22px;
 
     /* Build marker: lets the app detect a stale cached stylesheet (compared against APP_BUILD in index.html) */
-    --lp-css-build: "1.48";
+    --lp-css-build: "1.49";
 
     --completed-opacity: 0.42;
 
@@ -1747,6 +1747,26 @@ body.is-viewer-mode .section-description-view {
 .width-control-hint {
     color: var(--text-muted);
     font-size: 0.72rem;
+}
+
+/* Inside the top-right cluster the readout is a third row under the mode/storage pills.
+   No dashed divider there, and the hint wraps beneath the compact controls so the
+   cluster can never grow into the action buttons' reserved gutter. */
+.header-pills-cluster .width-control {
+    margin-top: 0;
+    padding-top: 0;
+    border-top: none;
+    max-width: 260px;
+    justify-content: flex-end;
+    row-gap: 2px;
+    font-size: 0.72rem;
+}
+
+.header-pills-cluster .width-control-hint {
+    flex-basis: 100%;
+    text-align: right;
+    font-size: 0.66rem;
+    line-height: 1.35;
 }
 
 /* The grip lives on the header card's right edge, so it can never touch the animated deck borders. */

@@ -15,7 +15,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
     
     <!-- Separated Master Stylesheet (Zero Prism Crash) - version query busts the GitHub Pages 10min cache -->
-    <link rel="stylesheet" href="index.css?v=1.48">
+    <link rel="stylesheet" href="index.css?v=1.49">
 
     <script>
     /* Universal Dark Reader Kill Switch (Rule 9) */
@@ -137,6 +137,16 @@
             </div>
 
             </div>
+
+            <!-- Container width: the ⇔ grip on this card's right edge is the primary control; this
+                 readout + reset is the companion one (and the discoverable one). It sits under the
+                 mode/storage pills so the whole top-right cluster reads as one control group. -->
+            <div class="width-control" title="Drag the ⇔ grip on the right edge of this card to resize (double-click the grip to reset)">
+                <span class="width-control-label">⇔ Container Width</span>
+                <span class="width-readout" id="widthReadout">980px</span>
+                <button type="button" class="btn-action btn-sm" onclick="resetContainerWidth()" title="Reset the container width to 980px">↺ Reset</button>
+                <span class="width-control-hint">Drag ⇔ grip to resize • dbl-click to reset</span>
+            </div>
         </div>
 
         <div class="header-top">
@@ -199,15 +209,6 @@
             <div class="progress-track">
                 <div class="progress-fill" id="progressFill"></div>
             </div>
-        </div>
-
-        <!-- Container width: the ⇔ grip on this card's right edge is the primary control; this
-             readout + reset is the companion one (and the discoverable one). -->
-        <div class="width-control">
-            <span class="width-control-label">⇔ Container Width</span>
-            <span class="width-readout" id="widthReadout">980px</span>
-            <button type="button" class="btn-action btn-sm" onclick="resetContainerWidth()" title="Reset the container width to 980px">↺ Reset</button>
-            <span class="width-control-hint">Drag the ⇔ grip on the right edge of this card to resize (double-click the grip to reset)</span>
         </div>
 
         <!-- Container width drag grip. Attached to the header card, which has no animated border,
@@ -338,7 +339,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     // =========================================================================
     const AUTOSAVE_DELAY_MS = 500;
     const INDENT_SPACES_PER_LEVEL = 2;
-    const APP_BUILD = '1.48'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
+    const APP_BUILD = '1.49'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
     // Bump whenever the UI_STATE defaults below change: a saved state older than this gets
     // the new defaults applied exactly ONCE (afterwards the user's own toggles win).
     const UI_STATE_DEFAULTS_VERSION = 2;
