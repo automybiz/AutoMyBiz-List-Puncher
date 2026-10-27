@@ -34,7 +34,7 @@
     --indent-step: 22px;
 
     /* Build marker: lets the app detect a stale cached stylesheet (compared against APP_BUILD in index.html) */
-    --lp-css-build: "1.49";
+    --lp-css-build: "1.50";
 
     --completed-opacity: 0.42;
 
@@ -252,12 +252,15 @@ body {
     position: absolute;
     top: 20px;
     right: 24px;
+    /* The progress block is 36px tall + 20px card padding, so stopping 64px above the
+       card bottom leaves an 8px gap above it no matter how tall the action buttons get. */
+    bottom: 64px;
     display: flex;
-    /* Two rows: the list switcher, then the mode + storage pills under it. The switcher is
-       the widest thing here, so it gets the full row instead of sharing one with the pills. */
+    /* Three rows: the list switcher, the mode + storage pills, then the random illustration.
+       The illustration flexes into whatever vertical room the action buttons leave behind. */
     flex-direction: column;
     align-items: flex-end;
-    justify-content: flex-end;
+    justify-content: flex-start;
     gap: 8px;
     z-index: 10;
 }
@@ -1719,18 +1722,39 @@ body.is-viewer-mode .section-description-view {
 }
 
 /* ==========================================================================
-   Container Width Control (drag grip on the header card + readout/reset row)
+   Header Illustration (one random drawing, framed like the header card)
    ========================================================================== */
-.width-control {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-top: 14px;
-    padding-top: 12px;
-    border-top: 1px dashed rgba(0, 229, 255, 0.28);
-    font-size: 0.78rem;
-    color: var(--text-secondary);
+.header-art {
+    flex: 1 1 0;
+    min-height: 0;
+    max-height: 190px;
+    /* Height comes from the flex row; the native artwork ratio decides the width, capped
+       at the pill-row width. Short cards get a smaller frame instead of a cropped strip. */
+    width: auto;
+    aspect-ratio: 1376 / 768;
+    max-width: 260px;
+    background: var(--card-bg);
+    border: 1.5px solid var(--border-color);
+    border-radius: 12px;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6);
+    overflow: hidden;
+    opacity: 0;
+    transform: rotate(var(--header-art-rotation, 0deg));
+    transform-origin: center;
+    transition: opacity 0.25s ease;
+    pointer-events: none;
+}
+
+.header-art.is-ready {
+    opacity: 1;
+}
+
+.header-art-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    user-select: none;
 }
 
 .width-control-label {
@@ -1742,31 +1766,6 @@ body.is-viewer-mode .section-description-view {
     font-weight: 700;
     color: var(--accent-cyan);
     min-width: 56px;
-}
-
-.width-control-hint {
-    color: var(--text-muted);
-    font-size: 0.72rem;
-}
-
-/* Inside the top-right cluster the readout is a third row under the mode/storage pills.
-   No dashed divider there, and the hint wraps beneath the compact controls so the
-   cluster can never grow into the action buttons' reserved gutter. */
-.header-pills-cluster .width-control {
-    margin-top: 0;
-    padding-top: 0;
-    border-top: none;
-    max-width: 260px;
-    justify-content: flex-end;
-    row-gap: 2px;
-    font-size: 0.72rem;
-}
-
-.header-pills-cluster .width-control-hint {
-    flex-basis: 100%;
-    text-align: right;
-    font-size: 0.66rem;
-    line-height: 1.35;
 }
 
 /* The grip lives on the header card's right edge, so it can never touch the animated deck borders. */
@@ -1796,6 +1795,57 @@ body.is-viewer-mode .section-description-view {
     font-size: 12px;
     line-height: 1;
     pointer-events: none;
+}
+
+/* Live width readout, revealed on hover / keyboard focus / while dragging. */
+.container-resize-tooltip {
+    position: absolute;
+    top: 50%;
+    right: calc(100% + 12px);
+    transform: translateY(-50%);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 10px;
+    background: #06181c;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.75);
+    color: var(--text-secondary);
+    font-size: 0.72rem;
+    white-space: nowrap;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity 0.15s ease, visibility 0.15s ease;
+    z-index: 30;
+}
+
+.container-resize-tooltip::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    right: -5px;
+    width: 8px;
+    height: 8px;
+    background: #06181c;
+    border-right: 1px solid var(--border-color);
+    border-top: 1px solid var(--border-color);
+    transform: translateY(-50%) rotate(45deg);
+}
+
+.container-resize-handle:hover .container-resize-tooltip,
+.container-resize-handle:focus-visible .container-resize-tooltip,
+body.is-resizing .container-resize-tooltip {
+    opacity: 1;
+    visibility: visible;
+}
+
+.container-resize-tooltip-hint {
+    border-left: 1px solid rgba(255, 255, 255, 0.15);
+    padding-left: 8px;
+    color: var(--text-muted);
+    font-size: 0.66rem;
 }
 
 .header-card:hover .container-resize-handle,
@@ -1890,7 +1940,7 @@ body.is-resizing .container-resize-handle {
     }
     /* Meaningless when the viewport is already narrower than the minimum container width */
     .container-resize-handle,
-    .width-control {
+    .header-art {
         display: none;
     }
 }
