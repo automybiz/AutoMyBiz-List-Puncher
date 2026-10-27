@@ -15,7 +15,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
     
     <!-- Separated Master Stylesheet (Zero Prism Crash) - version query busts the GitHub Pages 10min cache -->
-    <link rel="stylesheet" href="index.css?v=1.52">
+    <link rel="stylesheet" href="index.css?v=1.53">
 
     <script>
     /* Universal Dark Reader Kill Switch (Rule 9) */
@@ -357,7 +357,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     // =========================================================================
     const AUTOSAVE_DELAY_MS = 500;
     const INDENT_SPACES_PER_LEVEL = 2;
-    const APP_BUILD = '1.52'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
+    const APP_BUILD = '1.53'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
     // Bump whenever the UI_STATE defaults below change: a saved state older than this gets
     // the new defaults applied exactly ONCE (afterwards the user's own toggles win).
     const UI_STATE_DEFAULTS_VERSION = 2;
@@ -1487,13 +1487,13 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
             const cv = (values && values[GHL_CV_EDITORS]) ? String(values[GHL_CV_EDITORS]).trim() : '';
             const fromCustomValue = !!(cv && cv.indexOf('{{') === -1);
             EDITORS_PARAM = fromCustomValue ? cv : PERMISSIONS_EDITORS_DEFAULT;
-            PERMISSION_SOURCES.editors = fromCustomValue ? 'GHL custom value' : 'built-in default';
+            PERMISSION_SOURCES.editors = fromCustomValue ? 'AutoMyBiz custom value' : 'built-in default';
         }
         if (needsViewers) {
             const cv = (values && values[GHL_CV_VIEWERS]) ? String(values[GHL_CV_VIEWERS]).trim() : '';
             const fromCustomValue = !!(cv && cv.indexOf('{{') === -1);
             VIEWERS_PARAM = fromCustomValue ? cv : PERMISSIONS_VIEWERS_DEFAULT;
-            PERMISSION_SOURCES.viewers = fromCustomValue ? 'GHL custom value' : 'built-in default';
+            PERMISSION_SOURCES.viewers = fromCustomValue ? 'AutoMyBiz custom value' : 'built-in default';
         }
 
         lpTrace('permissions', 'editors="' + EDITORS_PARAM + '" (' + PERMISSION_SOURCES.editors + ')'
