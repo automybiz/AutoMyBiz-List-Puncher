@@ -15,7 +15,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
     
     <!-- Separated Master Stylesheet (Zero Prism Crash) - version query busts the GitHub Pages 10min cache -->
-    <link rel="stylesheet" href="index.css?v=1.51">
+    <link rel="stylesheet" href="index.css?v=1.52">
 
     <script>
     /* Universal Dark Reader Kill Switch (Rule 9) */
@@ -105,16 +105,31 @@
                         <span>Permissions &amp; Wildcards</span>
                     </div>
                     <div id="modeTooltipDesc" style="color: var(--text-secondary); margin-bottom: 6px;">Loading role status...</div>
-                    <table class="tooltip-table">
+                    <table class="tooltip-table permission-table">
                         <tr>
                             <td class="prop">list_puncher_editors</td>
-                            <td class="val"><code>ADMINS</code> (Default), <code>ALL</code>, <code>ANYONE</code>, or comma-separated names/emails</td>
+                            <td class="val">
+                                <div class="perm-current-line">
+                                    Currently set to: <strong id="editorsCurrentValue">…</strong><span class="perm-source" id="editorsCurrentSource"></span>
+                                </div>
+                                <div class="perm-options-line">
+                                    Possible values: <code>ADMINS</code> <code>ALL</code> <code>ANYONE</code> or comma-separated names/emails
+                                </div>
+                            </td>
                         </tr>
                         <tr>
                             <td class="prop">list_puncher_viewers</td>
-                            <td class="val"><code>ALL</code> (Default), <code>ANYONE</code>, or specific comma-separated names/emails</td>
+                            <td class="val">
+                                <div class="perm-current-line">
+                                    Currently set to: <strong id="viewersCurrentValue">…</strong><span class="perm-source" id="viewersCurrentSource"></span>
+                                </div>
+                                <div class="perm-options-line">
+                                    Possible values: <code>ADMINS</code> <code>ALL</code> <code>ANYONE</code> or comma-separated names/emails
+                                </div>
+                            </td>
                         </tr>
                     </table>
+                    <div class="perm-legend"><code>ADMINS</code> = agency owner/admin only · <code>ALL</code> / <code>ANYONE</code> = everyone · names/emails = whitelist</div>
                     <div class="tooltip-code-box" id="modeUserDetected">Role: Probing...</div>
                 </div>
             </div>
@@ -342,7 +357,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     // =========================================================================
     const AUTOSAVE_DELAY_MS = 500;
     const INDENT_SPACES_PER_LEVEL = 2;
-    const APP_BUILD = '1.51'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
+    const APP_BUILD = '1.52'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
     // Bump whenever the UI_STATE defaults below change: a saved state older than this gets
     // the new defaults applied exactly ONCE (afterwards the user's own toggles win).
     const UI_STATE_DEFAULTS_VERSION = 2;
@@ -516,6 +531,12 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     // custom values - see applyGhlPermissionDefaults(). Hence `let`, not `const`.
     let EDITORS_PARAM = urlParams.get('editors') || '';
     let VIEWERS_PARAM = urlParams.get('viewers') || '';
+    // Where each permission value came from, so the header tooltip can show
+    // "ADMINS (built-in default)" instead of leaving the user guessing.
+    const PERMISSION_SOURCES = {
+        editors: EDITORS_PARAM ? 'menu link' : 'not set',
+        viewers: VIEWERS_PARAM ? 'menu link' : 'not set'
+    };
     const MODE_OVERRIDE = (urlParams.get('mode') || urlParams.get('edit') || '').toLowerCase();
     const URL_PROJECT   = urlParams.get('project') || urlParams.get('project_id') || '';
 
@@ -1454,21 +1475,29 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         if (!needsEditors && !needsViewers) return;
 
         const hasGhlContext = (LOCATION_ID && LOCATION_ID !== 'default_subaccount') || !!USER_NAME || !!USER_EMAIL;
-        if (!hasGhlContext) return;
+        if (!hasGhlContext) {
+            if (needsEditors) PERMISSION_SOURCES.editors = 'standalone full access';
+            if (needsViewers) PERMISSION_SOURCES.viewers = 'standalone full access';
+            return;
+        }
 
         const values = String(API_TOKEN || '').trim().startsWith('pit-') ? await fetchGhlCustomValues() : null;
 
         if (needsEditors) {
             const cv = (values && values[GHL_CV_EDITORS]) ? String(values[GHL_CV_EDITORS]).trim() : '';
-            EDITORS_PARAM = (cv && cv.indexOf('{{') === -1) ? cv : PERMISSIONS_EDITORS_DEFAULT;
+            const fromCustomValue = !!(cv && cv.indexOf('{{') === -1);
+            EDITORS_PARAM = fromCustomValue ? cv : PERMISSIONS_EDITORS_DEFAULT;
+            PERMISSION_SOURCES.editors = fromCustomValue ? 'GHL custom value' : 'built-in default';
         }
         if (needsViewers) {
             const cv = (values && values[GHL_CV_VIEWERS]) ? String(values[GHL_CV_VIEWERS]).trim() : '';
-            VIEWERS_PARAM = (cv && cv.indexOf('{{') === -1) ? cv : PERMISSIONS_VIEWERS_DEFAULT;
+            const fromCustomValue = !!(cv && cv.indexOf('{{') === -1);
+            VIEWERS_PARAM = fromCustomValue ? cv : PERMISSIONS_VIEWERS_DEFAULT;
+            PERMISSION_SOURCES.viewers = fromCustomValue ? 'GHL custom value' : 'built-in default';
         }
 
-        lpTrace('permissions', 'editors="' + EDITORS_PARAM + '" viewers="' + VIEWERS_PARAM
-            + '" (from ' + (values ? 'this sub-account\'s custom values' : 'built-in defaults') + ')');
+        lpTrace('permissions', 'editors="' + EDITORS_PARAM + '" (' + PERMISSION_SOURCES.editors + ')'
+            + ' viewers="' + VIEWERS_PARAM + '" (' + PERMISSION_SOURCES.viewers + ')');
     }
 
     // Decides which Supabase project this GHL sub-account writes to. Order matters: an
@@ -3339,13 +3368,19 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     // media/ is enumerated through GitHub's public contents API, so adding an image
     // to the folder is enough. The two shipped drawings cover offline/fallback use,
     // and the last successful listing is cached locally to keep page loads instant.
+    //
+    // IMPORTANT: HEADER_ART_LIST_URL is only the FOLDER-LISTING endpoint. It returns JSON
+    // entries (name/path/type); image URLs are built as HEADER_ART_DIR + entry.name.
+    // The ?ref=main only tells GitHub which branch's media/ folder to list.
+    const HEADER_ART_DIR = 'media/';
+    const HEADER_ART_REPO_CONTENTS_URL = 'https://api.github.com/repos/automybiz/AutoMyBiz-List-Puncher/contents/';
+    const HEADER_ART_LIST_URL = HEADER_ART_REPO_CONTENTS_URL + HEADER_ART_DIR + '?ref=main';
     const HEADER_ART_FALLBACK_IMAGES = [
-        'media/list-puncher-girl.png',
-        'media/list-puncher-guy.png'
+        HEADER_ART_DIR + 'list-puncher-girl.png',
+        HEADER_ART_DIR + 'list-puncher-guy.png'
     ];
     const HEADER_ART_CACHE_KEY = 'list_puncher_header_art_v1';
     const HEADER_ART_CACHE_MAX_AGE_MS = 15 * 60 * 1000;
-    const HEADER_ART_API_URL = 'https://api.github.com/repos/automybiz/AutoMyBiz-List-Puncher/contents/media?ref=main';
     const HEADER_ART_FILE_RE = /\.(png|jpe?g|webp|gif|avif|svg)$/i;
 
     let HEADER_ART_IMAGES = HEADER_ART_FALLBACK_IMAGES.slice();
@@ -3357,7 +3392,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         try {
             const parsed = JSON.parse(localStorage.getItem(HEADER_ART_CACHE_KEY) || 'null');
             if (parsed && Array.isArray(parsed.files)) {
-                return parsed.files.filter(src => typeof src === 'string' && src.startsWith('media/'));
+                return parsed.files.filter(src => typeof src === 'string' && src.startsWith(HEADER_ART_DIR));
             }
         } catch (e) { /* storage blocked */ }
         return [];
@@ -3439,7 +3474,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         }
 
         try {
-            const response = await fetch(HEADER_ART_API_URL, {
+            const response = await fetch(HEADER_ART_LIST_URL, {
                 headers: { 'Accept': 'application/vnd.github+json' },
                 cache: 'no-store'
             });
@@ -3449,7 +3484,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
             const files = (Array.isArray(entries) ? entries : [])
                 .filter(entry => entry && entry.type === 'file' && HEADER_ART_FILE_RE.test(entry.name || ''))
                 .sort((a, b) => String(a.name).localeCompare(String(b.name)))
-                .map(entry => 'media/' + encodeURIComponent(entry.name));
+                .map(entry => HEADER_ART_DIR + encodeURIComponent(entry.name));
 
             if (!files.length) return;
 
@@ -3748,6 +3783,17 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         const modeText = document.getElementById('modeText');
         const modeDesc = document.getElementById('modeTooltipDesc');
         const modeUser = document.getElementById('modeUserDetected');
+
+        const setPermissionReadout = (valueId, sourceId, value, source) => {
+            const valueEl = document.getElementById(valueId);
+            const sourceEl = document.getElementById(sourceId);
+            const raw = String(value || '').trim();
+            const shown = (!raw || raw.indexOf('{{') !== -1) ? 'not set' : raw;
+            if (valueEl) valueEl.textContent = shown;
+            if (sourceEl) sourceEl.textContent = (source && source !== 'not set') ? ` (${source})` : '';
+        };
+        setPermissionReadout('editorsCurrentValue', 'editorsCurrentSource', EDITORS_PARAM, PERMISSION_SOURCES.editors);
+        setPermissionReadout('viewersCurrentValue', 'viewersCurrentSource', VIEWERS_PARAM, PERMISSION_SOURCES.viewers);
 
         if (perms.mode === 'editor') {
             document.body.classList.remove('is-viewer-mode');

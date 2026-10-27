@@ -34,7 +34,7 @@
     --indent-step: 22px;
 
     /* Build marker: lets the app detect a stale cached stylesheet (compared against APP_BUILD in index.html) */
-    --lp-css-build: "1.51";
+    --lp-css-build: "1.52";
 
     --completed-opacity: 0.42;
 
@@ -412,18 +412,69 @@ body {
 }
 
 .tooltip-table td {
-    padding: 3px 0;
+    padding: 4px 0;
     vertical-align: top;
 }
 
 .tooltip-table td.prop {
     color: var(--accent-cyan);
     font-family: var(--font-mono);
-    width: 125px;
+    width: 140px;
+    padding-right: 12px;
+    white-space: nowrap;
 }
 
 .tooltip-table td.val {
     color: var(--text-primary);
+    overflow-wrap: anywhere;
+}
+
+.permission-table tr + tr td {
+    padding-top: 10px;
+}
+
+.permission-table td.val {
+    min-width: 0;
+}
+
+.perm-current-line {
+    color: var(--text-primary);
+}
+
+.perm-current-line strong {
+    color: var(--accent-cyan);
+    font-family: var(--font-mono);
+    font-weight: 700;
+}
+
+.perm-source {
+    color: var(--text-muted);
+    font-size: 10.5px;
+}
+
+.perm-options-line {
+    color: var(--text-secondary);
+    font-size: 10.5px;
+    line-height: 1.45;
+    margin-top: 2px;
+}
+
+.perm-options-line code {
+    color: var(--text-primary);
+    background: rgba(255, 255, 255, 0.06);
+    border-radius: 3px;
+    padding: 0 3px;
+}
+
+.perm-legend {
+    color: var(--text-muted);
+    font-size: 10px;
+    line-height: 1.45;
+    margin-top: 6px;
+}
+
+.perm-legend code {
+    color: var(--text-secondary);
 }
 
 .header-actions {
