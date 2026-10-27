@@ -466,12 +466,12 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     // Each sub-account points at ITS OWN Supabase project, so one client's data can
     // never land in another's (and nobody pays for everyone else's projects). The
     // target is resolved ONCE at startup by resolveCloudTarget(), first hit wins:
-    //   1. URL params        ?sb_url=...&sb_key=...   (per-location menu link / testing)
-    //   2. This browser      list_puncher_<loc>_cloud_target   (Cloud Project dialog)
-    //   3. GHL custom values list_puncher_supabase_url / list_puncher_supabase_key
-    //                        (set once per sub-account -> every device inherits it)
-    //   4. LEGACY_FALLBACK_CLOUD  (agency pilot project - set to null once every
-    //                        sub-account has its own target, so nothing can cross over)
+    //   1. URL params              ?sb_url=...&sb_key=...   (per-location menu link / testing)
+    //   2. This browser            list_puncher_<loc>_cloud_target   (Cloud Project dialog)
+    //   3. AutoMyBiz custom values list_puncher_supabase_url / list_puncher_supabase_key
+    //                              (set once per sub-account -> every device inherits it)
+    //   4. LEGACY_FALLBACK_CLOUD   (agency pilot project - set to null once every
+    //                              sub-account has its own target, so nothing can cross over)
     // With no source at all the app runs 100% local, exactly like the pre-cloud build.
     // =========================================================================
     const SYNC_BACKEND = 'supabase';                    // 'supabase' | 'off'
@@ -1648,7 +1648,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         return `list_puncher_${LOCATION_ID}_cloud_target`;
     }
 
-    // One gate for every way a target can arrive (URL, dialog, GHL custom value).
+    // One gate for every way a target can arrive (URL, dialog, AutoMyBiz custom value).
     function normalizeCloudTarget(url, key) {
         const cleanUrl = String(url || '').trim().replace(/\/+$/, '');
         const cleanKey = String(key || '').trim();
