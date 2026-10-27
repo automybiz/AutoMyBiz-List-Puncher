@@ -15,7 +15,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
     
     <!-- Separated Master Stylesheet (Zero Prism Crash) - version query busts the GitHub Pages 10min cache -->
-    <link rel="stylesheet" href="index.css?v=1.50">
+    <link rel="stylesheet" href="index.css?v=1.51">
 
     <script>
     /* Universal Dark Reader Kill Switch (Rule 9) */
@@ -138,9 +138,11 @@
 
             </div>
 
-            <!-- Header illustration: one of the two drawings is picked at random on every load,
-                 then tilted by a small random angle. Decorative only. -->
-            <div class="header-art" id="headerArt" aria-hidden="true">
+            <!-- Header illustration: a random drawing from media/ on every load. Click or press
+                 Enter/Space to cycle through every image in the folder. -->
+            <div class="header-art" id="headerArt" role="button" tabindex="0"
+                 aria-label="Show the next List Puncher illustration"
+                 title="Click to switch illustration">
                 <img class="header-art-image" id="headerArtImage" alt="" draggable="false" decoding="async" loading="lazy" />
             </div>
         </div>
@@ -340,7 +342,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     // =========================================================================
     const AUTOSAVE_DELAY_MS = 500;
     const INDENT_SPACES_PER_LEVEL = 2;
-    const APP_BUILD = '1.50'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
+    const APP_BUILD = '1.51'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
     // Bump whenever the UI_STATE defaults below change: a saved state older than this gets
     // the new defaults applied exactly ONCE (afterwards the user's own toggles win).
     const UI_STATE_DEFAULTS_VERSION = 2;
@@ -3332,26 +3334,167 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     }
 
     // =========================================================================
-    // HEADER ILLUSTRATION (one random drawing + a random tilt on every load)
+    // HEADER ILLUSTRATION (random on load, click to cycle, folder-driven)
     // =========================================================================
-    const HEADER_ART_IMAGES = [
+    // media/ is enumerated through GitHub's public contents API, so adding an image
+    // to the folder is enough. The two shipped drawings cover offline/fallback use,
+    // and the last successful listing is cached locally to keep page loads instant.
+    const HEADER_ART_FALLBACK_IMAGES = [
         'media/list-puncher-girl.png',
         'media/list-puncher-guy.png'
     ];
+    const HEADER_ART_CACHE_KEY = 'list_puncher_header_art_v1';
+    const HEADER_ART_CACHE_MAX_AGE_MS = 15 * 60 * 1000;
+    const HEADER_ART_API_URL = 'https://api.github.com/repos/automybiz/AutoMyBiz-List-Puncher/contents/media?ref=main';
+    const HEADER_ART_FILE_RE = /\.(png|jpe?g|webp|gif|avif|svg)$/i;
+
+    let HEADER_ART_IMAGES = HEADER_ART_FALLBACK_IMAGES.slice();
+    let HEADER_ART_INDEX = -1;
+    let HEADER_ART_FAILED = new Set();
+    let HEADER_ART_REFRESHING = false;
+
+    function headerArtCacheFiles() {
+        try {
+            const parsed = JSON.parse(localStorage.getItem(HEADER_ART_CACHE_KEY) || 'null');
+            if (parsed && Array.isArray(parsed.files)) {
+                return parsed.files.filter(src => typeof src === 'string' && src.startsWith('media/'));
+            }
+        } catch (e) { /* storage blocked */ }
+        return [];
+    }
+
+    function headerArtNextIndex() {
+        const total = HEADER_ART_IMAGES.length;
+        const start = HEADER_ART_INDEX < 0 ? -1 : HEADER_ART_INDEX;
+        for (let step = 1; step <= total; step++) {
+            const candidate = (start + step) % total;
+            if (!HEADER_ART_FAILED.has(HEADER_ART_IMAGES[candidate])) return candidate;
+        }
+        return -1;
+    }
+
+    function showHeaderArt(index) {
+        const art = document.getElementById('headerArt');
+        const image = document.getElementById('headerArtImage');
+        if (!art || !image || !HEADER_ART_IMAGES.length) return;
+
+        const total = HEADER_ART_IMAGES.length;
+        HEADER_ART_INDEX = ((index % total) + total) % total;
+
+        // Every switch gets a fresh subtle tilt, like a new snapshot dropped on the desk.
+        const angle = (Math.random() * 5 - 2.5).toFixed(2);
+        art.style.setProperty('--header-art-rotation', angle + 'deg');
+        art.style.display = '';
+        image.src = HEADER_ART_IMAGES[HEADER_ART_INDEX];
+    }
+
+    function setHeaderArtImages(files) {
+        const unique = Array.from(new Set((files || []).filter(Boolean)));
+        if (!unique.length) return;
+
+        const image = document.getElementById('headerArtImage');
+        if (!image) return;
+
+        const current = image.getAttribute('src') || '';
+        HEADER_ART_IMAGES = unique;
+        HEADER_ART_FAILED = new Set(Array.from(HEADER_ART_FAILED).filter(src => unique.includes(src)));
+
+        const currentIndex = unique.indexOf(current);
+        if (currentIndex !== -1) {
+            HEADER_ART_INDEX = currentIndex;
+            return;
+        }
+        showHeaderArt(Math.floor(Math.random() * unique.length));
+    }
+
+    function nextHeaderArt() {
+        if (!HEADER_ART_IMAGES.length) return;
+
+        // Completing a trip through the carousel is a natural moment to look for new files.
+        if (HEADER_ART_INDEX >= HEADER_ART_IMAGES.length - 1 && HEADER_ART_IMAGES.length > 1) {
+            refreshHeaderArtImages(true);
+        }
+
+        const next = headerArtNextIndex();
+        if (next !== -1) showHeaderArt(next);
+    }
+
+    async function refreshHeaderArtImages(force) {
+        if (HEADER_ART_REFRESHING) return;
+        HEADER_ART_REFRESHING = true;
+
+        let cache = null;
+        try {
+            const parsed = JSON.parse(localStorage.getItem(HEADER_ART_CACHE_KEY) || 'null');
+            if (parsed && typeof parsed === 'object') cache = parsed;
+        } catch (e) { /* storage blocked */ }
+
+        const cachedFiles = headerArtCacheFiles();
+        if (cachedFiles.length) setHeaderArtImages(cachedFiles);
+
+        const cacheAge = cache && cache.fetchedAt ? Date.now() - cache.fetchedAt : Infinity;
+        if (!force && cachedFiles.length && cacheAge < HEADER_ART_CACHE_MAX_AGE_MS) {
+            HEADER_ART_REFRESHING = false;
+            return;
+        }
+
+        try {
+            const response = await fetch(HEADER_ART_API_URL, {
+                headers: { 'Accept': 'application/vnd.github+json' },
+                cache: 'no-store'
+            });
+            if (!response.ok) return;
+
+            const entries = await response.json();
+            const files = (Array.isArray(entries) ? entries : [])
+                .filter(entry => entry && entry.type === 'file' && HEADER_ART_FILE_RE.test(entry.name || ''))
+                .sort((a, b) => String(a.name).localeCompare(String(b.name)))
+                .map(entry => 'media/' + encodeURIComponent(entry.name));
+
+            if (!files.length) return;
+
+            setHeaderArtImages(files);
+            try {
+                localStorage.setItem(HEADER_ART_CACHE_KEY, JSON.stringify({
+                    files: files,
+                    fetchedAt: Date.now()
+                }));
+            } catch (e) { /* storage blocked */ }
+        } catch (e) {
+            // Offline / rate-limited: the cached or fallback list is already on screen.
+        } finally {
+            HEADER_ART_REFRESHING = false;
+        }
+    }
 
     function initHeaderArt() {
         const art = document.getElementById('headerArt');
         const image = document.getElementById('headerArtImage');
         if (!art || !image) return;
 
-        const src = HEADER_ART_IMAGES[Math.floor(Math.random() * HEADER_ART_IMAGES.length)];
-        // Keep the tilt subtle: the frame is capped at 260px wide inside the card gutter.
-        const angle = (Math.random() * 5 - 2.5).toFixed(2);
-        art.style.setProperty('--header-art-rotation', angle + 'deg');
+        // A previous listing makes the first random pick cover every image in the folder.
+        const cachedFiles = headerArtCacheFiles();
+        if (cachedFiles.length) HEADER_ART_IMAGES = cachedFiles;
 
-        image.addEventListener('load', () => art.classList.add('is-ready'), { once: true });
-        image.addEventListener('error', () => { art.style.display = 'none'; }, { once: true });
-        image.src = src;
+        image.addEventListener('load', () => art.classList.add('is-ready'));
+        image.addEventListener('error', () => {
+            const failedSrc = image.getAttribute('src') || '';
+            if (failedSrc) HEADER_ART_FAILED.add(failedSrc);
+            const next = headerArtNextIndex();
+            if (next !== -1) showHeaderArt(next);
+            else art.style.display = 'none';
+        });
+
+        art.addEventListener('click', nextHeaderArt);
+        art.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                nextHeaderArt();
+            }
+        });
+
+        showHeaderArt(Math.floor(Math.random() * HEADER_ART_IMAGES.length));
+        refreshHeaderArtImages(false);
     }
 
     // (FX throttle removed in v1.13 - the card FX now animates exactly as it originally did)

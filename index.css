@@ -34,7 +34,7 @@
     --indent-step: 22px;
 
     /* Build marker: lets the app detect a stale cached stylesheet (compared against APP_BUILD in index.html) */
-    --lp-css-build: "1.50";
+    --lp-css-build: "1.51";
 
     --completed-opacity: 0.42;
 
@@ -1741,12 +1741,19 @@ body.is-viewer-mode .section-description-view {
     opacity: 0;
     transform: rotate(var(--header-art-rotation, 0deg));
     transform-origin: center;
-    transition: opacity 0.25s ease;
-    pointer-events: none;
+    cursor: pointer;
+    transition: opacity 0.25s ease, border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .header-art.is-ready {
     opacity: 1;
+}
+
+.header-art:hover,
+.header-art:focus-visible {
+    border-color: var(--accent-cyan);
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6), 0 0 18px rgba(0, 229, 255, 0.3);
+    outline: none;
 }
 
 .header-art-image {
