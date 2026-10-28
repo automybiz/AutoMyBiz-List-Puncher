@@ -15,7 +15,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
     
     <!-- Separated Master Stylesheet (Zero Prism Crash) - version query busts the GitHub Pages 10min cache -->
-    <link rel="stylesheet" href="index.css?v=1.57">
+    <link rel="stylesheet" href="index.css?v=1.58">
 
     <script>
     /* Universal Dark Reader Kill Switch (Rule 9) */
@@ -360,7 +360,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     // =========================================================================
     const AUTOSAVE_DELAY_MS = 500;
     const INDENT_SPACES_PER_LEVEL = 2;
-    const APP_BUILD = '1.57'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
+    const APP_BUILD = '1.58'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
     // Bump whenever the UI_STATE defaults below change: a saved state older than this gets
     // the new defaults applied exactly ONCE (afterwards the user's own toggles win).
     const UI_STATE_DEFAULTS_VERSION = 2;
@@ -489,6 +489,13 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     const COMMENT_CLOSE_GRACE_MS = 250;     // "mouse bridge": time to travel pill -> panel
     const COMMENT_PILL_MAX_DISPLAY = 99;    // 100+ renders as "99+" so the pill never widens
     const COMMENT_LOCAL_PREFIX = 'list_puncher_';
+    // How much of a gap between created_at and updated_at counts as "(edited)".
+    // A brand-new comment is created on the CLIENT and inserted later, so the two server
+    // timestamps can differ by the autosave debounce (500 ms) + cloud debounce (800 ms) + the
+    // request itself - measured at 2.4 s on the demo list, which a 2 s threshold wrongly
+    // flagged as an edit. A minute is latency-proof, and "fixed a typo 20 s after posting" is
+    // not an edit anybody needs to be told about.
+    const COMMENT_EDITED_AFTER_MS = 60000;
 
     // =========================================================================
     // CLOUD BACKEND (SUPABASE) - BRING YOUR OWN PROJECT, PER GHL SUB-ACCOUNT
@@ -3329,12 +3336,12 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     function commentEntryHtml(comment) {
         const own = canEditComment(comment);
         const mayDelete = canDeleteComment(comment);
-        // "Edited" needs a real gap: an INSERT writes created_at and updated_at together, but
-        // an older row (or a second-device round trip) can differ by a second or two, which
-        // must never read as "you changed your mind".
+        // "Edited" needs a real gap. The server now writes both timestamps as the same instant
+        // on INSERT, but a row created by an older build (or one that travelled through a slow
+        // push) differs by the insert latency - which must never read as "you changed your mind".
         const createdMs = Date.parse(String(comment.createdAt || '')) || 0;
         const updatedMs = Date.parse(String(comment.updatedAt || '')) || 0;
-        const edited = createdMs > 0 && updatedMs > 0 && (updatedMs - createdMs) > 2000;
+        const edited = createdMs > 0 && updatedMs > 0 && (updatedMs - createdMs) > COMMENT_EDITED_AFTER_MS;
         const authorLabel = (comment.author || '(unknown)') + (own ? ' (you)' : '');
         const deleteLabel = own ? 'Delete your comment' : 'Delete this comment (moderator)';
         return `<div class="comment-item ${own ? 'is-own' : ''}">

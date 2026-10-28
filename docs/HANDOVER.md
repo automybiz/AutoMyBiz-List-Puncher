@@ -1358,6 +1358,31 @@ empty-list ALL. 3/3 inline scripts compile; build markers 1.57. DB: insert -> `c
 update -> `updated_at > created_at`. Headless DOM: `actions 67 < pill 2809 < chevron 3067`,
 `actions 59 < pill 3681 < counter 3893`, and no pill inside `.section-title-wrap`.
 
+### Build 1.58 - "(edited)" for real this time (2026-10-28)
+
+The 1.57 tolerance (2 s) was still wrong, and the live data proved it: every row on the demo list
+had `created_at = 10:24:58.163` and `updated_at = 10:25:00.563` - a **2.400 s** gap. That is not an
+edit, it is the insert latency a comment always has, because it is created on the CLIENT and
+inserted after the autosave debounce (500 ms) + cloud debounce (800 ms) + the request itself.
+
+Three-part fix:
+1. **Server (1.57, kept):** INSERT writes `updated_at = created_at`; only ON CONFLICT bumps it.
+2. **Threshold (`COMMENT_EDITED_AFTER_MS = 60000`):** a minute is latency-proof, and "fixed a typo
+   20 s after posting" does not need a marker. The old inline 2000 ms is gone.
+3. **Data repair (migration `normalize_comment_insert_jitter`):** rows whose gap is pure jitter
+   (<= 10 s) got `updated_at = created_at`. 26 rows fixed; `edited_rows = 0` afterwards. A larger
+   gap is a real edit and was left untouched, so the marker keeps meaning something.
+
+**Lesson:** never derive "was this edited?" from two server timestamps without measuring the write
+path first. The number that matters is the debounce + round trip, and it is empirical.
+
+**Demo content:** the live demo list (`proj_supplements_demo_list_i0t3cz`) now carries 50 comments -
+4 on the milestone, 10 on GLYNAC, 26 on NAC Powder, 10 on Glycine - all inserted with
+`created_at = updated_at`, all keyed to the list's REAL task ids (so no duplicate tasks appeared).
+`docs/DEMO-comments-NAC.txt` holds the identical text, so the file and the live list agree. The
+milestone pill therefore reads `C 50` and its panel groups by node - which is the branch-counting
+design working as intended.
+
 **Lesson for headless smoke tests:** a `file://` boot with no usable `sb_url` resolves
 `LEGACY_FALLBACK_CLOUD` and **writes to the live project** - three smoke runs pushed starter items into
 `list_items`, a `list_headers` row and `tenants` rows before anyone noticed. And the obvious guard does

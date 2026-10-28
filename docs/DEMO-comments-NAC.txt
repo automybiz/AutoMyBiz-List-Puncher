@@ -27,10 +27,16 @@ tasks:
     notes: |
       A combination of Glycine and NAC (N-Acetyl Cystine). The idea is that the glycine takes the edge off the taste and you get both in one scoop.
     comments: |
-      Day: Starting here because this is the "beginner" version. Does it smell as bad as the pure NAC?
-      Brian: About half as bad. The glycine is sweet, so it masks some of the sulfur.
-      Day: "Half as bad" is still bad, Brian.
-      Brian: It is. But it is the version people actually finish, which matters more than the version that is technically purer.
+      Day: Okay, first scoop of the GLYNAC. Waiting for the sewer...
+      Brian: And?
+      Day: Nothing. It tastes like vaguely sweet chalk. I feel robbed of the drama.
+      Brian: That is the glycine doing the masking. Half the sulfur, twice the drinkability.
+      Day: So this is the starter version, for people with a weak stomach.
+      Brian: It is the version people actually finish. That is what matters.
+      Day: Fair. But I am taking this AND the NAC powder. Am I double-dosing?
+      Brian: Pick one. Both is paying twice for the same cysteine.
+      Day: Right. GLYNAC on work days, powder at home where the smell is my own problem.
+      Brian: That is genuinely the best plan anyone has had about this stack.
 
   - [ ] Demo Task: NAC Powder
     notes: |
@@ -74,8 +80,14 @@ tasks:
     comments: |
       Day: Hey, this Glycine sure is looking pretty tasty !!
       Brian: Yea, I like the sweet taste of the Glycine :)
-      Day: After the NAC, this feels like dessert. Wrong milestone, right feeling.
-      Brian: Same stack, very different experience. Sweet before bed, sewer at breakfast.
+      Day: This one is dangerous. It tastes like sweetener, so I want more than 3 grams.
+      Brian: Do not. Three grams is the dose. More is not better, it just costs more.
+      Day: Noted. Is this the same glycine that is inside the GLYNAC?
+      Brian: Same stuff. That is why the GLYNAC tastes sweet instead of like a drain.
+      Day: So the sweet one is dessert and the NAC is medicine. Makes sense.
+      Brian: Take it 30 minutes before bed. You will notice it in about three nights.
+      Day: Three nights. If I sleep badly on night four I am coming for you.
+      Brian: Deal. And keep it in the cupboard, not the fridge. It clumps.
 
 
 # ==========================================================
