@@ -34,7 +34,7 @@
     --indent-step: 22px;
 
     /* Build marker: lets the app detect a stale cached stylesheet (compared against APP_BUILD in index.html) */
-    --lp-css-build: "1.53";
+    --lp-css-build: "1.54";
 
     --completed-opacity: 0.42;
 
@@ -770,9 +770,16 @@ body {
 
 /* Section Header Action Buttons (+, 📋, 📥, ✕) */
 .section-header-actions {
-    display: flex;
+    /* Same rule as the row toolbar: it only exists while the header is hovered/focused,
+       so the completed pill stays visible but the title keeps the reclaimed width when idle. */
+    display: none;
     align-items: center;
     gap: 3px;
+}
+
+.section-header:hover .section-header-actions,
+.section-header:focus-within .section-header-actions {
+    display: flex;
 }
 
 .sec-action-btn {
@@ -1047,16 +1054,17 @@ body {
 }
 
 .task-actions {
-    display: flex;
+    /* Hidden actions must not reserve width: otherwise every row loses the toolbar's
+       full width from its title even while the toolbar is invisible. */
+    display: none;
     align-items: center;
     gap: 2px;
-    opacity: 0;
-    transition: opacity 0.15s ease;
     flex-shrink: 0;
 }
 
-.task-row:hover .task-actions {
-    opacity: 1;
+.task-row:hover .task-actions,
+.task-row:focus-within .task-actions {
+    display: flex;
 }
 
 .branch-count-badge {
