@@ -15,7 +15,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
     
     <!-- Separated Master Stylesheet (Zero Prism Crash) - version query busts the GitHub Pages 10min cache -->
-    <link rel="stylesheet" href="index.css?v=1.55">
+    <link rel="stylesheet" href="index.css?v=1.56">
 
     <script>
     /* Universal Dark Reader Kill Switch (Rule 9) */
@@ -199,6 +199,9 @@
                 <button type="button" class="btn-action btn-toggle" id="btnDepthColors" onclick="toggleDepthColors()" title="Toggle alternating color depths vs solid theme color">
                     🎨 Colors: ALT
                 </button>
+                <button type="button" class="btn-action btn-toggle" id="btnShowComments" onclick="toggleShowComments()" title="Show or hide user comments (hiding never deletes them)">
+                    C Comments: ON
+                </button>
                 <button type="button" class="btn-action" onclick="openChecklistEditor('full')" title="Open the List Puncher list editor">
                     📝 LIST Editor
                 </button>
@@ -357,7 +360,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     // =========================================================================
     const AUTOSAVE_DELAY_MS = 500;
     const INDENT_SPACES_PER_LEVEL = 2;
-    const APP_BUILD = '1.55'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
+    const APP_BUILD = '1.56'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
     // Bump whenever the UI_STATE defaults below change: a saved state older than this gets
     // the new defaults applied exactly ONCE (afterwards the user's own toggles win).
     const UI_STATE_DEFAULTS_VERSION = 2;
@@ -456,6 +459,36 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     // zero tasks" as a final answer and only runs the adopt-another-list fallbacks when the
     // key is absent entirely.
     const EMPTY_LIST_SENTINEL = '# lp-empty: 1';
+
+    // =========================================================================
+    // USER COMMENTS (build 1.56)
+    // -------------------------------------------------------------------------
+    // A comment belongs to ONE node: a section (level 0) or a task (level >= 1).
+    // Notes are a FIELD of a node, not a node, so there is no note-level thread.
+    //
+    // In LPF the thread is a block scalar owned by the node, exactly like `notes:`:
+    //
+    //   - [ ] Glycine Powder
+    //     notes: |
+    //       Tastes like a sewer. Take it anyway.
+    //     comments: |
+    //       Day: this is the worst thing I have ever tasted
+    //       Brian: the glutathione is worth it
+    //
+    // The FIRST occurrence of COMMENT_AUTHOR_SEPARATOR splits name from text, so a
+    // comment BODY may contain it freely - only a NAME may not (writeCommentLine()
+    // strips it on the way out). A line WITHOUT the separator is treated as a
+    // continuation of the comment above it, and an orphan line becomes an
+    // "(unknown)" comment: text is never dropped on read, because keeping the words
+    // matters more than knowing who wrote them.
+    // =========================================================================
+    const COMMENT_AUTHOR_SEPARATOR = ': ';
+    const COMMENT_AUTHOR_MAX_CHARS = 40;
+    const COMMENT_BODY_MAX_CHARS = 4000;
+    const COMMENT_OPEN_DELAY_MS = 120;      // hover time before the thread panel opens
+    const COMMENT_CLOSE_GRACE_MS = 250;     // "mouse bridge": time to travel pill -> panel
+    const COMMENT_PILL_MAX_DISPLAY = 99;    // 100+ renders as "99+" so the pill never widens
+    const COMMENT_LOCAL_PREFIX = 'list_puncher_';
 
     // =========================================================================
     // CLOUD BACKEND (SUPABASE) - BRING YOUR OWN PROJECT, PER GHL SUB-ACCOUNT
@@ -589,6 +622,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
             viewPrefsVersion: VIEW_PREFS_VERSION,
             completedAtBottom: true, // v1.23
             autoNumber: true,
+            showComments: true, // v1.56 - user comments: pill on the node + hover/pin thread panel
             nestStyle: 'rails', // v1.23
             depthColorMode: 'alt',
             containerWidth: null // null = the stylesheet default (980px)
@@ -1031,6 +1065,10 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
             // every list), so they are applied on top - and seeded exactly once on first run.
             loadViewPrefs(parsedUi);
 
+            // Comments are their own store keyed by task_id, so they are loaded per list and
+            // a miss simply means "no comments here yet" - a read never invents one.
+            loadCommentsForProject(ACTIVE_PROJECT_ID);
+
             applyNestingModeClass();
             applyDepthColorClass();
             updateHeaderToggleButtonsUI();
@@ -1051,7 +1089,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
                     // is the source for the first rows read. Falling through to "first run" here
                     // would replace somebody's list with the starter blueprint - the single most
                     // destructive way this flip could go wrong.
-                    TASKS_DATA = parseChecklistText(localBlobText);
+                    TASKS_DATA = absorbParsedComments(parseChecklistText(localBlobText));
                     lpTrace('rows convert (local)', 'project=' + ACTIVE_PROJECT_ID
                         + '  ' + TASKS_DATA.length + ' task(s) from the LPF cache');
                 } else {
@@ -1063,6 +1101,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
                 // The blueprint may ONLY appear for a list this browser has never had any copy of.
                 const maySeed = !cached && !localBlobText && ACTIVE_PROJECT_ID === DEFAULT_PROJECT_ID;
                 hydrateTasksFromCloud(ACTIVE_PROJECT_ID, true, maySeed ? seedOnboardingBlueprint : null);
+                hydrateCommentsFromCloud(ACTIVE_PROJECT_ID);
                 return;
             }
 
@@ -1077,7 +1116,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
             if (rawText !== null) {
                 const parsed = parseChecklistText(rawText);
                 if (parsed.length) {
-                    TASKS_DATA = parsed;
+                    TASKS_DATA = absorbParsedComments(parsed);
                     lpTrace('load OK', 'key=' + projectKey + '  items=' + parsed.length + '  bytes=' + rawText.length);
                     renderAll();
                     // Cached list is on screen instantly; the shared row may still be newer.
@@ -1117,7 +1156,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
                 if (legacyText && legacyText.trim()) {
                     const parsedLegacy = parseChecklistText(legacyText);
                     if (parsedLegacy.length) {
-                        TASKS_DATA = parsedLegacy;
+                        TASKS_DATA = absorbParsedComments(parsedLegacy);
                         lpTrace('load LEGACY KEY', 'key=list_puncher_checklist  items=' + parsedLegacy.length + '  -> re-homed to ' + projectKey);
                         saveState();
                         renderAll();
@@ -1298,6 +1337,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
                 autoNumber: Boolean(UI_STATE.autoNumber),
                 nestStyle: UI_STATE.nestStyle,
                 depthColorMode: UI_STATE.depthColorMode,
+                showComments: UI_STATE.showComments !== false,
                 containerWidth: CONTAINER_WIDTH
             }));
         } catch (e) {
@@ -1329,6 +1369,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         UI_STATE.autoNumber = prefs.autoNumber !== undefined ? Boolean(prefs.autoNumber) : shipped.autoNumber;
         UI_STATE.nestStyle = prefs.nestStyle || shipped.nestStyle;
         UI_STATE.depthColorMode = prefs.depthColorMode || shipped.depthColorMode;
+        UI_STATE.showComments = prefs.showComments !== undefined ? Boolean(prefs.showComments) : shipped.showComments;
         // Keep the user's saved width even if this first load happens in a narrower
         // window; applyContainerWidth() clamps only the RENDERED width.
         CONTAINER_WIDTH = normalizeStoredContainerWidth(prefs.containerWidth);
@@ -1378,12 +1419,17 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
                 console.warn('[List Puncher] Save round-trip check error:', e);
             }
 
+            // Comments ride the same save path: the local cache is written for every mode, and
+            // in the agency hub the per-comment change set is queued.
+            writeCommentsCache(ACTIVE_PROJECT_ID);
+
             // ROWS MODE: keep the local JSON cache (ids included) and send only what changed.
             // The LPF above is still written as the escape hatch, but the blob is NEVER pushed
             // here - two transports writing the same list would fight each other.
             if (rowsStorageEnabled()) {
                 writeRowsCache(ACTIVE_PROJECT_ID);
                 queueTaskRowChanges(ACTIVE_PROJECT_ID);
+                queueCommentChanges(ACTIVE_PROJECT_ID);
                 return true;
             }
 
@@ -2549,7 +2595,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
                             if (Array.isArray(blob) && blob.length) text = blob[0].checklist_text || '';
                         } catch (e) { /* no readable blob just means there is nothing to convert */ }
                     }
-                    const converted = text ? parseChecklistText(text) : [];
+                    const converted = text ? absorbParsedComments(parseChecklistText(text)) : [];
                     if (converted.length) {
                         TASKS_DATA = converted;
                         lpTrace('rows convert (cloud)', 'project=' + projId + '  ' + converted.length + ' task(s)');
@@ -2588,6 +2634,917 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         }
     }
 
+    // =========================================================================
+    // USER COMMENTS - MODEL (build 1.56)
+    // -------------------------------------------------------------------------
+    // TASKS_DATA is never touched: comments live in their own map keyed by the node's
+    // task_id (a section is a node too). That is deliberate, for three reasons:
+    //   * a server pull replaces TASKS_DATA wholesale (rowsToTasks) and must not wipe them;
+    //   * taskRowSignature() must never see a comment - commenting on a task must not
+    //     re-send that task's row and revert somebody else's tick;
+    //   * two people commenting at the same time are two different rows, so neither is lost.
+    // =========================================================================
+    let COMMENTS = new Map();              // taskId -> [{id, author, authorKey, body, createdAt, updatedAt}]
+    const COMMENTS_PENDING = new Map();    // projectId -> Map(commentId -> change)
+    const COMMENTS_SNAPSHOT = new Map();   // projectId -> Map(commentId -> signature)
+    const COMMENTS_HYDRATING = new Set();
+    let COMMENTS_TIMER = null;
+    let COMMENTS_FLUSHING = false;
+
+    // The open thread panel. `filter` is an authorKey ('' = All); `editingId` turns the
+    // composer into "save this comment" instead of "post a new one".
+    let COMMENT_POPOVER = { taskId: null, pinned: false, filter: '', editingId: null };
+    let COMMENT_OPEN_TIMER = null;
+    let COMMENT_CLOSE_TIMER = null;
+    let COMMENT_HOVER_TASK_ID = '';
+    let COMMENT_AUTHOR = { name: '', key: '' };
+
+    function newCommentId() {
+        try {
+            if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+                return 'comment_' + window.crypto.randomUUID().replace(/-/g, '').slice(0, 12);
+            }
+        } catch (e) { /* fall through */ }
+        return 'comment_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    }
+
+    // Trust-on-first-use. GHL is the only login boundary (the iframe has no Supabase
+    // session), so authorKey decides whose edit/delete buttons render - nothing more.
+    function normalizeAuthorKey(name) {
+        return String(name || '').toLowerCase().replace(/\s+/g, ' ').trim().slice(0, 80);
+    }
+
+    function getCommentAuthorStorageKey() {
+        return COMMENT_LOCAL_PREFIX + LOCATION_ID + '_comment_author';
+    }
+
+    function readStoredCommentAuthor() {
+        try { return String(localStorage.getItem(getCommentAuthorStorageKey()) || ''); } catch (e) { return ''; }
+    }
+
+    function writeStoredCommentAuthor(name) {
+        try { localStorage.setItem(getCommentAuthorStorageKey(), String(name || '')); } catch (e) { /* blocked */ }
+    }
+
+    // GHL passes the signed-in user in the menu link (user_name / user_email), so usually
+    // nothing has to be asked. Only a standalone browser needs the prompt in the composer.
+    function loadCommentAuthor() {
+        let name = String(USER_NAME || '').trim();
+        if (!name) name = String(USER_EMAIL || '').split('@')[0].trim();
+        if (!name) name = readStoredCommentAuthor();
+        COMMENT_AUTHOR = {
+            name: name,
+            key: USER_EMAIL ? String(USER_EMAIL).toLowerCase().trim() : normalizeAuthorKey(name)
+        };
+        return COMMENT_AUTHOR;
+    }
+
+    function setCommentAuthor(name) {
+        const clean = sanitizeCommentAuthor(name);
+        COMMENT_AUTHOR = {
+            name: clean,
+            key: USER_EMAIL ? String(USER_EMAIL).toLowerCase().trim() : normalizeAuthorKey(clean)
+        };
+        writeStoredCommentAuthor(clean);
+        return COMMENT_AUTHOR;
+    }
+
+    function isOwnComment(comment) {
+        const key = String((comment && comment.authorKey) || '');
+        return !!key && key === String(COMMENT_AUTHOR.key || '');
+    }
+
+    // ---- LPF read/write for one comment -------------------------------------
+    // One comment = one line. Newlines flatten to spaces, because a body that spans lines
+    // would come back in as a separate (or merged) entry - the format cannot tell them apart.
+    function sanitizeCommentAuthor(name) {
+        const sep = COMMENT_AUTHOR_SEPARATOR.trim();
+        return String(name || '')
+            .split(sep).join(' ')
+            .replace(/[\r\n]+/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim()
+            .slice(0, COMMENT_AUTHOR_MAX_CHARS);
+    }
+
+    function writeCommentLine(comment) {
+        const author = sanitizeCommentAuthor((comment && comment.author) || '');
+        const body = String((comment && comment.body) || '')
+            .replace(/\s*\r?\n\s*/g, ' ').replace(/\s+/g, ' ').trim();
+        if (!author || author === '(unknown)') return body;
+        return author + COMMENT_AUTHOR_SEPARATOR + body;
+    }
+
+    // Reads a comments: | block. A line WITH the separator opens a new comment; a line
+    // without one continues the comment above it (a wrapped or pasted body); an orphan
+    // line becomes an "(unknown)" comment. Text is never dropped - keeping the words
+    // matters more than knowing who wrote them.
+    function parseCommentLines(lines) {
+        const out = [];
+        (Array.isArray(lines) ? lines : []).forEach(raw => {
+            const line = String(raw === undefined || raw === null ? '' : raw).replace(/\s+$/, '');
+            if (!line.trim()) return;
+            const at = line.indexOf(COMMENT_AUTHOR_SEPARATOR);
+            if (at > 0) {
+                const author = line.slice(0, at).trim().slice(0, COMMENT_AUTHOR_MAX_CHARS);
+                const body = line.slice(at + COMMENT_AUTHOR_SEPARATOR.length).trim();
+                if (!body) return;
+                out.push({ author: author, body: body });
+                return;
+            }
+            if (out.length) {
+                const last = out[out.length - 1];
+                last.body = (last.body + ' ' + line.trim()).trim();
+                return;
+            }
+            out.push({ author: '', body: line.trim() });
+        });
+        return out;
+    }
+
+    // ---- the per-node thread ------------------------------------------------
+    function getComments(taskId) {
+        if (!taskId) return [];
+        const list = COMMENTS.get(String(taskId));
+        return Array.isArray(list) ? list : [];
+    }
+
+    function setComments(taskId, list) {
+        const id = String(taskId || '');
+        if (!id) return;
+        const clean = (Array.isArray(list) ? list : []).filter(c => c && String(c.body || '').trim());
+        if (clean.length) COMMENTS.set(id, clean);
+        else COMMENTS.delete(id);
+    }
+
+    function makeComment(authorName, body, meta) {
+        const m = meta || {};
+        const name = sanitizeCommentAuthor(authorName || '');
+        const explicitKey = (m.authorKey === undefined || m.authorKey === null) ? null : String(m.authorKey);
+        const nowIso = new Date().toISOString();
+        return {
+            id: String(m.id || newCommentId()),
+            author: name || '(unknown)',
+            authorKey: explicitKey !== null ? explicitKey : (name ? normalizeAuthorKey(name) : ''),
+            body: String(body || '').trim().slice(0, COMMENT_BODY_MAX_CHARS),
+            createdAt: String(m.createdAt || nowIso),
+            updatedAt: String(m.updatedAt || m.createdAt || nowIso)
+        };
+    }
+
+    function addComment(taskId, body, authorName) {
+        const comment = makeComment(authorName, body, { authorKey: COMMENT_AUTHOR.key });
+        const list = getComments(taskId).slice();
+        list.push(comment);
+        setComments(taskId, list);
+        return comment;
+    }
+
+    function findComment(commentId) {
+        const wanted = String(commentId || '');
+        let found = null;
+        COMMENTS.forEach(list => {
+            (Array.isArray(list) ? list : []).forEach(c => {
+                if (!found && c && String(c.id) === wanted) found = c;
+            });
+        });
+        return found;
+    }
+
+    function findCommentNodeId(commentId) {
+        const wanted = String(commentId || '');
+        let nodeId = '';
+        COMMENTS.forEach((list, taskId) => {
+            if (nodeId) return;
+            (Array.isArray(list) ? list : []).forEach(c => {
+                if (!nodeId && c && String(c.id) === wanted) nodeId = String(taskId);
+            });
+        });
+        return nodeId;
+    }
+
+    function updateCommentBody(commentId, body) {
+        const nodeId = findCommentNodeId(commentId);
+        if (!nodeId) return false;
+        const list = getComments(nodeId).map(c => (String(c.id) === String(commentId))
+            ? Object.assign({}, c, {
+                body: String(body || '').trim().slice(0, COMMENT_BODY_MAX_CHARS),
+                updatedAt: new Date().toISOString()
+            })
+            : c);
+        setComments(nodeId, list);
+        return true;
+    }
+
+    function removeComment(commentId) {
+        const nodeId = findCommentNodeId(commentId);
+        if (!nodeId) return false;
+        // Removed from the LOCAL array only. The change set sent to the server turns a
+        // vanished comment id into an explicit deleted:true (a soft delete there) - the same
+        // rule tasks follow: a delete is always explicit, never inferred from absence.
+        setComments(nodeId, getComments(nodeId).filter(c => String(c.id) !== String(commentId)));
+        return true;
+    }
+
+    // Moves comments the PARSER attached to nodes into the store, keyed by the node's id.
+    // Idempotent: the same body at the same node is the same comment, so re-parsing the LPF
+    // blob (blob mode, or the one-time rows conversion) can never duplicate a thread.
+    function absorbParsedComments(list) {
+        const items = Array.isArray(list) ? list : [];
+        items.forEach(t => {
+            if (!t || !Array.isArray(t.comments)) return;
+            if (!t.id) t.id = newTaskId();
+            const stored = getComments(t.id).slice();
+            (Array.isArray(t.comments) ? t.comments : []).forEach(p => {
+                const body = String((p && p.body) || '').trim();
+                if (!body) return;
+                const author = sanitizeCommentAuthor((p && p.author) || '');
+                const key = normalizeAuthorKey(author);
+                if (stored.some(c => c.body === body && normalizeAuthorKey(c.author) === key)) return;
+                stored.push(makeComment(author, body, { authorKey: key }));
+            });
+            setComments(t.id, stored);
+            delete t.comments;   // never travels on the wire, never reaches taskRowSignature()
+        });
+        return items;
+    }
+
+    // ---- counts for the pill ------------------------------------------------
+    function commentCountForNodeId(taskId) {
+        const id = String(taskId || '');
+        if (!id) return 0;
+        const index = TASKS_DATA.findIndex(t => t && String(t.id) === id);
+        if (index === -1) return getComments(id).length;
+        return commentCountForAnchor(index);
+    }
+
+    // A SECTION pill counts its whole branch (the "comments located in this branch" reading);
+    // a task pill counts only its own thread. The panel then groups a section's comments by
+    // node, so a 40-comment milestone is never one undifferentiated wall of text.
+    function commentCountForAnchor(index) {
+        const task = TASKS_DATA[index];
+        if (!task) return 0;
+        if (task.level !== 0) return getComments(task.id).length;
+        const range = getSectionRange(index);
+        let total = 0;
+        for (let i = range.start; i < range.start + range.count; i++) {
+            total += getComments(TASKS_DATA[i] && TASKS_DATA[i].id).length;
+        }
+        return total;
+    }
+
+    function sortComments(list) {
+        return (Array.isArray(list) ? list : []).slice().sort((a, b) => {
+            const at = String(a.createdAt || '');
+            const bt = String(b.createdAt || '');
+            if (at !== bt) return at < bt ? -1 : 1;
+            return String(a.id) < String(b.id) ? -1 : 1;
+        });
+    }
+
+    // Everything the thread panel needs for one anchor: the node itself, and (for a section)
+    // only the branch nodes that actually have comments.
+    function collectCommentGroups(taskId) {
+        const id = String(taskId || '');
+        const index = TASKS_DATA.findIndex(t => t && String(t.id) === id);
+        const groups = [];
+        if (index === -1) {
+            const orphan = sortComments(getComments(id));
+            if (orphan.length) groups.push({ node: null, title: 'Deleted task', comments: orphan });
+            return groups;
+        }
+        const task = TASKS_DATA[index];
+        const range = task.level === 0 ? getSectionRange(index) : { start: index, count: 1 };
+        for (let i = range.start; i < range.start + range.count; i++) {
+            const node = TASKS_DATA[i];
+            const list = sortComments(getComments(node && node.id));
+            if (list.length) groups.push({ node: node, title: (node && node.title) || 'Untitled', comments: list });
+        }
+        return groups;
+    }
+
+    function aggregateCommentAuthors(groups) {
+        const byKey = new Map();
+        (Array.isArray(groups) ? groups : []).forEach(g => (g.comments || []).forEach(c => {
+            const key = String(c.authorKey || '') || normalizeAuthorKey(c.author);
+            const row = byKey.get(key) || { key: key, name: c.author || '(unknown)', count: 0 };
+            row.count += 1;
+            byKey.set(key, row);
+        }));
+        return Array.from(byKey.values()).sort((a, b) => (b.count - a.count) || String(a.name).localeCompare(String(b.name)));
+    }
+
+    function eachComment(groups, fn) {
+        (Array.isArray(groups) ? groups : []).forEach(g => (g.comments || []).forEach(fn));
+    }
+    // ---- wire rows: one row per comment (agency hub / rpc mode only) --------
+    function commentsSyncEnabled() {
+        return rowsStorageEnabled();
+    }
+
+    function allCommentRows() {
+        const rows = [];
+        COMMENTS.forEach((list, taskId) => {
+            (Array.isArray(list) ? list : []).forEach(c => {
+                if (!c || !c.id) return;
+                rows.push({
+                    comment_id: String(c.id),
+                    task_id: String(taskId),
+                    author_key: String(c.authorKey || ''),
+                    author_name: String(c.author || ''),
+                    body: String(c.body || ''),
+                    created_at: String(c.createdAt || '')
+                });
+            });
+        });
+        return rows;
+    }
+
+    function commentRowSignature(row) {
+        return [
+            String(row.task_id || ''),
+            String(row.author_key || ''),
+            String(row.author_name || ''),
+            String(row.body || '')
+        ].join('\u0001');
+    }
+
+    function snapshotFromCommentRows(rows) {
+        const map = new Map();
+        (Array.isArray(rows) ? rows : []).forEach(r => {
+            if (r && r.comment_id) map.set(String(r.comment_id), commentRowSignature(r));
+        });
+        return map;
+    }
+
+    // What has to be sent: a new or edited comment, plus an explicit tombstone for one that
+    // vanished locally. Two people commenting at once therefore produce two DIFFERENT rows,
+    // which is the entire reason comments are not a column on list_items.
+    function diffCommentRows(previous, rows) {
+        const prev = (previous instanceof Map) ? previous : new Map();
+        const changes = [];
+        const seen = new Set();
+        (Array.isArray(rows) ? rows : []).forEach(r => {
+            const id = String(r.comment_id);
+            seen.add(id);
+            if (prev.get(id) !== commentRowSignature(r)) changes.push(r);
+        });
+        prev.forEach((sig, id) => {
+            if (!seen.has(id)) changes.push({ comment_id: id, deleted: true });
+        });
+        return changes;
+    }
+
+    function commentsFromRows(rows) {
+        const map = new Map();
+        (Array.isArray(rows) ? rows : []).forEach(r => {
+            if (!r || !r.comment_id || !r.task_id) return;
+            const nodeId = String(r.task_id);
+            const list = map.get(nodeId) || [];
+            list.push(makeComment(r.author_name, r.body, {
+                id: String(r.comment_id),
+                authorKey: String(r.author_key || ''),
+                createdAt: r.created_at || '',
+                updatedAt: r.updated_at || r.created_at || ''
+            }));
+            map.set(nodeId, list);
+        });
+        return map;
+    }
+
+    function getCommentsCacheKey(projId) {
+        return COMMENT_LOCAL_PREFIX + LOCATION_ID + '_' + projId + '_comments';
+    }
+
+    function writeCommentsCache(projId) {
+        if (!projId) return;
+        try {
+            localStorage.setItem(getCommentsCacheKey(projId), JSON.stringify({
+                version: 1,
+                projectId: projId,
+                savedAt: new Date().toISOString(),
+                comments: allCommentRows()
+            }));
+        } catch (e) { /* quota or blocked: the push path still carries them */ }
+    }
+
+    function readCommentsCache(projId) {
+        if (!projId) return null;
+        try {
+            const raw = localStorage.getItem(getCommentsCacheKey(projId));
+            if (!raw) return null;
+            const parsed = JSON.parse(raw);
+            if (!parsed || !Array.isArray(parsed.comments)) return null;
+            return commentsFromRows(parsed.comments);
+        } catch (e) { return null; }
+    }
+
+    // Swaps the in-memory store to this list's comments: local cache first (instant). A miss
+    // simply means "no comments here yet" - a read never invents one.
+    function loadCommentsForProject(projId) {
+        const cached = readCommentsCache(projId);
+        COMMENTS = cached || new Map();
+        COMMENTS_SNAPSHOT.set(projId, snapshotFromCommentRows(cached ? allCommentRows() : []));
+    }
+
+    function pendingCommentBucket(projId) {
+        let bucket = COMMENTS_PENDING.get(projId);
+        if (!bucket) { bucket = new Map(); COMMENTS_PENDING.set(projId, bucket); }
+        return bucket;
+    }
+
+    function hasPendingCommentChanges(projId) {
+        const bucket = COMMENTS_PENDING.get(projId);
+        return !!(bucket && bucket.size);
+    }
+
+    // Called from saveState(): diff the whole comment store against what the server last
+    // confirmed, then queue only what changed. Same debounce/retry machinery as the task rows.
+    function queueCommentChanges(projId) {
+        if (!commentsSyncEnabled()) return;
+        const changes = diffCommentRows(COMMENTS_SNAPSHOT.get(projId), allCommentRows());
+        if (!changes.length) return;
+        const bucket = pendingCommentBucket(projId);
+        changes.forEach(c => bucket.set(String(c.comment_id), c));
+        setCloudStatus('saving');
+        clearTimeout(COMMENTS_TIMER);
+        COMMENTS_TIMER = setTimeout(() => { flushCommentSaves(); }, CLOUD_SAVE_DEBOUNCE_MS);
+    }
+
+    async function flushCommentSaves() {
+        if (!commentsSyncEnabled() || !COMMENTS_PENDING.size || COMMENTS_FLUSHING) return;
+        clearTimeout(COMMENTS_TIMER);
+        COMMENTS_FLUSHING = true;
+        let allOk = true;
+        const entries = Array.from(COMMENTS_PENDING.entries());
+        for (const entry of entries) {
+            const projId = entry[0];
+            const bucket = entry[1];
+            if (!bucket.size) { COMMENTS_PENDING.delete(projId); continue; }
+            const changes = Array.from(bucket.values());
+            try {
+                const rows = await cloudRpc('apply_comment_changes', {
+                    p_location: LOCATION_ID,
+                    p_project: projId,
+                    p_secret: CLOUD_CONFIG.secret,
+                    p_changes: changes
+                });
+                changes.forEach(c => bucket.delete(String(c.comment_id)));
+                if (!bucket.size) COMMENTS_PENDING.delete(projId);
+                if (Array.isArray(rows)) COMMENTS_SNAPSHOT.set(projId, snapshotFromCommentRows(rows));
+                lpTrace('comments push OK', 'project=' + projId + '  ' + changes.length + ' change(s)');
+            } catch (e) {
+                allOk = false;
+                lpTrace('comments push FAILED', 'project=' + projId + '  ' + e.message);
+            }
+        }
+        COMMENTS_FLUSHING = false;
+        setCloudStatus(allOk ? 'synced' : 'offline');
+        if (COMMENTS_PENDING.size) {
+            clearTimeout(COMMENTS_TIMER);
+            COMMENTS_TIMER = setTimeout(() => { flushCommentSaves(); }, allOk ? 250 : CLOUD_RETRY_MS);
+        }
+    }
+
+    // Pull the shared threads. Guards, same shape as the task-row pull:
+    //   * never adopt a pull over changes this tab has not managed to send yet;
+    //   * never rebuild the panel while the composer holds unsent text (renderCommentPopover
+    //     checks that itself, so a half-typed comment can never be replaced under the cursor).
+    async function hydrateCommentsFromCloud(projId) {
+        if (!commentsSyncEnabled() || COMMENTS_HYDRATING.has(projId)) return;
+        COMMENTS_HYDRATING.add(projId);
+        try {
+            const rows = await cloudRpc('get_list_comments', {
+                p_location: LOCATION_ID,
+                p_project: projId,
+                p_secret: CLOUD_CONFIG.secret
+            });
+            if (projId !== ACTIVE_PROJECT_ID) return;
+            if (!Array.isArray(rows)) return;
+            if (hasPendingCommentChanges(projId)) return;
+            COMMENTS = commentsFromRows(rows);
+            COMMENTS_SNAPSHOT.set(projId, snapshotFromCommentRows(rows));
+            writeCommentsCache(projId);
+            refreshCommentPills();
+            if (isCommentPopoverOpen() && !commentComposerHasText()) renderCommentPopover();
+        } catch (e) {
+            lpTrace('comments load FAILED', 'project=' + projId + '  ' + e.message);
+        } finally {
+            COMMENTS_HYDRATING.delete(projId);
+        }
+    }
+
+    // =========================================================================
+    // USER COMMENTS - PILL + THREAD PANEL (build 1.56)
+    // -------------------------------------------------------------------------
+    // One compact pill per node: "C 11" (rounded chip - the shape is CSS, not text).
+    // Hovering opens the thread; clicking pins it. The panel is its own fixed element and
+    // NOT #lpTooltip: that one is pointer-events:none, writes innerText, and is force-hidden
+    // by a capture-phase document pointerdown - none of which allows selecting or copying.
+    // =========================================================================
+    function formatCommentCount(count) {
+        const n = Math.max(0, Number(count) || 0);
+        return n > COMMENT_PILL_MAX_DISPLAY ? COMMENT_PILL_MAX_DISPLAY + '+' : String(n);
+    }
+
+    function commentPillHtml(taskId, count) {
+        if (UI_STATE.showComments === false) return '';
+        const n = Math.max(0, Number(count) || 0);
+        const label = formatCommentCount(n);
+        // aria-label ONLY - never a `title`: the app's custom tooltip system targets [title]
+        // at runtime and would draw a second tooltip on top of this panel.
+        return `<button type="button" class="comment-pill ${n ? '' : 'is-empty'}" data-comment-anchor="${escapeHtml(taskId)}" aria-label="Comments: ${label}${n ? '' : ' (add one)'}"><span class="comment-pill-key">C</span><span class="comment-pill-count">${label}</span></button>`;
+    }
+
+    // Patches the pills in place instead of re-rendering the list: a full renderAll() would
+    // steal focus from a title input or an open notes textarea every time a comment arrives.
+    function refreshCommentPills() {
+        document.querySelectorAll('.comment-pill').forEach(pill => {
+            const id = pill.getAttribute('data-comment-anchor') || '';
+            const n = commentCountForNodeId(id);
+            const label = formatCommentCount(n);
+            const countEl = pill.querySelector('.comment-pill-count');
+            if (countEl) countEl.textContent = label;
+            pill.classList.toggle('is-empty', n === 0);
+            pill.setAttribute('aria-label', 'Comments: ' + label + (n ? '' : ' (add one)'));
+        });
+    }
+
+    function isCommentPopoverOpen() {
+        const panel = document.getElementById('commentPopover');
+        return !!(panel && panel.classList.contains('show'));
+    }
+
+    function commentPanelAnchorEl(taskId) {
+        const id = String(taskId || '').replace(/"/g, '');
+        return document.querySelector('.comment-pill[data-comment-anchor="' + id + '"]');
+    }
+
+    function scheduleCommentPopoverOpen(taskId) {
+        if (UI_STATE.showComments === false) return;
+        clearTimeout(COMMENT_OPEN_TIMER);
+        clearTimeout(COMMENT_CLOSE_TIMER);
+        if (COMMENT_POPOVER.pinned) return;                    // a pinned panel does not chase the mouse
+        if (isCommentPopoverOpen() && COMMENT_POPOVER.taskId === String(taskId)) return;
+        COMMENT_OPEN_TIMER = setTimeout(() => openCommentPopover(taskId, false), COMMENT_OPEN_DELAY_MS);
+    }
+
+    function scheduleCommentPopoverClose() {
+        clearTimeout(COMMENT_OPEN_TIMER);
+        if (COMMENT_POPOVER.pinned) return;
+        clearTimeout(COMMENT_CLOSE_TIMER);
+        COMMENT_CLOSE_TIMER = setTimeout(() => closeCommentPopover(false), COMMENT_CLOSE_GRACE_MS);
+    }
+
+    function cancelCommentPopoverClose() {
+        clearTimeout(COMMENT_CLOSE_TIMER);
+        clearTimeout(COMMENT_OPEN_TIMER);
+    }
+
+    function openCommentPopover(taskId, pin) {
+        const panel = document.getElementById('commentPopover');
+        if (!panel || !taskId || UI_STATE.showComments === false) return;
+        const id = String(taskId);
+        if (COMMENT_POPOVER.taskId !== id) {
+            COMMENT_POPOVER = { taskId: id, pinned: Boolean(pin), filter: '', editingId: null };
+        } else if (pin) {
+            COMMENT_POPOVER.pinned = true;
+        }
+        renderCommentPopover();
+        positionCommentPopover();
+        panel.classList.add('show');
+    }
+
+    function closeCommentPopover(force) {
+        const panel = document.getElementById('commentPopover');
+        clearTimeout(COMMENT_OPEN_TIMER);
+        clearTimeout(COMMENT_CLOSE_TIMER);
+        if (!panel) return;
+        if (COMMENT_POPOVER.pinned && !force) return;
+        panel.classList.remove('show');
+        COMMENT_POPOVER = { taskId: null, pinned: false, filter: '', editingId: null };
+    }
+
+    function toggleCommentPopover(taskId) {
+        if (isCommentPopoverOpen() && COMMENT_POPOVER.taskId === String(taskId)) closeCommentPopover(true);
+        else openCommentPopover(taskId, true);
+    }
+
+    // Fixed positioning against the pill, flipped above when the viewport runs out, and
+    // clamped horizontally so a pill in the last column cannot push the panel off-screen.
+    function positionCommentPopover() {
+        const panel = document.getElementById('commentPopover');
+        if (!panel) return;
+        const anchor = commentPanelAnchorEl(COMMENT_POPOVER.taskId);
+        if (!anchor) return;
+        const rect = anchor.getBoundingClientRect();
+        const box = panel.getBoundingClientRect();
+        const gap = 10;
+        let top = rect.bottom + gap;
+        if (top + box.height > (window.innerHeight || 0) - 8) {
+            top = Math.max(8, rect.top - box.height - gap);
+        }
+        const viewportWidth = document.documentElement.clientWidth || window.innerWidth || 0;
+        let left = rect.left + rect.width - box.width;
+        left = Math.max(8, Math.min(left, Math.max(8, viewportWidth - box.width - 8)));
+        panel.style.top = Math.round(top) + 'px';
+        panel.style.left = Math.round(left) + 'px';
+    }
+
+    function formatCommentTime(iso) {
+        const t = Date.parse(String(iso || ''));
+        if (!t) return '';
+        const minutes = Math.round((Date.now() - t) / 60000);
+        if (minutes < 1) return 'just now';
+        if (minutes < 60) return minutes + 'm';
+        const hours = Math.round(minutes / 60);
+        if (hours < 24) return hours + 'h';
+        const days = Math.round(hours / 24);
+        if (days < 7) return days + 'd';
+        try { return new Date(t).toLocaleDateString(); } catch (e) { return ''; }
+    }
+
+    function commentComposerHasText() {
+        const input = document.getElementById('commentComposerInput');
+        return !!(input && String(input.value || '').trim());
+    }
+
+    function commentEntryHtml(comment) {
+        const own = isOwnComment(comment);
+        const edited = comment.updatedAt && comment.createdAt && comment.updatedAt !== comment.createdAt;
+        return `<div class="comment-item ${own ? 'is-own' : ''}">
+            <div class="comment-item-head">
+                <span class="comment-item-author">${escapeHtml(comment.author || '(unknown)')}</span>
+                <span class="comment-item-time">${escapeHtml(formatCommentTime(comment.createdAt))}${edited ? ' (edited)' : ''}</span>
+                ${own ? `<span class="comment-item-actions">
+                    <button type="button" class="comment-link" data-comment-edit="${escapeHtml(comment.id)}">Edit</button>
+                    <button type="button" class="comment-link danger" data-comment-delete="${escapeHtml(comment.id)}">Delete</button>
+                </span>` : ''}
+            </div>
+            <div class="comment-item-body">${escapeHtml(comment.body || '')}</div>
+        </div>`;
+    }
+
+    // Rebuilds the whole panel from the store. A draft in the composer is carried across the
+    // rebuild (focus and caret restored), so a background pull can never eat typing.
+    function renderCommentPopover() {
+        const panel = document.getElementById('commentPopover');
+        if (!panel || !COMMENT_POPOVER.taskId) return;
+
+        const previousInput = document.getElementById('commentComposerInput');
+        const draft = previousInput ? previousInput.value : '';
+        const hadFocus = previousInput && document.activeElement === previousInput;
+
+        const groups = collectCommentGroups(COMMENT_POPOVER.taskId);
+        const authors = aggregateCommentAuthors(groups);
+        const total = groups.reduce((n, g) => n + g.comments.length, 0);
+        const filter = COMMENT_POPOVER.filter;
+        const anchorTask = TASKS_DATA.find(t => t && String(t.id) === COMMENT_POPOVER.taskId);
+        const heading = anchorTask ? (anchorTask.title || 'Untitled') : 'Comments';
+        const isSection = !!anchorTask && anchorTask.level === 0;
+
+        const chips = authors.length
+            ? '<div class="comment-filters">'
+                + authors.map(a => `<button type="button" class="comment-chip ${filter === a.key ? 'active' : ''}" data-comment-filter="${escapeHtml(a.key)}"><span class="comment-chip-name">${escapeHtml(a.name)}</span><span class="comment-chip-count">${a.count}</span></button>`).join('')
+                + `<button type="button" class="comment-chip ${filter === '' ? 'active' : ''}" data-comment-filter=""><span class="comment-chip-name">All</span><span class="comment-chip-count">${total}</span></button>`
+                + '</div>'
+            : '';
+
+        const bodyHtml = groups.length
+            ? groups.map(g => {
+                const visible = filter ? g.comments.filter(c => String(c.authorKey || '') === filter) : g.comments;
+                if (!visible.length) return '';
+                return (isSection ? `<div class="comment-group-title">${escapeHtml(g.title)}</div>` : '')
+                    + visible.map(commentEntryHtml).join('');
+            }).join('')
+            : '<div class="comment-empty">No comments here yet - write the first one below.</div>';
+
+        const editing = COMMENT_POPOVER.editingId ? findComment(COMMENT_POPOVER.editingId) : null;
+
+        panel.innerHTML = `
+            <div class="comment-popover-head">
+                <div class="comment-popover-titles">
+                    <div class="comment-popover-title">${escapeHtml(heading)}</div>
+                    <div class="comment-popover-sub">${total} comment${total === 1 ? '' : 's'}${authors.length > 1 ? ' by ' + authors.length + ' people' : ''}${isSection ? ' in this branch' : ''}</div>
+                </div>
+                <button type="button" class="comment-popover-btn ${COMMENT_POPOVER.pinned ? 'is-pinned' : ''}" data-comment-pin aria-label="${COMMENT_POPOVER.pinned ? 'Unpin this panel' : 'Pin this panel open'}">${COMMENT_POPOVER.pinned ? 'PINNED' : 'PIN'}</button>
+                <button type="button" class="comment-popover-btn" data-comment-close aria-label="Close comments">X</button>
+            </div>
+            ${chips}
+            <div class="comment-list">${bodyHtml}</div>
+            <div class="comment-composer">
+                <textarea id="commentComposerInput" class="comment-composer-input" rows="2"
+                          placeholder="Add a comment as ${escapeHtml(COMMENT_AUTHOR.name || 'yourself')}...">${editing ? escapeHtml(editing.body) : ''}</textarea>
+                <div class="comment-composer-bar">
+                    <span class="comment-composer-hint">${editing ? 'Editing - Esc cancels' : 'Ctrl+Enter posts'} - signed as ${escapeHtml(COMMENT_AUTHOR.name || 'unnamed')}</span>
+                    ${editing ? '<button type="button" class="comment-btn" data-comment-cancel-edit>Cancel</button>' : ''}
+                    <button type="button" class="comment-btn primary" data-comment-submit>${editing ? 'Save' : 'Post'}</button>
+                </div>
+            </div>`;
+
+        const input = document.getElementById('commentComposerInput');
+        if (input) {
+            if (!editing && draft) input.value = draft;
+            if (editing || hadFocus) {
+                try {
+                    input.focus();
+                    const end = input.value.length;
+                    input.setSelectionRange(end, end);
+                } catch (e) { /* focus can fail in a background tab */ }
+            }
+        }
+        positionCommentPopover();
+    }
+
+    // ---- panel actions ------------------------------------------------------
+    function setCommentFilter(authorKey) {
+        COMMENT_POPOVER.filter = String(authorKey || '');
+        renderCommentPopover();
+    }
+
+    function startCommentEdit(commentId) {
+        const comment = findComment(commentId);
+        if (!comment || !isOwnComment(comment)) return;
+        COMMENT_POPOVER.editingId = String(commentId);
+        renderCommentPopover();
+    }
+
+    function cancelCommentEdit() {
+        COMMENT_POPOVER.editingId = null;
+        renderCommentPopover();
+    }
+
+    // Posting (and saving an edit) goes through saveState(), so the local cache, the LPF
+    // escape hatch and the per-comment push all stay in step from one place.
+    function submitCommentFromComposer() {
+        if (!COMMENT_POPOVER.taskId) return;
+        const input = document.getElementById('commentComposerInput');
+        const body = String((input && input.value) || '').trim().slice(0, COMMENT_BODY_MAX_CHARS);
+        if (!body) { showToast('Write something first'); return; }
+        if (!COMMENT_AUTHOR.name) { askCommentAuthorName(submitCommentFromComposer); return; }
+
+        const wasEditing = Boolean(COMMENT_POPOVER.editingId);
+        if (wasEditing) {
+            const comment = findComment(COMMENT_POPOVER.editingId);
+            if (!comment || !isOwnComment(comment)) { cancelCommentEdit(); return; }
+            updateCommentBody(comment.id, body);
+            COMMENT_POPOVER.editingId = null;
+        } else {
+            addComment(COMMENT_POPOVER.taskId, body, COMMENT_AUTHOR.name);
+        }
+        saveState();
+        if (input) input.value = '';
+        renderCommentPopover();
+        refreshCommentPills();
+        showToast(wasEditing ? 'Comment saved' : 'Comment posted');
+    }
+
+    // Deleting is author-only and confirmed through the shared themed modal (no native
+    // dialogs). The panel closes first so the modal is never covered by it, and reopens
+    // pinned afterwards so the thread does not vanish from under the reader.
+    function deleteCommentFromPanel(commentId) {
+        const comment = findComment(commentId);
+        if (!comment) return;
+        if (!isOwnComment(comment)) { showToast('You can only delete your own comments'); return; }
+        const taskId = COMMENT_POPOVER.taskId;
+        closeCommentPopover(true);
+        CONFIRM_CONTEXT = { type: 'comment', commentId: String(commentId), taskId: taskId };
+        openConfirmModal({
+            title: 'Delete comment',
+            bodyHtml: 'Delete <strong>"' + escapeHtml(String(comment.body || '').slice(0, 140)) + '"</strong>?<br><br>This removes it for everyone.',
+            confirmLabel: 'Delete',
+            accent: false
+        });
+    }
+
+    // No native dialogs (house rule): the shared themed prompt asks once per browser.
+    function askCommentAuthorName(onDone) {
+        openTextPrompt({
+            title: 'Sign your comments',
+            label: 'Display name',
+            placeholder: 'Day',
+            okLabel: 'Use this name',
+            value: COMMENT_AUTHOR.name || '',
+            hintHtml: 'Saved in this browser only. GHL passes your name automatically when the menu link carries it.',
+            onSubmit: (value) => {
+                setCommentAuthor(value);
+                showToast('Comments will be signed "' + COMMENT_AUTHOR.name + '"');
+                refreshCommentPills();
+                if (isCommentPopoverOpen()) renderCommentPopover();
+                if (typeof onDone === 'function') onDone();
+            }
+        });
+    }
+
+    function handleCommentPanelClick(e) {
+        const target = e.target;
+        if (!target || !target.closest) return;
+        if (target.closest('[data-comment-close]')) { closeCommentPopover(true); return; }
+        if (target.closest('[data-comment-pin]')) {
+            COMMENT_POPOVER.pinned = !COMMENT_POPOVER.pinned;
+            renderCommentPopover();
+            return;
+        }
+        const filterBtn = target.closest('[data-comment-filter]');
+        if (filterBtn) { setCommentFilter(filterBtn.getAttribute('data-comment-filter') || ''); return; }
+        const editBtn = target.closest('[data-comment-edit]');
+        if (editBtn) { startCommentEdit(editBtn.getAttribute('data-comment-edit')); return; }
+        const delBtn = target.closest('[data-comment-delete]');
+        if (delBtn) { deleteCommentFromPanel(delBtn.getAttribute('data-comment-delete')); return; }
+        if (target.closest('[data-comment-cancel-edit]')) { cancelCommentEdit(); return; }
+        if (target.closest('[data-comment-submit]')) { submitCommentFromComposer(); }
+    }
+
+    function handleCommentPanelKeydown(e) {
+        if (!e) return;
+        if (e.key === 'Escape') {
+            e.preventDefault();
+            e.stopPropagation();
+            if (COMMENT_POPOVER.editingId) cancelCommentEdit();
+            else closeCommentPopover(true);
+            return;
+        }
+        if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+            e.preventDefault();
+            submitCommentFromComposer();
+        }
+    }
+
+    // One-time wiring. Pills are re-rendered constantly by renderAll(), so every pill
+    // interaction is delegated from the document instead of bound per element.
+    function initCommentPopover() {
+        loadCommentAuthor();
+        if (document.getElementById('commentPopover')) return;
+
+        const panel = document.createElement('div');
+        panel.id = 'commentPopover';
+        panel.className = 'comment-popover';
+        panel.setAttribute('role', 'dialog');
+        panel.setAttribute('aria-label', 'Comments');
+        document.body.appendChild(panel);
+
+        document.addEventListener('mouseover', (e) => {
+            const pill = (e.target && e.target.closest) ? e.target.closest('.comment-pill') : null;
+            if (!pill) return;
+            const id = pill.getAttribute('data-comment-anchor');
+            if (!id || id === COMMENT_HOVER_TASK_ID) return;   // mouseover fires per inner span; arm ONCE
+            COMMENT_HOVER_TASK_ID = id;
+            scheduleCommentPopoverOpen(id);
+        });
+        document.addEventListener('mouseout', (e) => {
+            const pill = (e.target && e.target.closest) ? e.target.closest('.comment-pill') : null;
+            if (!pill) return;
+            if (e.relatedTarget && pill.contains(e.relatedTarget)) return;
+            COMMENT_HOVER_TASK_ID = '';
+            scheduleCommentPopoverClose();
+        });
+        document.addEventListener('focusin', (e) => {
+            const pill = (e.target && e.target.closest) ? e.target.closest('.comment-pill') : null;
+            if (!pill || isCommentPopoverOpen()) return;
+            const id = pill.getAttribute('data-comment-anchor');
+            if (id) openCommentPopover(id, false);
+        });
+        // Capture phase: a pill lives inside the section header / task row, whose click
+        // toggles the accordion or arms a drag. Stopped here once, for every pill.
+        document.addEventListener('click', (e) => {
+            const pill = (e.target && e.target.closest) ? e.target.closest('.comment-pill') : null;
+            if (!pill) return;
+            e.preventDefault();
+            e.stopPropagation();
+            const id = pill.getAttribute('data-comment-anchor');
+            if (id) toggleCommentPopover(id);
+        }, true);
+
+        // The "mouse bridge": entering the panel cancels its own close timer, leaving it
+        // starts the grace timer again. Without this a hover panel is impossible to read.
+        panel.addEventListener('mouseenter', cancelCommentPopoverClose);
+        panel.addEventListener('mouseleave', scheduleCommentPopoverClose);
+        panel.addEventListener('click', handleCommentPanelClick);
+        panel.addEventListener('keydown', handleCommentPanelKeydown);
+        panel.addEventListener('input', (e) => {
+            if (e.target && e.target.id === 'commentComposerInput') autoExpandTextarea(e.target);
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && isCommentPopoverOpen()) closeCommentPopover(true);
+        });
+        document.addEventListener('pointerdown', (e) => {
+            if (!isCommentPopoverOpen()) return;
+            const t = e.target;
+            if (t && t.closest && (t.closest('#commentPopover') || t.closest('.comment-pill'))) return;
+            closeCommentPopover(true);
+        }, true);
+        // Scrolling the PAGE closes the panel (it is fixed, so it would drift); scrolling
+        // INSIDE the panel's own list must not.
+        window.addEventListener('scroll', (e) => {
+            if (!isCommentPopoverOpen()) return;
+            const t = e.target;
+            if (t && t.closest && t.closest('#commentPopover')) return;
+            closeCommentPopover(true);
+        }, true);
+        window.addEventListener('resize', () => { if (isCommentPopoverOpen()) positionCommentPopover(); });
+    }
+
     // Cheap "did another device change this?" check for the list CONTENT. The directory rides
     // the same 3 s timer (see pollCloudOnce), so the switcher keeps up too.
     function refreshFromCloudOnFocus() {
@@ -2597,7 +3554,9 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         if (CLOUD_PENDING.size) { flushCloudSaves(); return; }
         if (rowsStorageEnabled()) {
             if (TASK_ROWS_PENDING.size) { flushTaskRowSaves(); return; }
+            if (COMMENTS_PENDING.size) { flushCommentSaves(); return; }
             hydrateTasksFromCloud(ACTIVE_PROJECT_ID, false);
+            hydrateCommentsFromCloud(ACTIVE_PROJECT_ID);
             return;
         }
         hydrateFromCloud(ACTIVE_PROJECT_ID, false);
@@ -2653,7 +3612,9 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         hydrateDirectoryFromCloud(false);   // a list the other person created appears here too
         if (rowsStorageEnabled()) {
             if (TASK_ROWS_PENDING.size) { flushTaskRowSaves(); return; }   // resend before pulling
+            if (COMMENTS_PENDING.size) { flushCommentSaves(); return; }
             hydrateTasksFromCloud(ACTIVE_PROJECT_ID, false);
+            hydrateCommentsFromCloud(ACTIVE_PROJECT_ID);
             return;
         }
         hydrateFromCloud(ACTIVE_PROJECT_ID, false);
@@ -3316,6 +4277,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         initModals();
         initContainerResize();
         initTooltips();
+        initCommentPopover();
         guardAgainstStaleStylesheet();
 
         updatePermissionsUI(perms);
@@ -4145,6 +5107,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
                     <input type="text" class="section-title" value="${escapeHtml(sec.header.title)}" 
                            oninput="updateSectionTitle(${sec.headerIndex}, this.value)" 
                            onclick="event.stopPropagation();" />
+                    ${commentPillHtml(secId, commentCountForAnchor(sec.headerIndex))}
                 </div>
                 <div class="section-meta-right">
                     <div class="section-header-actions" onclick="event.stopPropagation();">
@@ -4302,6 +5265,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
                         <input type="text" class="task-title-input" value="${escapeHtml(t.title)}" oninput="updateTaskTitle(${realIdx}, this.value)" />
 
                         <div class="task-right-cluster">
+                            ${commentPillHtml(taskId, commentCountForAnchor(realIdx))}
                             <div class="task-actions">
                                 <button type="button" class="btn-icon" title="Outdent (Shift Left)" onclick="changeSubtreeLevel(${realIdx}, -1)">⇤</button>
                                 <button type="button" class="btn-icon" title="Indent (Nest Right)" onclick="changeSubtreeLevel(${realIdx}, 1)">⇥</button>
@@ -4403,6 +5367,18 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         showToast(UI_STATE.depthColorMode === 'solid' ? '🎨 Depth Colors: SOLID' : '🎨 Depth Colors: ALTERNATING');
     }
 
+    // USER COMMENTS on/off. PRESENTATION ONLY: hiding removes the pills and the thread panel
+    // from the screen, but the comments stay in the list data, in the local cache, in the LPF
+    // blob and in the database. Hiding must never be able to lose somebody's words.
+    function toggleShowComments() {
+        UI_STATE.showComments = !UI_STATE.showComments;
+        saveViewPrefs();
+        updateHeaderToggleButtonsUI();
+        if (!UI_STATE.showComments) closeCommentPopover(true);
+        renderAll();
+        showToast(UI_STATE.showComments ? 'C Comments: ON' : 'C Comments: hidden (nothing deleted)');
+    }
+
     function toggleSection(secId) {
         UI_STATE.sections[secId] = !UI_STATE.sections[secId];
         saveState();
@@ -4492,7 +5468,14 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         if (btnDepth) {
             const isAlt = (UI_STATE.depthColorMode !== 'solid');
             btnDepth.classList.toggle('active', isAlt);
-            btnDepth.innerText = `🎨 Colors: ${isAlt ? 'ALT' : 'SOLID'}`;
+            btnDepth.innerText = `Colors: ${isAlt ? 'ALT' : 'SOLID'}`;
+        }
+
+        const btnComments = document.getElementById('btnShowComments');
+        if (btnComments) {
+            const on = UI_STATE.showComments !== false;
+            btnComments.classList.toggle('active', on);
+            btnComments.innerText = `C Comments: ${on ? 'ON' : 'OFF'}`;
         }
     }
 
@@ -5114,6 +6097,17 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         } else if (ctx.type === 'project') {
             deleteProjectList(ctx.projectId, ctx.projectName);
             return;
+        } else if (ctx.type === 'comment') {
+            const removed = removeComment(ctx.commentId);
+            const taskId = ctx.taskId;
+            closeConfirmModal();
+            if (removed) {
+                saveState();
+                refreshCommentPills();
+                if (taskId) openCommentPopover(taskId, true);
+                showToast('Comment deleted');
+            }
+            return;
         }
 
         closeConfirmModal();
@@ -5436,7 +6430,29 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     // LPF. Do not "fix" this into strict LPF: "[ ]" is an empty flow sequence to
     // a real LPF parser, and a scalar list item can never carry mapping keys, so
     // a strict parser rejects this shape by design. See .conductor section 3.
-    function formatChecklistText(tasks) {
+    // Which comments belong to this node: a freshly parsed node still carries its own
+    // (`task.comments`, before absorbParsedComments() moved them into the store), otherwise
+    // the store wins. The optional lookup keeps formatChecklistText pure for the harness.
+    function commentsForNode(task, lookup) {
+        if (typeof lookup === 'function') return lookup(task) || [];
+        if (task && Array.isArray(task.comments)) return task.comments;
+        return getComments(task && task.id);
+    }
+
+    // comments: | - one line per comment, written AFTER notes so an existing list's bytes
+    // stay identical until somebody actually comments. Key at the node's key indent, body
+    // one step deeper (the same rule notes uses, which is what keeps it out of the subtree).
+    function appendCommentLines(lines, keyIndent, task, lookup) {
+        const list = commentsForNode(task, lookup);
+        if (!list.length) return;
+        lines.push(' '.repeat(keyIndent) + 'comments: |');
+        list.forEach(c => {
+            const line = writeCommentLine(c);
+            if (line) lines.push(' '.repeat(keyIndent + INDENT_SPACES_PER_LEVEL) + line);
+        });
+    }
+
+    function formatChecklistText(tasks, commentsByTaskId) {
         if (!tasks || !tasks.length) return '';
         const baseLevel = tasks[0].level || 0;
         const lines = [FORMAT_STAMP];
@@ -5463,6 +6479,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
 
             lines.push(`${dashPad}- ${checkMark} ${title}`);
             pushTextValue(lines, keyIndent, 'notes', node.task.notes);
+            appendCommentLines(lines, keyIndent, node.task, commentsByTaskId);
 
             node.children.forEach(child => emitTaskNode(child, indent + INDENT_SPACES_PER_LEVEL));
         };
@@ -5479,6 +6496,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
                 lines.push('# ==========================================');
                 lines.push(`section: ${quoteScalar(sectionTitle)}`);
                 pushTextValue(lines, 0, 'description', root.task.notes);
+                appendCommentLines(lines, 0, root.task, commentsByTaskId);
                 lines.push('tasks:');
                 root.children.forEach(child => emitTaskNode(child, INDENT_SPACES_PER_LEVEL));
             } else {
@@ -5534,7 +6552,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
                 blockBodyIndent = -1; // checkbox at the body indent -> a child task
             }
 
-            const blockKeyMatch = line.match(/^(\s*)(?:notes|description)\s*:\s*[|>][-+]?\d*\s*$/i);
+            const blockKeyMatch = line.match(/^(\s*)(?:notes|description|comments)\s*:\s*[|>][-+]?\d*\s*$/i);
             if (blockKeyMatch) {
                 blockBodyIndent = blockKeyMatch[1].length + INDENT_SPACES_PER_LEVEL;
                 blockOpensWithCheckbox = null;
@@ -5625,6 +6643,13 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         let noteLines = [];
         let notesOwner = null;
 
+        // comments: | - the same block-scalar machinery as notes, owned by a task OR a
+        // section. Body lines are content: they can never be mistaken for a task.
+        let inCommentsBlock = false;
+        let commentsIndent = 0;
+        let commentLines = [];
+        let commentsOwner = null;
+
         const taskStack = []; // [{ dashIndent, task }] - innermost task last
 
         const closeDescBlock = () => {
@@ -5638,6 +6663,16 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
             inNotesBlock = false;
             noteLines = [];
             notesOwner = null;
+        };
+
+        const closeCommentsBlock = () => {
+            if (inCommentsBlock && commentsOwner) {
+                const parsed = parseCommentLines(commentLines);
+                if (parsed.length) commentsOwner.comments = parsed;
+            }
+            inCommentsBlock = false;
+            commentLines = [];
+            commentsOwner = null;
         };
 
         // A document without a section still needs a milestone to hang tasks on.
@@ -5698,6 +6733,15 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
                     return;
                 }
                 closeNotesBlock();
+            }
+
+            // comments: | owns every line deeper than its key, exactly like notes does.
+            if (inCommentsBlock) {
+                if (trimmed === '' || lineIndent >= commentsIndent) {
+                    commentLines.push(rawLine.length > commentsIndent ? rawLine.substring(commentsIndent) : '');
+                    return;
+                }
+                closeCommentsBlock();
             }
 
             if (!trimmed || trimmed.startsWith('#')) return;
@@ -5784,8 +6828,8 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
                 return;
             }
 
-            // Task keys: task / title / checked / notes / tasks (+ legacy aliases)
-            const keyMatch = rawLine.match(/^(\s*)(task|title|checked|notes|subtasks|tasks|children)\s*:\s*(.*)$/i);
+            // Task keys: task / title / checked / notes / comments / tasks (+ legacy aliases)
+            const keyMatch = rawLine.match(/^(\s*)(task|title|checked|notes|comments|subtasks|tasks|children)\s*:\s*(.*)$/i);
             if (keyMatch) {
                 const keyIndent = keyMatch[1].length;
                 const key = keyMatch[2].toLowerCase();
@@ -5810,8 +6854,23 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
                         } else {
                             owner.notes = unquoteScalar(value);
                         }
+                    } else if (key === 'comments') {
+                        if (isBlockScalarIndicator(value)) {
+                            inCommentsBlock = true;
+                            commentsIndent = keyIndent + 2;
+                            commentLines = [];
+                            commentsOwner = owner;
+                        }
                     }
                     // 'subtasks' / 'tasks' / 'children' are pure containers.
+                } else if (key === 'comments' && currentSection) {
+                    // A milestone's own thread, at the document root.
+                    if (isBlockScalarIndicator(value)) {
+                        inCommentsBlock = true;
+                        commentsIndent = keyIndent + 2;
+                        commentLines = [];
+                        commentsOwner = currentSection;
+                    }
                 }
                 return;
             }
@@ -5821,6 +6880,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
 
         closeDescBlock();
         closeNotesBlock();
+        closeCommentsBlock();
 
         return result;
     }
@@ -5841,10 +6901,14 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         let currentTask = null;
         let inNotesBlock = false;
         let inDescBlock = false;
+        let inCommentsBlock = false;
         let notesIndent = 0;
         let descIndent = 0;
+        let commentsIndent = 0;
         let noteLines = [];
         let descLines = [];
+        let commentLines = [];
+        let commentsOwner = null;
 
         // Per-section anchor: the FIRST task line of a section defines its Level 1 indent.
         // Using the first task (not the section minimum) keeps a stray outdented line
@@ -5903,6 +6967,24 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
                 noteLines = [];
             }
 
+            // comments: | - content until the dedent, exactly like notes. Owner is the task
+            // the block hangs off, or the milestone itself when it sits at the root.
+            if (inCommentsBlock) {
+                const indentMatch = rawLine.match(/^( *)/);
+                const lineIndent = indentMatch ? indentMatch[1].length : 0;
+                if (trimmed === '' || lineIndent >= commentsIndent) {
+                    commentLines.push(rawLine.length > commentsIndent ? rawLine.substring(commentsIndent) : '');
+                    continue;
+                }
+                if (commentsOwner) {
+                    const parsed = parseCommentLines(commentLines);
+                    if (parsed.length) commentsOwner.comments = parsed;
+                }
+                inCommentsBlock = false;
+                commentLines = [];
+                commentsOwner = null;
+            }
+
             if (!trimmed || trimmed.startsWith('#')) continue;
 
             const sectionMatch = trimmed.match(/^section\s*:\s*(.*)$/i);
@@ -5956,6 +7038,21 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
                 continue;
             }
 
+            // comments: | - owned by the current task, or by the milestone when no task is
+            // open yet (a section-level thread sits above the first task).
+            const commentsMatch = trimmed.match(/^comments\s*:\s*(.*)$/i);
+            if (commentsMatch) {
+                const owner = currentTask || currentSection;
+                if (owner && isBlockScalarIndicator(commentsMatch[1].trim())) {
+                    inCommentsBlock = true;
+                    const indentMatch = rawLine.match(/^(\s*)/);
+                    commentsIndent = (indentMatch ? indentMatch[1].length : 0) + INDENT_SPACES_PER_LEVEL;
+                    commentLines = [];
+                    commentsOwner = owner;
+                }
+                continue;
+            }
+
             const taskMatch = rawLine.match(/^(\s*)-\s*(?:\[([^\]]{0,3})\]\s*)?(.*?)$/);
             if (taskMatch) {
                 const indentSpaces = taskMatch[1].length;
@@ -6003,6 +7100,11 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
             currentTask.notes = noteLines.join('\n').trim();
         }
 
+        if (inCommentsBlock && commentsOwner && commentLines.length > 0) {
+            const parsedComments = parseCommentLines(commentLines);
+            if (parsedComments.length) commentsOwner.comments = parsedComments;
+        }
+
         return result;
     }
 
@@ -6010,6 +7112,9 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     // LIST MODAL OVERLAY LOGIC
     // =========================================================================
     function openChecklistEditor(mode, targetIndex = null) {
+        // A pinned thread panel is z-indexed above this modal; close it rather than leaving
+        // it floating over the editor.
+        closeCommentPopover(true);
         MODAL_CONTEXT = { mode, targetIndex };
         const modal = document.getElementById('checklistModal');
         const title = document.getElementById('modalTitle');
@@ -6115,7 +7220,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         const { mode, targetIndex } = MODAL_CONTEXT;
 
         if (mode === 'full') {
-            const parsed = parseChecklistText(checklistText);
+            const parsed = absorbParsedComments(parseChecklistText(checklistText));
             if (parsed.length > 0) {
                 TASKS_DATA = parsed;
                 executeAutoSave();
@@ -6127,7 +7232,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
             }
         } else if (mode === 'section') {
             const parsed = parseChecklistText(checklistText);
-            const tasksOnly = parsed.filter(t => t.level > 0);
+            const tasksOnly = absorbParsedComments(parsed.filter(t => t.level > 0));
 
             if (tasksOnly.length > 0) {
                 // targetIndex is the milestone's TASKS_DATA header index (stable), so the
@@ -6148,7 +7253,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
             if (!parent) return;
 
             const parsed = parseChecklistText(checklistText);
-            const tasksOnly = parsed.filter(t => t.level > 0);
+            const tasksOnly = absorbParsedComments(parsed.filter(t => t.level > 0));
 
             if (tasksOnly.length > 0) {
                 const parentLevel = parent.level || 1;
@@ -6223,6 +7328,15 @@ Format rules:
 \`\`\`
 
   The notes: key sits 2 spaces deeper than its task's "- ", and a multi-line body sits 2 spaces deeper again (never aligned with the "- ").
+
+- Comments are NOT yours to invent. If the list you are given already carries a "comments: |" block on a task or a section, reproduce it EXACTLY as it was (same lines, same order). When you are explicitly asked to add a comment, write it as a "comments: |" block one indent step under the node, one comment per line, as "Name: text" - the author's name, a colon, a space, then the text in one line. Example:
+\`\`\`
+  - [ ] Task Title
+    notes: "Helpful instructions or links"
+    comments: |
+      Day: I tried this and it tasted awful
+      Brian: The benefits are still worth it
+\`\`\`
 - Use clean section names WITHOUT numbers (e.g. section: "Cloudflare Infrastructure") because List Puncher automatically numbers milestones dynamically.
 - Include a full, detailed description under each section explaining the objectives, prerequisites, and context (descriptions can be as long as needed).
 - Feel free to include YouTube video/tutorial links (including timestamps if needed ?t=111s) and image links inside task notes or descriptions (List Puncher auto-renders them into video players and images).

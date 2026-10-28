@@ -312,6 +312,172 @@ language plpgsql
 security definer
 set search_path = list_puncher, pg_temp
 as $$
+
+-- =============================================================================
+-- USER COMMENTS (build 1.56) - list_puncher.list_item_comments
+-- -----------------------------------------------------------------------------
+-- One row per comment. Comments are NOT a column on list_items on purpose:
+-- apply_list_item_changes() upserts whole item rows, so a comment column would make
+-- two people commenting on the same task overwrite each other - the exact bug the
+-- per-task rows were built to remove. Here one comment = one row = one writer.
+--
+-- The client calls this trio with the tenant secret, exactly like the item trio:
+--   get_list_comments(p_location, p_project, p_secret)
+--   apply_comment_changes(p_location, p_project, p_secret, p_changes jsonb)
+--   get_list_comment_revision(p_location, p_project, p_secret)
+-- Safe to re-run: every statement is idempotent.
+-- =============================================================================
+begin;
+
+create table if not exists list_puncher.list_item_comments (
+  id           uuid primary key default gen_random_uuid(),
+  location_id  text not null,
+  project_id   text not null,
+  tenant_hash  text not null,
+  comment_id   text not null,            -- the client's id (stable, never reused)
+  task_id      text not null,            -- the anchor: a section (level 0) or a task
+  author_key   text not null default '', -- lower(email) or lower(name): ownership only
+  author_name  text not null default '', -- what the pill and the thread show
+  body         text not null default '',
+  created_at   timestamptz not null default now(),
+  updated_at   timestamptz not null default now(),
+  deleted_at   timestamptz               -- soft delete ONLY, like list_items
+);
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = 'list_puncher.list_item_comments'::regclass
+      and conname = 'list_item_comments_identity_key'
+  ) then
+    alter table list_puncher.list_item_comments
+      add constraint list_item_comments_identity_key
+      unique (location_id, project_id, tenant_hash, comment_id);
+  end if;
+end $$;
+
+create index if not exists list_item_comments_live_idx
+  on list_puncher.list_item_comments (location_id, project_id, tenant_hash, task_id)
+  where deleted_at is null;
+
+-- Same posture as every other table here: RLS on, no policies, no anon/authenticated
+-- grants. Access is only through the SECURITY DEFINER functions, which filter on tenant_hash.
+alter table list_puncher.list_item_comments enable row level security;
+
+create or replace function list_puncher.get_list_comments(p_location text, p_project text, p_secret text)
+returns table(comment_id text, task_id text, author_key text, author_name text, body text, created_at timestamptz, updated_at timestamptz)
+language plpgsql
+security definer
+set search_path = list_puncher, pg_temp
+as $fn$
+declare
+  v_hash text := list_puncher.ensure_tenant(p_location, p_secret);
+begin
+  if v_hash is null then
+    raise exception 'invalid tenant secret' using errcode = '28000';
+  end if;
+
+  return query
+    select c.comment_id, c.task_id, c.author_key, c.author_name, c.body, c.created_at, c.updated_at
+    from list_puncher.list_item_comments c
+    where c.location_id = p_location
+
+begin;
+
+create or replace function list_puncher.apply_comment_changes(p_location text, p_project text, p_secret text, p_changes jsonb)
+returns table(comment_id text, task_id text, author_key text, author_name text, body text, created_at timestamptz, updated_at timestamptz)
+language plpgsql
+security definer
+set search_path = list_puncher, pg_temp
+as $fn$
+declare
+  v_hash text := list_puncher.ensure_tenant(p_location, p_secret);
+  v_now  timestamptz := clock_timestamp();
+  v_row  jsonb;
+begin
+  if v_hash is null then
+    raise exception 'invalid tenant secret' using errcode = '28000';
+  end if;
+
+  for v_row in select * from jsonb_array_elements(coalesce(p_changes, '[]'::jsonb))
+  loop
+    if coalesce(v_row->>'comment_id', '') = '' then
+      continue;
+    end if;
+    if coalesce(v_row->>'task_id', '') = '' and not coalesce((v_row->>'deleted')::boolean, false) then
+      continue;
+    end if;
+
+    insert into list_puncher.list_item_comments as c (
+      location_id, project_id, tenant_hash, comment_id, task_id,
+      author_key, author_name, body, created_at, updated_at, deleted_at
+    ) values (
+      p_location, p_project, v_hash,
+      v_row->>'comment_id',
+      coalesce(v_row->>'task_id', ''),
+      coalesce(v_row->>'author_key', ''),
+      coalesce(v_row->>'author_name', ''),
+      coalesce(v_row->>'body', ''),
+      coalesce(nullif(v_row->>'created_at', '')::timestamptz, v_now),
+      v_now,
+      case when coalesce((v_row->>'deleted')::boolean, false) then v_now else null end
+    )
+    on conflict on constraint list_item_comments_identity_key
+    do update set
+      task_id     = coalesce(nullif(excluded.task_id, ''), c.task_id),
+      author_key  = excluded.author_key,
+      author_name = excluded.author_name,
+      body        = excluded.body,
+      updated_at  = excluded.updated_at,
+      deleted_at  = excluded.deleted_at;
+  end loop;
+
+  return query
+    select c.comment_id, c.task_id, c.author_key, c.author_name, c.body, c.created_at, c.updated_at
+    from list_puncher.list_item_comments c
+    where c.location_id = p_location
+      and c.project_id  = p_project
+      and c.tenant_hash = v_hash
+      and c.deleted_at is null
+    order by c.created_at, c.comment_id;
+end;
+$fn$;
+
+create or replace function list_puncher.get_list_comment_revision(p_location text, p_project text, p_secret text)
+returns table(revision timestamptz, live_count integer)
+language plpgsql
+security definer
+set search_path = list_puncher, pg_temp
+as $fn$
+declare
+  v_hash text := list_puncher.ensure_tenant(p_location, p_secret);
+begin
+  if v_hash is null then
+    raise exception 'invalid tenant secret' using errcode = '28000';
+  end if;
+
+  return query
+    select max(c.updated_at), count(*)::integer
+    from list_puncher.list_item_comments c
+    where c.location_id = p_location
+      and c.project_id  = p_project
+      and c.tenant_hash = v_hash
+      and c.deleted_at is null;
+end;
+$fn$;
+
+commit;
+
+      and c.project_id  = p_project
+      and c.tenant_hash = v_hash
+      and c.deleted_at is null
+    order by c.created_at, c.comment_id;
+end;
+$fn$;
+
+commit;
+
 declare
   v_hash text := list_puncher.ensure_tenant(p_location, p_secret);
   v_now  timestamptz := now();

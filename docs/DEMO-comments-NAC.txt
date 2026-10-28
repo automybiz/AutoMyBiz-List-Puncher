@@ -1,0 +1,106 @@
+# ==========================================================
+# LIST PUNCHER - USER COMMENTS DEMO (build 1.56)
+# ----------------------------------------------------------
+# A long Brian / Day thread about how NAC smells like a sewer.
+# PASTE OPTIONS
+#   1. WHOLE LIST   : open LIST Editor -> paste PART A -> Apply full list
+#                     (this REPLACES the current list, so use a throwaway one)
+#   2. ONE MILESTONE: click the paste (import) icon on an existing milestone ->
+#                     paste PART B -> it inserts the tasks + their threads there
+# Everything below is the List Puncher list format. Comments are one line each,
+# written as "Name: text" inside a "comments: |" block.
+# ==========================================================
+
+# ==========================================================
+# PART A - WHOLE LIST (section thread + task threads)
+# ==========================================================
+
+section: "Demo Section: First Meal Supplements"
+description: "Demo Description: These are the supplements I take with my first meal."
+comments: |
+  Day: Should we add fish oil to this milestone, or is that overkill for a first pass?
+  Brian: Only if it is the high-EPA kind. The cheap stuff is just expensive oil.
+  Day: Fair. Let's settle the NAC conversation first, it is the loudest one in the room.
+  Brian: Agreed. Parking fish oil until the powder argument is over.
+tasks:
+  - [ ] Demo Task: GLYNAC
+    notes: |
+      A combination of Glycine and NAC (N-Acetyl Cystine). The idea is that the glycine takes the edge off the taste and you get both in one scoop.
+    comments: |
+      Day: Starting here because this is the "beginner" version. Does it smell as bad as the pure NAC?
+      Brian: About half as bad. The glycine is sweet, so it masks some of the sulfur.
+      Day: "Half as bad" is still bad, Brian.
+      Brian: It is. But it is the version people actually finish, which matters more than the version that is technically purer.
+
+  - [ ] Demo Task: NAC Powder
+    notes: |
+      - Glutathione Replenishment: NAC provides the necessary cysteine required to build and replenish glutathione, helping reduce cellular oxidative stress and support immune function.
+      - Liver and Kidney Detoxification: Clinically proven as an intravenous or oral antidote for acetaminophen (paracetamol) overdose to prevent severe liver and kidney damage.
+      - Respiratory Support: Acts as a mucolytic by breaking down disulfide bonds in mucus, which helps thin thick respiratory secretions in conditions like chronic bronchitis.
+      - Mental Health and Neuroregulation: Helps regulate glutamate levels in the brain. Research investigates NAC as an adjunct therapy for conditions like obsessive-compulsive disorder (OCD), bipolar disorder, depression, and substance use/craving management.
+      - Gut and Anti-Inflammatory Actions: Helps reduce inflammation in the gut and supports the lining of the digestive tract.
+    comments: |
+      Day: Okay. I opened the bag and I want you to know that my entire kitchen now smells like a sewer.
+      Brian: That is the sulfur. It is completely normal.
+      Day: Normal? Brian, normal is coffee. This is not coffee. This is a drain.
+      Brian: It is the thiol group. Same reason garlic and skunk have opinions.
+      Day: The skunk comparison did not help. I can still taste it twenty minutes later.
+      Brian: Chase it with orange juice. The acid cuts the aftertaste.
+      Day: Tried that. Now it tastes like sewer-flavoured orange juice.
+      Brian: Ha. Fine. Cold water, and swallow fast - do not let it sit on your tongue.
+      Day: "Do not let it sit on your tongue" is what I say about tequila, not supplements.
+      Brian: You are drinking it like a smoothie. It is three grams in a shot glass, not a beverage.
+      Day: Fine. I will treat it like medicine. Does it get better over time?
+      Brian: Honestly? No. You just stop caring, because the sleep and the breathing get better.
+      Day: Talk to me about the breathing. That is the part I actually need.
+      Brian: It thins the mucus. My chest cleared up in about a week and I stopped coughing at night.
+      Day: That is a real benefit. The taste is a real cost. So far the maths is close.
+      Brian: Add the glutathione angle and it stops being close. Cysteine is the rate-limiting bit.
+      Day: The master antioxidant thing. I read that page. Liver and kidneys too, right?
+      Brian: Yes, and it is the antidote they give for paracetamol overdose. That is how well studied it is.
+      Day: Alright. I will keep taking it. But I am holding you personally responsible for the smell.
+      Brian: Deal. Just do not open the bag near the dog, he will think you are hiding something.
+      Day: Too late. He is already investigating the kitchen.
+      Brian: One more tip: take it before the meal, not after. Less aftertaste and better absorption.
+      Day: Noted. Sewer first, breakfast second.
+      Brian: That is the spirit. Give it two weeks and tell me how you sleep.
+      Day: If I sleep well I will stop complaining about the smell. Maybe.
+      Brian: You will not. But you will keep taking it, and that is what counts.
+
+  - [ ] Demo Task: Glycine Powder
+    notes: |
+      - Improves Sleep Quality: Taking 3 grams of glycine before bed can help you fall asleep faster, deepen rest, and lower core body temperature.
+      - Supports Collagen Production: Glycine is the most abundant amino acid in collagen, helping maintain the structural integrity of skin, cartilage, bones, and joints.
+    comments: |
+      Day: Hey, this Glycine sure is looking pretty tasty !!
+      Brian: Yea, I like the sweet taste of the Glycine :)
+      Day: After the NAC, this feels like dessert. Wrong milestone, right feeling.
+      Brian: Same stack, very different experience. Sweet before bed, sewer at breakfast.
+
+
+# ==========================================================
+# PART B - TASK-ONLY SNIPPET (for the milestone's paste button)
+# ----------------------------------------------------------
+# Click the paste/import icon on a milestone and paste everything below this line.
+# It inserts these tasks into that milestone and keeps both threads.
+# ==========================================================
+
+  - [ ] Demo Task: NAC Powder
+    notes: |
+      - Respiratory Support: Acts as a mucolytic by breaking down disulfide bonds in mucus.
+      - Mental Health and Neuroregulation: Helps regulate glutamate levels in the brain.
+    comments: |
+      Day: I opened the bag and the whole kitchen smells like a sewer.
+      Brian: That is the sulfur. It is normal.
+      Day: You keep saying normal like it is a defence.
+      Brian: It is the thiol group. Garlic and skunk have the same problem.
+      Day: Great. Now I am comparing my supplement to a skunk.
+      Brian: Chase it with orange juice, the acid cuts the aftertaste.
+      Day: Now it tastes like sewer-flavoured orange juice, thank you.
+      Brian: Cold water then, and swallow fast. Do not let it sit on your tongue.
+      Day: Does it get better over time or am I lying to myself?
+      Brian: It does not get better. You stop caring because you start sleeping and breathing properly.
+      Day: Breathing I care about. Tell me more about that part.
+      Brian: It thins the mucus. My chest cleared up in a week and I stopped coughing at night.
+      Day: Okay. That is worth a bad taste. Two weeks and I will report back.
+      Brian: Take it before the meal, not after. Less aftertaste, better absorption.

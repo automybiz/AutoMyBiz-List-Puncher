@@ -74,6 +74,15 @@ commit;
 --    where table_schema = 'list_puncher' group by grantee;
 
 -- -----------------------------------------------------------------------------
+-- USER COMMENTS (build 1.56) - deliberately NOT in this script.
+-- A client's own project runs the BLOB transport (one LPF row per list, table mode), and
+-- comments ride INSIDE that LPF document as `comments: |` blocks. There is no per-comment
+-- table here because there is no row transport here. If this project is ever moved onto
+-- the agency hub (rows mode), run supabase/setup-agency-hub.sql, which adds
+-- list_puncher.list_item_comments + get_list_comments / apply_comment_changes.
+-- -----------------------------------------------------------------------------
+
+-- -----------------------------------------------------------------------------
 -- OPTIONAL: expose the schema from SQL instead of the dashboard toggle.
 -- This REPLACES the whole exposed-schema list, so keep the existing names.
 -- -----------------------------------------------------------------------------

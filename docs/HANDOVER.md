@@ -1193,3 +1193,122 @@ twice.
 - Unsent edits are still lost if the tab closes during the 800 ms debounce; the fix is a persisted
   per-project `pendingPush` flag, which the row design replaces with a persisted change set.
 
+
+
+## 28. Build 1.56 - user comments (2026-10-28)
+
+A comment belongs to **one node**: a section (`level = 0`) or a task (`level >= 1`). Notes are a
+*field* of a node, not a node, so there is no such thing as a note-level thread - a comment on a note
+is a comment on the node that owns it.
+
+### Why comments are NOT a column on `list_items`
+`apply_list_item_changes()` upserts whole item rows and `taskRowSignature()` covers every comparable
+field. A `comments` column would mean two people commenting on the same task produce two whole-row
+writes, and the second silently erases the first - exactly the bug §16 exists to remove. It would also
+make every comment re-send the task row. So:
+
+| table | what a row is |
+|---|---|
+| `list_puncher.list_item_comments` | **one comment** (anchor `task_id`, author, body, soft delete) |
+
+New RPCs, same shape and posture as the item trio (`SECURITY DEFINER`, `search_path = list_puncher,
+pg_temp`, filtered by `tenant_hash`, RLS on with **no policies and no anon grants**):
+`get_list_comments`, `apply_comment_changes`, `get_list_comment_revision`.
+Migration `add_list_item_comments`. No existing table, column, constraint or function was touched.
+
+### Client model
+`COMMENTS` is a **separate store keyed by `task_id`** - comments are never on the `TASKS_DATA`
+objects and `buildTaskRows`/`taskRowSignature` never see them. Three reasons: a `rowsToTasks()` pull
+replaces `TASKS_DATA` wholesale and must not wipe the threads; a comment must not dirty a task row;
+and two simultaneous comments are two different rows, so neither is lost.
+
+`absorbParsedComments()` moves parser-attached comments into the store once ids exist, and is
+**idempotent** (same body + same author at the same node = the same comment), so re-parsing the LPF
+blob never duplicates a thread. Wired at every text-entry point: `loadCurrentProjectData` (3 paths),
+`hydrateTasksFromCloud` (the one-time blob conversion), and all three `applyChecklistEditorChanges`
+modes.
+
+### LPF: `comments: |`
+```text
+section: "Demo Section: First Meal Supplements"
+description: "These are the supplements I take with my first meal."
+comments: |
+  Day: Should we add fish oil to this milestone?
+tasks:
+  - [ ] Demo Task: NAC Powder
+    notes: |
+      - Glutathione Replenishment: ...
+    comments: |
+      Day: I opened the bag and my kitchen now smells like a sewer.
+      Brian: That is the sulfur. It is normal.
+```
+- Written **after `notes:`**, so a list nobody has commented on stays byte-identical.
+- `COMMENT_AUTHOR_SEPARATOR = ': '`, **split at the FIRST occurrence** - a comment body may contain
+  colons freely (`Day: 3:1 ratio works: trust me`), and a name is sanitised on write.
+- A line **without** the separator continues the comment above it (a wrapped or hand-pasted body);
+  an orphan line becomes an `(unknown)` comment. **Text is never dropped on read** - reliability over
+  attribution.
+- One comment = one line (newlines flatten to spaces), because a multi-line body cannot be told apart
+  from the next comment on the way back in.
+- Both readers understand it (strict + checklist shorthand), and `clampChecklistNestingSteps` treats
+  `comments:` as a block key. **Older builds ignore the key**, which is what makes the format
+  forward-compatible.
+- The AI prompt now says: never invent comments, reproduce an existing block exactly, and if asked to
+  add one, use the `Name: text` shape.
+
+### UI: one pill, one panel
+- **Pill:** `C 11`, rounded chip (the shape is CSS, not parentheses), `99+` cap, `tabular-nums`.
+  A section pill counts **its whole branch**; a task pill counts only itself. With no comments the
+  pill is a ghost that appears on row hover - a 98-item list does not grow 98 badges, but starting a
+  thread is still one click.
+- The pill sits **outside `.task-actions` / `.section-header-actions`** deliberately: those are
+  `display:none` in viewer mode, and a client (viewer) must be able to read and post comments.
+- **Panel:** its own `#commentPopover` element, *not* `#lpTooltip` (that one is `pointer-events:none`,
+  writes `innerText`, and is force-hidden by a capture-phase `pointerdown` - none of which allows
+  selecting text). Hover opens after 120 ms, **click pins**, and a 250 ms grace timer plus a
+  transparent strip across the 10 px gap forms the **mouse bridge** so the pointer can travel from the
+  pill into the panel. Inner scroll is allowed; page scroll / `Escape` / click-away close it.
+- Inside: author filter chips `Day 4  Brian 6  All 10`, comments grouped by node for a section,
+  relative timestamps, `Edit`/`Delete` **on your own comments only** (delete goes through the shared
+  themed confirm - no native dialogs), and a composer (`Ctrl+Enter` posts, `Escape` cancels).
+- Identity: `USER_NAME` -> `USER_EMAIL` (both from the GHL menu link) -> a name stored per browser,
+  asked once through the existing themed prompt. `authorKey` = lowercased email, else lowercased name.
+- `SHOW_USER_COMMENTS` toggle (`createDefaultViewPrefs` -> `readViewPrefs`/`saveViewPrefs` -> the
+  header button). **Hide != delete**: the formatter still emits every comment, the cache and the
+  database are untouched.
+
+### Verification
+- `lp-comments-test.js`: **48 asserts, all pass** - comment-line shape (including a name containing
+  the separator and a body full of colons), block reading with continuations, full round trip on a
+  section + task + nested child (a **child task after a comments block is still a task**), hostile
+  bodies (`notes:`, `- [ ] x`, `#`, 40 comments by one author), disjoint change sets for two
+  simultaneous commenters, tombstones with no `task_id`, server-timestamp immunity, grouping/counts,
+  and byte stability when nobody has commented.
+- The five older harnesses still pass: rows **69**, directory **23**, secret **35**, poll **34**,
+  empty-list **ALL**. The poll/empty fixtures needed comment stubs added - without them a real
+  `ReferenceError` inside `pollCloudOnce` looked like a failed pill assertion (a good reminder to
+  read the *reason*, not just the count).
+- 3/3 inline scripts compile; `APP_BUILD`, `index.css?v=` and `--lp-css-build` all **1.56**.
+- Live DB: a comment inserted via the RPC -> 1 row returned; a second author -> 2; a tombstone ->
+  1 live row, `deleted_at` set, **`task_id` preserved**; a wrong secret -> 0 rows; all test rows and
+  the throwaway tenant deleted afterwards (`comments` 0, `tenants` 7, `items` 310, `headers` 6).
+
+### Known limitations (accepted)
+- **Identity is trust-on-first-use.** The iframe has no Supabase session, so the server cannot verify
+  who wrote a comment; `author_key` only decides whose Edit/Delete buttons render.
+- Deleting a task/section leaves its comment rows behind (harmless orphans, like orphaned item rows).
+  A section rename keeps the anchor (ids are stable); an **LPF re-import** re-derives parser ids and
+  therefore orphans the old thread - same caveat as task identity (§21).
+- Copying a subtree to another list copies the tasks, not the comments (comments are keyed to a
+  project).
+- In `?storage=blob` mode and in a client's own Supabase project (table mode) comments ride **inside
+  the LPF blob**, with whole-document last-write-wins. Per-comment sync is the agency hub (rows mode).
+- The unread dot was designed but not built (no DB change needed; `UI_STATE` only).
+
+### Trap hit while building this - read before the next build bump
+Bumping `APP_BUILD` with `(Get-Content -Raw) ... | Set-Content -Encoding utf8` **double-encoded the
+whole file** (Windows PowerShell reads a BOM-less file as ANSI/CP1252, then writes UTF-8), turning
+every emoji into mojibake. It was reversible (`Encoding.GetEncoding(1252).GetBytes()` then decode as
+UTF-8, verified by zero U+FFFD and the return of `U+26A0`), but the lesson is: **bump the build with
+the editor or a byte-exact script, never with `Get-Content | Set-Content`.**
+
