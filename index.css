@@ -34,7 +34,7 @@
     --indent-step: 22px;
 
     /* Build marker: lets the app detect a stale cached stylesheet (compared against APP_BUILD in index.html) */
-    --lp-css-build: "1.56";
+    --lp-css-build: "1.57";
 
     --completed-opacity: 0.42;
 
@@ -2178,13 +2178,6 @@ body.is-resizing .container-resize-handle {
    those are display:none in viewer mode, and a client has to be able to read
    and add comments too.
    ========================================================================== */
-
-/* The milestone title yields its fixed 100% width so the pill shares the line. */
-.section-title {
-    flex: 1 1 auto;
-    min-width: 0;
-    width: auto;
-}
 
 .comment-pill {
     display: inline-flex;

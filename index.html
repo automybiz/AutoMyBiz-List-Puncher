@@ -15,7 +15,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
     
     <!-- Separated Master Stylesheet (Zero Prism Crash) - version query busts the GitHub Pages 10min cache -->
-    <link rel="stylesheet" href="index.css?v=1.56">
+    <link rel="stylesheet" href="index.css?v=1.57">
 
     <script>
     /* Universal Dark Reader Kill Switch (Rule 9) */
@@ -360,7 +360,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     // =========================================================================
     const AUTOSAVE_DELAY_MS = 500;
     const INDENT_SPACES_PER_LEVEL = 2;
-    const APP_BUILD = '1.56'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
+    const APP_BUILD = '1.57'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
     // Bump whenever the UI_STATE defaults below change: a saved state older than this gets
     // the new defaults applied exactly ONCE (afterwards the user's own toggles win).
     const UI_STATE_DEFAULTS_VERSION = 2;
@@ -2658,6 +2658,9 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     let COMMENT_CLOSE_TIMER = null;
     let COMMENT_HOVER_TASK_ID = '';
     let COMMENT_AUTHOR = { name: '', key: '' };
+    // Mirrors evaluatePermissions() so comment moderation can ask "am I an editor?" without
+    // re-running the permission engine (or reading a DOM class) from inside the panel.
+    let APP_PERMS = { isEditor: false, isViewer: false };
 
     function newCommentId() {
         try {
@@ -2709,9 +2712,41 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         return COMMENT_AUTHOR;
     }
 
+    // A comment is "yours" when the stored authorKey matches this browser, OR when the signed
+    // NAME matches. The name arm exists for two real cases:
+    //   * GHL sends a full name ("Brian Mulloney") while people often sign a comment "Brian";
+    //   * an imported / pasted thread carries plain names and no key at all.
+    // So a first-name match counts: "Brian" and "Brian Mulloney" own each other's comments.
+    // Within one client's checklist that is the right trade (and it is only a UI gate anyway -
+    // there is no session on the server to enforce it).
+    function commentAuthorMatchesMe(comment) {
+        if (!comment) return false;
+        const key = String(comment.authorKey || '');
+        const myKey = String(COMMENT_AUTHOR.key || '');
+        if (key && myKey && key === myKey) return true;
+
+        const mine = normalizeAuthorKey(COMMENT_AUTHOR.name);
+        const theirs = normalizeAuthorKey(comment.author);
+        if (!mine || !theirs) return false;
+        if (mine === theirs) return true;
+        const mineFirst = mine.split(' ')[0];
+        const theirsFirst = theirs.split(' ')[0];
+        return (!!mineFirst && mineFirst === theirs) || (!!theirsFirst && theirsFirst === mine);
+    }
+
     function isOwnComment(comment) {
-        const key = String((comment && comment.authorKey) || '');
-        return !!key && key === String(COMMENT_AUTHOR.key || '');
+        return commentAuthorMatchesMe(comment);
+    }
+
+    // Your own words are yours to rewrite. Deleting is looser: an EDITOR (agency/admin) may
+    // remove ANY comment, because that is moderation - a client-facing list has to be
+    // cleanable. Both gates are UI-side; the server has no session to enforce them.
+    function canEditComment(comment) {
+        return isOwnComment(comment);
+    }
+
+    function canDeleteComment(comment) {
+        return isOwnComment(comment) || Boolean(APP_PERMS.isEditor);
     }
 
     // ---- LPF read/write for one comment -------------------------------------
@@ -2977,6 +3012,19 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         return map;
     }
 
+    // Order-insensitive comparison of two comment-id -> signature maps, i.e. "did the pull
+    // actually change anything?". An identical poll must never rebuild the open thread: the
+    // rebuild resets the list's scroll position, which is exactly how scrolling a long thread
+    // used to snap back to the top every 3 seconds.
+    function commentSnapshotsEqual(a, b) {
+        if (!(a instanceof Map) || !(b instanceof Map) || a.size !== b.size) return false;
+        let same = true;
+        a.forEach((signature, id) => {
+            if (same && b.get(id) !== signature) same = false;
+        });
+        return same;
+    }
+
     // What has to be sent: a new or edited comment, plus an explicit tombstone for one that
     // vanished locally. Two people commenting at once therefore produce two DIFFERENT rows,
     // which is the entire reason comments are not a column on list_items.
@@ -3122,9 +3170,15 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
             if (projId !== ACTIVE_PROJECT_ID) return;
             if (!Array.isArray(rows)) return;
             if (hasPendingCommentChanges(projId)) return;
+
+            // Compare FIRST: an identical poll refreshes the timestamps but draws nothing.
+            const incoming = snapshotFromCommentRows(rows);
+            const changed = !commentSnapshotsEqual(incoming, snapshotFromCommentRows(allCommentRows()));
+
             COMMENTS = commentsFromRows(rows);
-            COMMENTS_SNAPSHOT.set(projId, snapshotFromCommentRows(rows));
+            COMMENTS_SNAPSHOT.set(projId, incoming);
             writeCommentsCache(projId);
+            if (!changed) return;   // nothing new to show, so nothing gets rebuilt
             refreshCommentPills();
             if (isCommentPopoverOpen() && !commentComposerHasText()) renderCommentPopover();
         } catch (e) {
@@ -3206,6 +3260,9 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         if (!panel || !taskId || UI_STATE.showComments === false) return;
         const id = String(taskId);
         if (COMMENT_POPOVER.taskId !== id) {
+            // A DIFFERENT thread starts at the top; the same thread keeps the reader's place.
+            const staleList = panel.querySelector('.comment-list');
+            if (staleList) staleList.scrollTop = 0;
             COMMENT_POPOVER = { taskId: id, pinned: Boolean(pin), filter: '', editingId: null };
         } else if (pin) {
             COMMENT_POPOVER.pinned = true;
@@ -3270,15 +3327,23 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     }
 
     function commentEntryHtml(comment) {
-        const own = isOwnComment(comment);
-        const edited = comment.updatedAt && comment.createdAt && comment.updatedAt !== comment.createdAt;
+        const own = canEditComment(comment);
+        const mayDelete = canDeleteComment(comment);
+        // "Edited" needs a real gap: an INSERT writes created_at and updated_at together, but
+        // an older row (or a second-device round trip) can differ by a second or two, which
+        // must never read as "you changed your mind".
+        const createdMs = Date.parse(String(comment.createdAt || '')) || 0;
+        const updatedMs = Date.parse(String(comment.updatedAt || '')) || 0;
+        const edited = createdMs > 0 && updatedMs > 0 && (updatedMs - createdMs) > 2000;
+        const authorLabel = (comment.author || '(unknown)') + (own ? ' (you)' : '');
+        const deleteLabel = own ? 'Delete your comment' : 'Delete this comment (moderator)';
         return `<div class="comment-item ${own ? 'is-own' : ''}">
             <div class="comment-item-head">
-                <span class="comment-item-author">${escapeHtml(comment.author || '(unknown)')}</span>
+                <span class="comment-item-author">${escapeHtml(authorLabel)}</span>
                 <span class="comment-item-time">${escapeHtml(formatCommentTime(comment.createdAt))}${edited ? ' (edited)' : ''}</span>
-                ${own ? `<span class="comment-item-actions">
-                    <button type="button" class="comment-link" data-comment-edit="${escapeHtml(comment.id)}">Edit</button>
-                    <button type="button" class="comment-link danger" data-comment-delete="${escapeHtml(comment.id)}">Delete</button>
+                ${(own || mayDelete) ? `<span class="comment-item-actions">
+                    ${own ? `<button type="button" class="comment-link" data-comment-edit="${escapeHtml(comment.id)}" aria-label="Edit your comment">Edit</button>` : ''}
+                    ${mayDelete ? `<button type="button" class="comment-link danger" data-comment-delete="${escapeHtml(comment.id)}" aria-label="${escapeHtml(deleteLabel)}">Delete</button>` : ''}
                 </span>` : ''}
             </div>
             <div class="comment-item-body">${escapeHtml(comment.body || '')}</div>
@@ -3294,6 +3359,12 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         const previousInput = document.getElementById('commentComposerInput');
         const draft = previousInput ? previousInput.value : '';
         const hadFocus = previousInput && document.activeElement === previousInput;
+
+        // A re-render replaces the whole panel, which would reset the thread's scroll to the
+        // top and yank the reader back to comment #1. The draft and the scroll position are
+        // therefore both carried across the rebuild (the poll used to do this every 3 s).
+        const previousList = panel.querySelector('.comment-list');
+        const previousScrollTop = previousList ? previousList.scrollTop : 0;
 
         const groups = collectCommentGroups(COMMENT_POPOVER.taskId);
         const authors = aggregateCommentAuthors(groups);
@@ -3353,7 +3424,14 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
                 } catch (e) { /* focus can fail in a background tab */ }
             }
         }
-        positionCommentPopover();
+
+        const nextList = panel.querySelector('.comment-list');
+        if (nextList && previousScrollTop > 0) {
+            const maxScroll = Math.max(0, nextList.scrollHeight - nextList.clientHeight);
+            nextList.scrollTop = Math.min(previousScrollTop, maxScroll);
+        }
+        // The panel is positioned when it OPENS and on window resize, never on re-render:
+        // a rebuild must not be able to slide it under the pointer.
     }
 
     // ---- panel actions ------------------------------------------------------
@@ -3364,7 +3442,11 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
 
     function startCommentEdit(commentId) {
         const comment = findComment(commentId);
-        if (!comment || !isOwnComment(comment)) return;
+        if (!comment) return;
+        if (!canEditComment(comment)) {
+            showToast('You can only edit your own comments');
+            return;
+        }
         COMMENT_POPOVER.editingId = String(commentId);
         renderCommentPopover();
     }
@@ -3395,6 +3477,12 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         saveState();
         if (input) input.value = '';
         renderCommentPopover();
+        // Your own new comment is at the bottom - show it instead of leaving the thread
+        // wherever it happened to be scrolled. Saving an edit keeps the reader's place.
+        if (!wasEditing) {
+            const listEl = document.querySelector('#commentPopover .comment-list');
+            if (listEl) listEl.scrollTop = listEl.scrollHeight;
+        }
         refreshCommentPills();
         showToast(wasEditing ? 'Comment saved' : 'Comment posted');
     }
@@ -3405,13 +3493,19 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     function deleteCommentFromPanel(commentId) {
         const comment = findComment(commentId);
         if (!comment) return;
-        if (!isOwnComment(comment)) { showToast('You can only delete your own comments'); return; }
+        if (!canDeleteComment(comment)) {
+            showToast('You can only delete your own comments');
+            return;
+        }
         const taskId = COMMENT_POPOVER.taskId;
+        const own = isOwnComment(comment);
+        const snippet = escapeHtml(String(comment.body || '').slice(0, 140));
         closeCommentPopover(true);
         CONFIRM_CONTEXT = { type: 'comment', commentId: String(commentId), taskId: taskId };
         openConfirmModal({
-            title: 'Delete comment',
-            bodyHtml: 'Delete <strong>"' + escapeHtml(String(comment.body || '').slice(0, 140)) + '"</strong>?<br><br>This removes it for everyone.',
+            title: own ? 'Delete your comment' : 'Delete ' + (comment.author || 'this') + "'s comment",
+            bodyHtml: 'Delete <strong>"' + snippet + '"</strong>?<br><br>This removes it for everyone.'
+                + (own ? '' : '<br><br><em>You are deleting somebody else\'s comment as an editor.</em>'),
             confirmLabel: 'Delete',
             accent: false
         });
@@ -4267,6 +4361,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         // shipped defaults - resolve that before deciding anything.
         await applyGhlPermissionDefaults();
         const perms = evaluatePermissions();
+        APP_PERMS = perms;   // comment moderation (editor may delete anybody's comment)
 
         if (!perms.isEditor) {
             document.body.classList.add('is-viewer-mode');
@@ -5107,7 +5202,6 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
                     <input type="text" class="section-title" value="${escapeHtml(sec.header.title)}" 
                            oninput="updateSectionTitle(${sec.headerIndex}, this.value)" 
                            onclick="event.stopPropagation();" />
-                    ${commentPillHtml(secId, commentCountForAnchor(sec.headerIndex))}
                 </div>
                 <div class="section-meta-right">
                     <div class="section-header-actions" onclick="event.stopPropagation();">
@@ -5129,6 +5223,15 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
                         <button type="button" class="btn-icon sec-action-btn" title="BlankAll - reset every task in this milestone to untouched" onclick="confirmSectionState(${sec.headerIndex}, TASK_BLANK)"><span class="state-square"></span></button>
                         <button type="button" class="btn-icon sec-action-btn delete-btn" title="Delete milestone and all its tasks" onclick="confirmDeleteSection(${sec.headerIndex})">✕</button>
                     </div>
+
+                    <!-- The C pill sits AFTER the hover-only toolbar and BEFORE the Completed
+                         badge. .section-meta-right is right-anchored (the title flexes), so
+                         anything to the right of the growing toolbar keeps its distance from
+                         the right edge - the pill (and the panel anchored to it) can never
+                         slide when the toolbar appears. It is a SIBLING of the toolbar, never
+                         inside it: body.is-viewer-mode hides .section-header-actions, and a
+                         client has to be able to read and post comments. -->
+                    ${commentPillHtml(secId, commentCountForAnchor(sec.headerIndex))}
 
                     <span class="section-counter-badge ${allDone ? 'all-done' : ''}">
                         ${completedTasks} / ${applicableTasks} Completed${ignoredTasks > 0 ? ' - ' + ignoredTasks + ' no' : ''}
@@ -5265,7 +5368,6 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
                         <input type="text" class="task-title-input" value="${escapeHtml(t.title)}" oninput="updateTaskTitle(${realIdx}, this.value)" />
 
                         <div class="task-right-cluster">
-                            ${commentPillHtml(taskId, commentCountForAnchor(realIdx))}
                             <div class="task-actions">
                                 <button type="button" class="btn-icon" title="Outdent (Shift Left)" onclick="changeSubtreeLevel(${realIdx}, -1)">⇤</button>
                                 <button type="button" class="btn-icon" title="Indent (Nest Right)" onclick="changeSubtreeLevel(${realIdx}, 1)">⇥</button>
@@ -5278,6 +5380,14 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
 
                             <!-- Pill Count without Parentheses -->
                             ${isBranchCollapsed ? `<span class="branch-count-badge" title="${childCount} subtasks collapsed">${childCount}</span>` : ''}
+
+                            <!-- The C pill sits AFTER the hover-only toolbar, immediately before
+                                 the chevron. The cluster is right-anchored, so everything to the
+                                 right of the growing toolbar keeps its distance from the right
+                                 edge - the pill (and the panel anchored to it) cannot slide when
+                                 the toolbar appears. A SIBLING of .task-actions, never inside it:
+                                 that toolbar is display:none until hover AND in viewer mode. -->
+                            ${commentPillHtml(taskId, commentCountForAnchor(realIdx))}
 
                             <button type="button" class="${rightArrowClass}" title="${arrowTitle}" onclick="handleArrowClick(${realIdx})">
                                 ${DOUBLE_CHEVRON_SVG}

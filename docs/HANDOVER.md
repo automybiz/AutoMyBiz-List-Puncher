@@ -1305,6 +1305,73 @@ tasks:
   the LPF blob**, with whole-document last-write-wins. Per-comment sync is the agency hub (rows mode).
 - The unread dot was designed but not built (no DB change needed; `UI_STATE` only).
 
+### Build 1.57 - pill placement, thread scroll, "(edited)" and comment ownership (2026-10-28)
+
+**The pill moves, so the panel moves with it.** `.task-right-cluster` and `.section-meta-right` are
+**right-anchored** flex boxes: the title input flexes, so the box's right edge is pinned and every child
+keeps its distance *from the right edge*. Adding width (the hover toolbar appearing) makes the box grow
+**leftward**. The pill started as the *first* child of the task cluster, so it was pushed ~400 px left
+the moment the toolbar appeared - and the panel, anchored to the pill, came along.
+
+New order (measured in a headless dump, not eyeballed):
+- task row: `[task-actions][branch badge][C pill][chevron]` - pill starts after the toolbar
+- section header: `[section-header-actions][C pill][Completed badge][chevron]`
+
+**The pill must be a SIBLING of the toolbars, never a child.** `.task-actions` is `display:none` until
+row hover and `display:none !important` in `body.is-viewer-mode`; a pill inside either would vanish for
+clients and whenever the toolbar hides. The `.section-title { flex: 1 1 auto }` override from 1.56 was
+reverted (the title no longer shares its line with the pill).
+
+**Belt and braces:** the panel is now positioned when it OPENS and on window resize only - 
+`renderCommentPopover()` no longer repositions. A re-render can no longer slide the panel under the
+pointer.
+
+**The thread snapped back to the top on scroll.** `renderCommentPopover()` replaces the panel's whole
+`innerHTML`, so `.comment-list` was a new element with `scrollTop = 0` - and `hydrateCommentsFromCloud()`
+called it **every 3 s** whenever the panel was open with an empty composer, whether or not the pull
+changed anything. Two fixes:
+1. `commentSnapshotsEqual()` compares the incoming rows against the store first; an identical pull
+   refreshes timestamps and **draws nothing**.
+2. The renderer carries `scrollTop` (and the composer draft + focus) across a rebuild, so a genuine new
+   comment never throws the reader back to #1. Posting your own comment scrolls to the bottom; opening a
+   *different* thread starts at the top.
+
+**Every comment said "(edited)".** `apply_comment_changes()` wrote `created_at` from the client and
+`updated_at` from `clock_timestamp()`, so a brand-new comment always differed by a second or two. On
+INSERT both timestamps are now the same instant (`v_created`), and only the ON CONFLICT path bumps
+`updated_at`. Migration `comments_updated_at_on_insert`; the client also ignores differences under 2 s
+so rows already on disk stop showing it without a data rewrite.
+
+**Edit and Delete already existed but were invisible.** "Own" was `authorKey === my key`, and GHL sends
+`Brian Mulloney` + an email while pasted/imported comments are signed `Brian` with no key - so nothing
+matched and no buttons rendered. Now `commentAuthorMatchesMe()` matches the stored key **or** the signed
+name, including first-name vs full-name. Rules:
+- **Edit** = your own words only (never rewrite somebody else's).
+- **Delete** = your own **or** an editor may moderate ANY comment (a client-facing list has to be
+  cleanable). The confirm names the author when it is not you.
+- Own comments show `Edit`, `Delete` and a green `(you)` marker.
+
+**Verification**: `lp-comments-test.js` **68 asserts** (20 new: ownership both ways, viewer vs editor
+delete, foreign-comment button sets, the 2 s edited tolerance, and snapshot equality for identical /
+reordered / timestamp-only / new / edited / empty pulls). Rows 69, directory 23, secret 35, poll 34,
+empty-list ALL. 3/3 inline scripts compile; build markers 1.57. DB: insert -> `created_at = updated_at`,
+update -> `updated_at > created_at`. Headless DOM: `actions 67 < pill 2809 < chevron 3067`,
+`actions 59 < pill 3681 < counter 3893`, and no pill inside `.section-title-wrap`.
+
+**Lesson for headless smoke tests:** a `file://` boot with no usable `sb_url` resolves
+`LEGACY_FALLBACK_CLOUD` and **writes to the live project** - three smoke runs pushed starter items into
+`list_items`, a `list_headers` row and `tenants` rows before anyone noticed. And the obvious guard does
+not work: `normalizeCloudTarget()` **rejects `http://` on purpose** ("never send a key over plain http"),
+so `sb_url=http://127.0.0.1:9` is discarded and the fallback wins. Use an **https** address that cannot
+answer, plus a throwaway location, and sweep afterwards:
+
+```
+...index.html?location_id=smokeNNN&mode=edit&sb_url=https://127.0.0.1:9&sb_key=sb_publishable_smoke
+```
+
+All smoke rows were deleted again (`list_items` 316, `list_headers` 7, `list_item_comments` 26 - the last
+two include the demo list Brian pasted - and `tenants` 7 with zero `smoke%`).
+
 ### Trap hit while building this - read before the next build bump
 Bumping `APP_BUILD` with `(Get-Content -Raw) ... | Set-Content -Encoding utf8` **double-encoded the
 whole file** (Windows PowerShell reads a BOM-less file as ANSI/CP1252, then writes UTF-8), turning

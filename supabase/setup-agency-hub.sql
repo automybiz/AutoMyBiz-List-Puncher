@@ -395,6 +395,7 @@ declare
   v_hash text := list_puncher.ensure_tenant(p_location, p_secret);
   v_now  timestamptz := clock_timestamp();
   v_row  jsonb;
+  v_created timestamptz;
 begin
   if v_hash is null then
     raise exception 'invalid tenant secret' using errcode = '28000';
@@ -409,6 +410,10 @@ begin
       continue;
     end if;
 
+    -- An INSERT is not an EDIT: both timestamps get the same instant, so a brand-new
+    -- comment can never render as "(edited)".
+    v_created := coalesce(nullif(v_row->>'created_at', '')::timestamptz, v_now);
+
     insert into list_puncher.list_item_comments as c (
       location_id, project_id, tenant_hash, comment_id, task_id,
       author_key, author_name, body, created_at, updated_at, deleted_at
@@ -419,8 +424,8 @@ begin
       coalesce(v_row->>'author_key', ''),
       coalesce(v_row->>'author_name', ''),
       coalesce(v_row->>'body', ''),
-      coalesce(nullif(v_row->>'created_at', '')::timestamptz, v_now),
-      v_now,
+      v_created,
+      v_created,
       case when coalesce((v_row->>'deleted')::boolean, false) then v_now else null end
     )
     on conflict on constraint list_item_comments_identity_key
@@ -429,7 +434,7 @@ begin
       author_key  = excluded.author_key,
       author_name = excluded.author_name,
       body        = excluded.body,
-      updated_at  = excluded.updated_at,
+      updated_at  = v_now,                   -- the real update path: this IS an edit
       deleted_at  = excluded.deleted_at;
   end loop;
 
