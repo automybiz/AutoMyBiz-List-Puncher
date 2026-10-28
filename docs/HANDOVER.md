@@ -1358,6 +1358,35 @@ empty-list ALL. 3/3 inline scripts compile; build markers 1.57. DB: insert -> `c
 update -> `updated_at > created_at`. Headless DOM: `actions 67 < pill 2809 < chevron 3067`,
 `actions 59 < pill 3681 < counter 3893`, and no pill inside `.section-title-wrap`.
 
+### Build 1.59 - an empty composer, and a thread that says where it lives (2026-10-28)
+
+**The Add comment box inherited text from other threads.** The panel's DOM survives a close, and
+`renderCommentPopover()` read the leftover `<textarea>.value` back as "the draft". Clicking **Edit** on
+one comment, closing the panel and opening another thread therefore carried that comment's text into the
+new composer.
+- Drafts now live in `COMMENT_DRAFTS` (taskId -> text), written **only** by real keystrokes (`input`),
+  never by an Edit fill.
+- `closeCommentPopover()` wipes `panel.innerHTML`, so no stale value can be inherited at all.
+- The composer has **no placeholder** (it was visual noise on a blank field); the "signed as X" hint
+  stays in the row beneath it.
+- Half-typed text still survives a hover-out, because the draft is per thread rather than per DOM node.
+
+**The panel now states WHERE the thread sits.** A bare task title loses its context three levels down,
+so `commentAnchorContext()` walks the same `level` + order rule the renderer uses and returns
+`{node, section, chain, depth}`:
+- **Task panels** get a breadcrumb of the ancestor chain (`Demo Section: First Meal Supplements ›
+  Demo Task: GLYNAC`) above the task title. Longer chains keep the milestone plus the **two nearest**
+  ancestors and show an ellipsis for the rest.
+- **Depth bars** sit after the title: a rising staircase of 1-4 bars (capped, `+` beyond), so depth is
+  readable at a glance without counting titles. Same bars on each descendant group label.
+- **Section panels** show the title once: the anchor's own group is no longer labelled with the section
+  title again (that was the duplicate), while descendant groups keep their labels.
+
+Verification: `lp-comments-test.js` **92 asserts** (22 new: section has no breadcrumb/bars, level-1 is
+depth 1, level-2 keeps the full chain, the deep-chain truncation keeps milestone + two nearest, depth
+capping and its aria label, plus source guards for the placeholder, the innerHTML wipe and the
+draft map). Everything else green; build markers 1.59; 3/3 scripts compile.
+
 ### Build 1.58 - "(edited)" for real this time (2026-10-28)
 
 The 1.57 tolerance (2 s) was still wrong, and the live data proved it: every row on the demo list

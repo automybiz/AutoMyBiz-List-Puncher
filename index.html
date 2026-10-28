@@ -15,7 +15,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
     
     <!-- Separated Master Stylesheet (Zero Prism Crash) - version query busts the GitHub Pages 10min cache -->
-    <link rel="stylesheet" href="index.css?v=1.58">
+    <link rel="stylesheet" href="index.css?v=1.59">
 
     <script>
     /* Universal Dark Reader Kill Switch (Rule 9) */
@@ -360,7 +360,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     // =========================================================================
     const AUTOSAVE_DELAY_MS = 500;
     const INDENT_SPACES_PER_LEVEL = 2;
-    const APP_BUILD = '1.58'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
+    const APP_BUILD = '1.59'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
     // Bump whenever the UI_STATE defaults below change: a saved state older than this gets
     // the new defaults applied exactly ONCE (afterwards the user's own toggles win).
     const UI_STATE_DEFAULTS_VERSION = 2;
@@ -2661,6 +2661,10 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     // The open thread panel. `filter` is an authorKey ('' = All); `editingId` turns the
     // composer into "save this comment" instead of "post a new one".
     let COMMENT_POPOVER = { taskId: null, pinned: false, filter: '', editingId: null };
+    // Half-typed comments, per thread. Kept OUT of the DOM on purpose: the panel's markup
+    // survives a close, so reading the textarea back as "the draft" made one thread inherit
+    // whatever another thread (or an Edit fill) had left in it. Only real keystrokes land here.
+    const COMMENT_DRAFTS = new Map();
     let COMMENT_OPEN_TIMER = null;
     let COMMENT_CLOSE_TIMER = null;
     let COMMENT_HOVER_TASK_ID = '';
@@ -3286,6 +3290,10 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         if (!panel) return;
         if (COMMENT_POPOVER.pinned && !force) return;
         panel.classList.remove('show');
+        // Wipe the markup as well as the state. Leaving it meant the next open read the old
+        // textarea value back as a "draft" - which is how one thread inherited another thread's
+        // text (and an Edit fill) into the Add comment box. Drafts live in COMMENT_DRAFTS.
+        panel.innerHTML = '';
         COMMENT_POPOVER = { taskId: null, pinned: false, filter: '', editingId: null };
     }
 
@@ -3357,6 +3365,65 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         </div>`;
     }
 
+    // WHERE the anchor sits: its own node, the milestone above it, and every ancestor in
+    // between. This is what lets a task panel say "you are inside this section, this deep" -
+    // the app is a tree, and a bare task title loses that context the moment you are 3 levels
+    // down looking at "Split the dose".
+    function commentAnchorContext(taskId) {
+        const id = String(taskId || '');
+        const index = TASKS_DATA.findIndex(t => t && String(t.id) === id);
+        if (index === -1) return { index: -1, node: null, section: null, chain: [], depth: 0 };
+        const node = TASKS_DATA[index];
+        const depth = Math.max(0, Number(node.level) || 0);
+
+        // Walk upwards collecting the nearest node of each shallower level: the same rule the
+        // renderer uses (level + order), so the breadcrumb can never disagree with the screen.
+        const chain = [];
+        let level = depth;
+        for (let i = index - 1; i >= 0 && level > 0; i--) {
+            const above = TASKS_DATA[i];
+            const aboveLevel = Math.max(0, Number(above && above.level) || 0);
+            if (aboveLevel < level) {
+                chain.unshift(above);
+                level = aboveLevel;
+            }
+        }
+        return {
+            index: index,
+            node: node,
+            section: chain.length ? chain[0] : (depth === 0 ? node : null),
+            chain: chain,      // [section, ...parents] - never includes the anchor itself
+            depth: depth
+        };
+    }
+
+    // A stack of bars = nesting depth (1 bar directly under a milestone, 4+ deeper). Capped at
+    // four so a deep branch can never push the title out of the panel.
+    function commentDepthBarsHtml(depth) {
+        const level = Math.max(0, Number(depth) || 0);
+        if (!level) return '';
+        const shown = Math.min(4, level);
+        let bars = '';
+        for (let i = 0; i < shown; i++) bars += '<i></i>';
+        return `<span class="comment-depth-bars" data-depth="${shown}" aria-label="Nested ${level} level${level === 1 ? '' : 's'} deep">${bars}${level > 4 ? '<b>+</b>' : ''}</span>`;
+    }
+
+    // section › grandparent › parent - keeping the milestone and the TWO nearest ancestors when
+    // the chain is long, because those are the two that tell you where you are.
+    function commentBreadcrumbHtml(ctx) {
+        const chain = (ctx && Array.isArray(ctx.chain)) ? ctx.chain : [];
+        if (!chain.length) return '';
+        const truncated = chain.length > 3;
+        const shown = truncated ? [chain[0]].concat(chain.slice(-2)) : chain.slice();
+        const parts = [`<span class="comment-crumb">${escapeHtml(shown[0].title || 'Untitled')}</span>`];
+        if (truncated) parts.push('<span class="comment-crumb-ellipsis">&hellip;</span>');
+        shown.slice(1).forEach(c => {
+            parts.push('<span class="comment-crumb-sep">&rsaquo;</span>');
+            parts.push(`<span class="comment-crumb">${escapeHtml(c.title || 'Untitled')}</span>`);
+        });
+        return `<div class="comment-breadcrumb" aria-label="Nested under">${parts.join('')}</div>`;
+    }
+
     // Rebuilds the whole panel from the store. A draft in the composer is carried across the
     // rebuild (focus and caret restored), so a background pull can never eat typing.
     function renderCommentPopover() {
@@ -3364,8 +3431,12 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         if (!panel || !COMMENT_POPOVER.taskId) return;
 
         const previousInput = document.getElementById('commentComposerInput');
-        const draft = previousInput ? previousInput.value : '';
         const hadFocus = previousInput && document.activeElement === previousInput;
+        // The draft comes from THIS thread's map entry, never from whatever the DOM still
+        // holds, and never while editing (an edit fill is not a draft).
+        const draft = COMMENT_POPOVER.editingId
+            ? ''
+            : (COMMENT_DRAFTS.get(String(COMMENT_POPOVER.taskId || '')) || '');
 
         // A re-render replaces the whole panel, which would reset the thread's scroll to the
         // top and yank the reader back to comment #1. The draft and the scroll position are
@@ -3377,9 +3448,11 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         const authors = aggregateCommentAuthors(groups);
         const total = groups.reduce((n, g) => n + g.comments.length, 0);
         const filter = COMMENT_POPOVER.filter;
-        const anchorTask = TASKS_DATA.find(t => t && String(t.id) === COMMENT_POPOVER.taskId);
+        const ctx = commentAnchorContext(COMMENT_POPOVER.taskId);
+        const anchorTask = ctx.node;
         const heading = anchorTask ? (anchorTask.title || 'Untitled') : 'Comments';
-        const isSection = !!anchorTask && anchorTask.level === 0;
+        const isSection = !!anchorTask && Number(anchorTask.level) === 0;
+        const breadcrumbHtml = commentBreadcrumbHtml(ctx);
 
         const chips = authors.length
             ? '<div class="comment-filters">'
@@ -3392,8 +3465,13 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
             ? groups.map(g => {
                 const visible = filter ? g.comments.filter(c => String(c.authorKey || '') === filter) : g.comments;
                 if (!visible.length) return '';
-                return (isSection ? `<div class="comment-group-title">${escapeHtml(g.title)}</div>` : '')
-                    + visible.map(commentEntryHtml).join('');
+                // The anchor's OWN thread needs no label - the panel title already says it (that
+                // was the section title appearing twice). Descendants get a label + depth bars.
+                const ownThread = !!g.node && !!anchorTask && String(g.node.id) === String(anchorTask.id);
+                const label = (isSection && !ownThread)
+                    ? `<div class="comment-group-title">${escapeHtml(g.title)}${commentDepthBarsHtml(g.node ? g.node.level : 0)}</div>`
+                    : '';
+                return label + visible.map(commentEntryHtml).join('');
             }).join('')
             : '<div class="comment-empty">No comments here yet - write the first one below.</div>';
 
@@ -3402,7 +3480,8 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         panel.innerHTML = `
             <div class="comment-popover-head">
                 <div class="comment-popover-titles">
-                    <div class="comment-popover-title">${escapeHtml(heading)}</div>
+                    ${breadcrumbHtml}
+                    <div class="comment-popover-title">${escapeHtml(heading)}${commentDepthBarsHtml(ctx.depth)}</div>
                     <div class="comment-popover-sub">${total} comment${total === 1 ? '' : 's'}${authors.length > 1 ? ' by ' + authors.length + ' people' : ''}${isSection ? ' in this branch' : ''}</div>
                 </div>
                 <button type="button" class="comment-popover-btn ${COMMENT_POPOVER.pinned ? 'is-pinned' : ''}" data-comment-pin aria-label="${COMMENT_POPOVER.pinned ? 'Unpin this panel' : 'Pin this panel open'}">${COMMENT_POPOVER.pinned ? 'PINNED' : 'PIN'}</button>
@@ -3412,7 +3491,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
             <div class="comment-list">${bodyHtml}</div>
             <div class="comment-composer">
                 <textarea id="commentComposerInput" class="comment-composer-input" rows="2"
-                          placeholder="Add a comment as ${escapeHtml(COMMENT_AUTHOR.name || 'yourself')}...">${editing ? escapeHtml(editing.body) : ''}</textarea>
+                          aria-label="Add a comment">${editing ? escapeHtml(editing.body) : escapeHtml(draft)}</textarea>
                 <div class="comment-composer-bar">
                     <span class="comment-composer-hint">${editing ? 'Editing - Esc cancels' : 'Ctrl+Enter posts'} - signed as ${escapeHtml(COMMENT_AUTHOR.name || 'unnamed')}</span>
                     ${editing ? '<button type="button" class="comment-btn" data-comment-cancel-edit>Cancel</button>' : ''}
@@ -3483,6 +3562,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         }
         saveState();
         if (input) input.value = '';
+        COMMENT_DRAFTS.delete(String(COMMENT_POPOVER.taskId || ''));
         renderCommentPopover();
         // Your own new comment is at the bottom - show it instead of leaving the thread
         // wherever it happened to be scrolled. Saving an edit keeps the reader's place.
@@ -3623,7 +3703,15 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         panel.addEventListener('click', handleCommentPanelClick);
         panel.addEventListener('keydown', handleCommentPanelKeydown);
         panel.addEventListener('input', (e) => {
-            if (e.target && e.target.id === 'commentComposerInput') autoExpandTextarea(e.target);
+            if (!e.target || e.target.id !== 'commentComposerInput') return;
+            autoExpandTextarea(e.target);
+            // Only REAL typing becomes a draft - never an Edit fill, which is not the user's
+            // unfinished comment for this thread.
+            if (!COMMENT_POPOVER.editingId && COMMENT_POPOVER.taskId) {
+                const text = String(e.target.value || '');
+                if (text) COMMENT_DRAFTS.set(String(COMMENT_POPOVER.taskId), text);
+                else COMMENT_DRAFTS.delete(String(COMMENT_POPOVER.taskId));
+            }
         });
 
         document.addEventListener('keydown', (e) => {

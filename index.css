@@ -34,7 +34,7 @@
     --indent-step: 22px;
 
     /* Build marker: lets the app detect a stale cached stylesheet (compared against APP_BUILD in index.html) */
-    --lp-css-build: "1.58";
+    --lp-css-build: "1.59";
 
     --completed-opacity: 0.42;
 
@@ -2310,6 +2310,59 @@ body.is-resizing .container-resize-handle {
     letter-spacing: 0.2px;
 }
 
+/* Where this thread sits: section > parent > node. Muted, so the node title stays primary. */
+.comment-breadcrumb {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 3px;
+    font-size: 0.62rem;
+    letter-spacing: 0.3px;
+    color: var(--text-muted);
+    margin-bottom: 2px;
+}
+
+.comment-crumb {
+    max-width: 130px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.comment-crumb-sep,
+.comment-crumb-ellipsis {
+    color: rgba(255, 255, 255, 0.28);
+    flex-shrink: 0;
+}
+
+/* Nesting depth as a rising staircase: 1 bar = directly under a milestone, 2 = a subtask,
+   3 = a subtask of a subtask. Capped at four, with a "+" beyond that. */
+.comment-depth-bars {
+    display: inline-flex;
+    align-items: flex-end;
+    gap: 2px;
+    margin-left: 6px;
+    vertical-align: middle;
+}
+
+.comment-depth-bars i {
+    display: block;
+    width: 3px;
+    height: 8px;
+    border-radius: 1px;
+    background: rgba(0, 229, 255, 0.35);
+}
+
+.comment-depth-bars i:nth-child(2) { height: 10px; background: rgba(0, 229, 255, 0.55); }
+.comment-depth-bars i:nth-child(3) { height: 12px; background: rgba(0, 229, 255, 0.75); }
+.comment-depth-bars i:nth-child(4) { height: 14px; background: var(--accent-cyan); }
+
+.comment-depth-bars b {
+    font-size: 0.55rem;
+    color: var(--accent-cyan);
+    margin-left: 1px;
+}
+
 .comment-popover-btn {
     flex-shrink: 0;
     padding: 2px 7px;
@@ -2389,6 +2442,9 @@ body.is-resizing .container-resize-handle {
 }
 
 .comment-group-title {
+    display: flex;
+    align-items: center;
+    gap: 4px;
     font-size: 0.62rem;
     font-weight: 800;
     letter-spacing: 0.6px;
