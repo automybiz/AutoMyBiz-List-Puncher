@@ -15,7 +15,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
     
     <!-- Separated Master Stylesheet (Zero Prism Crash) - version query busts the GitHub Pages 10min cache -->
-    <link rel="stylesheet" href="index.css?v=1.54">
+    <link rel="stylesheet" href="index.css?v=1.55">
 
     <script>
     /* Universal Dark Reader Kill Switch (Rule 9) */
@@ -357,7 +357,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     // =========================================================================
     const AUTOSAVE_DELAY_MS = 500;
     const INDENT_SPACES_PER_LEVEL = 2;
-    const APP_BUILD = '1.54'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
+    const APP_BUILD = '1.55'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
     // Bump whenever the UI_STATE defaults below change: a saved state older than this gets
     // the new defaults applied exactly ONCE (afterwards the user's own toggles win).
     const UI_STATE_DEFAULTS_VERSION = 2;
@@ -1329,7 +1329,9 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         UI_STATE.autoNumber = prefs.autoNumber !== undefined ? Boolean(prefs.autoNumber) : shipped.autoNumber;
         UI_STATE.nestStyle = prefs.nestStyle || shipped.nestStyle;
         UI_STATE.depthColorMode = prefs.depthColorMode || shipped.depthColorMode;
-        CONTAINER_WIDTH = clampContainerWidth(prefs.containerWidth);
+        // Keep the user's saved width even if this first load happens in a narrower
+        // window; applyContainerWidth() clamps only the RENDERED width.
+        CONTAINER_WIDTH = normalizeStoredContainerWidth(prefs.containerWidth);
 
         if (seeded) {
             saveViewPrefs();
@@ -3550,22 +3552,36 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         return Math.max(CONTAINER_MIN_WIDTH, viewport - 32);
     }
 
-    function clampContainerWidth(px) {
+    // Saves the DESIRED width. It must not depend on the current viewport, otherwise a
+    // temporary narrow window would permanently destroy the user's larger preference.
+    function normalizeStoredContainerWidth(px) {
         const n = Number(px);
         if (px === null || px === undefined || px === '' || !isFinite(n) || n <= 0) return null;
-        return Math.round(Math.min(maxContainerWidth(), Math.max(CONTAINER_MIN_WIDTH, n)));
+        return Math.round(Math.min(10000, Math.max(CONTAINER_MIN_WIDTH, n)));
+    }
+
+    // Applies the current viewport limit WITHOUT changing the saved preference.
+    function clampContainerWidth(px) {
+        const normalized = normalizeStoredContainerWidth(px);
+        if (normalized === null) return null;
+        return Math.round(Math.min(maxContainerWidth(), normalized));
+    }
+
+    function effectiveContainerWidth() {
+        return CONTAINER_WIDTH ? clampContainerWidth(CONTAINER_WIDTH) : null;
     }
 
     function applyContainerWidth() {
         const root = document.documentElement;
-        if (CONTAINER_WIDTH) {
-            root.style.setProperty('--lp-container-max', CONTAINER_WIDTH + 'px');
+        const effective = effectiveContainerWidth();
+        if (effective) {
+            root.style.setProperty('--lp-container-max', effective + 'px');
         } else {
             root.style.removeProperty('--lp-container-max'); // stylesheet default (980px)
         }
 
         const readout = document.getElementById('widthReadout');
-        if (readout) readout.innerText = (CONTAINER_WIDTH || CONTAINER_DEFAULT_WIDTH) + 'px';
+        if (readout) readout.innerText = (effective || CONTAINER_DEFAULT_WIDTH) + 'px';
 
         const handle = document.getElementById('containerResizeHandle');
         if (handle) handle.style.display = (maxContainerWidth() > CONTAINER_MIN_WIDTH) ? '' : 'none';
@@ -3594,20 +3610,31 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         handle.addEventListener('pointercancel', handleContainerResizeEnd);
         handle.addEventListener('dblclick', resetContainerWidth);
 
-        // A window resize can shrink the viewport under a stored width, so re-clamp it (and
-        // recompute whether the grip is usable at all) without touching the stored preference.
+        // A window resize can shrink the viewport under a stored width, so re-clamp the
+        // RENDERED width (and recompute whether the grip is usable) without touching the
+        // saved preference. Widening the browser restores the original width automatically.
         window.addEventListener('resize', () => {
             if (RESIZE_DRAG) return;
-            if (CONTAINER_WIDTH) CONTAINER_WIDTH = clampContainerWidth(CONTAINER_WIDTH);
             applyContainerWidth();
         });
+
+        // A scrollbar can appear after the first apply (especially on reload), changing
+        // clientWidth without firing resize. Re-apply once the page has fully settled.
+        const reapplyAfterLayout = () => {
+            if (!RESIZE_DRAG) applyContainerWidth();
+        };
+        if (document.readyState === 'complete') {
+            requestAnimationFrame(reapplyAfterLayout);
+        } else {
+            window.addEventListener('load', () => requestAnimationFrame(reapplyAfterLayout), { once: true });
+        }
     }
 
     function handleContainerResizeStart(e) {
         if (e.button !== undefined && e.button !== 0) return;
         RESIZE_DRAG = {
             startX: e.clientX,
-            startWidth: CONTAINER_WIDTH || Math.min(CONTAINER_DEFAULT_WIDTH, maxContainerWidth())
+            startWidth: effectiveContainerWidth() || Math.min(CONTAINER_DEFAULT_WIDTH, maxContainerWidth())
         };
         document.body.classList.add('is-resizing');
         if (e.target && e.target.setPointerCapture && e.pointerId !== undefined) {
@@ -3632,7 +3659,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     function handleContainerResizeKeydown(e) {
         if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
         const step = e.shiftKey ? 100 : 20;
-        const current = CONTAINER_WIDTH || CONTAINER_DEFAULT_WIDTH;
+        const current = effectiveContainerWidth() || CONTAINER_DEFAULT_WIDTH;
         setContainerWidth(current + (e.key === 'ArrowRight' ? step : -step), true);
         e.preventDefault();
     }
