@@ -1441,7 +1441,7 @@ the editor or a byte-exact script, never with `Get-Content | Set-Content`.**
 
 ---
 
-## 29. Build 1.61 - the AI prompts live only in `prompts/` (2026-10-30)
+## 29. Builds 1.60-1.62 - the AI prompts live only in `prompts/` (2026-10-30)
 
 The prompt behind the **Copy AI Prompt** button was a template literal inside `index.html`. It now
 lives in `prompts/*.js`, and `index.html` contains **none** of the text: there is exactly one copy in
@@ -1493,6 +1493,22 @@ names which one it copied.
 Trailing spaces after two of the opening fences, "exisitng" -> "existing", "check lists your
 generating" -> "checklists you're generating", "if needed ?t=111s" -> "such as ?t=111s". Every rule,
 example and comment description is otherwise unchanged.
+
+### Build 1.62 - the buttons copied nothing (a stale duplicate function)
+
+1.61 shipped **two** `buildAiPrompt` declarations: the new one reading `*_HEAD`, and a leftover from
+the generated block still reading `AI_PROMPT_USER` / `AI_PROMPT_SYSTEM`, which by then no longer
+existed. A later function declaration silently wins, so every click threw
+`ReferenceError: AI_PROMPT_USER is not defined` inside the handler - the load guard passed, the toast
+never changed, and nothing reached the clipboard.
+
+Found by loading the deployed page in headless Chrome and calling the real handler. Compiling the
+script block did **not** catch it: duplicate function declarations compile perfectly happily.
+
+**Standing check after this:** the live/local page must be exercised, not just compiled -
+`buildAiPrompt('user').length === 3053`, `buildAiPrompt('system').length === 3391`, and a real
+clipboard read of 3112 chars on Windows (3053 + 59 CRs, because the OS normalises LF to CRLF on the
+clipboard - the string the app hands over is LF-only and correct).
 
 **Verification:** the assembled prompts are **byte-identical** to the 1.60 build (3053 and 3391
 chars - proved by composing the old committed fragments and the new files, then comparing the two

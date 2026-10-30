@@ -15,7 +15,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
     
     <!-- Separated Master Stylesheet (Zero Prism Crash) - version query busts the GitHub Pages 10min cache -->
-    <link rel="stylesheet" href="index.css?v=1.61">
+    <link rel="stylesheet" href="index.css?v=1.62">
 
     <script>
     /* Universal Dark Reader Kill Switch (Rule 9) */
@@ -363,9 +363,9 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
      index.html is opened straight off disk, and so GitHub Pages cannot
      Jekyll the fragments into .html.
      ========================================================================= -->
-<script src="prompts/ai-prompt-shared.js?v=1.61"></script>
-<script src="prompts/ai-prompt-system.js?v=1.61"></script>
-<script src="prompts/ai-prompt-user.js?v=1.61"></script>
+<script src="prompts/ai-prompt-shared.js?v=1.62"></script>
+<script src="prompts/ai-prompt-system.js?v=1.62"></script>
+<script src="prompts/ai-prompt-user.js?v=1.62"></script>
 
 <script>
     // =========================================================================
@@ -373,7 +373,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     // =========================================================================
     const AUTOSAVE_DELAY_MS = 500;
     const INDENT_SPACES_PER_LEVEL = 2;
-    const APP_BUILD = '1.61'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
+    const APP_BUILD = '1.62'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
     // Bump whenever the UI_STATE defaults below change: a saved state older than this gets
     // the new defaults applied exactly ONCE (afterwards the user's own toggles win).
     const UI_STATE_DEFAULTS_VERSION = 2;
@@ -7547,16 +7547,6 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
         return parts.join('\n\n') + '\n';
     }
 
-    // HEAD + BODY. The user and system versions differ only in their opening, so
-    // the rules are written once and both buttons inherit every change to them.
-    // The literals follow the file's line endings (CRLF on Windows), so normalise
-    // here - the copied text is then byte-identical on every platform, exactly
-    // like formatChecklistText() does for the list itself.
-    function buildAiPrompt(kind) {
-        const head = (kind === 'system') ? AI_PROMPT_SYSTEM : AI_PROMPT_USER;
-        const parts = [head, AI_PROMPT_SHARED].map(part => part.replace(/\r\n/g, '\n').trim());
-        return parts.join('\n\n') + '\n';
-    }
     // Context-friendly AI Prompt Copier - kind is 'user' or 'system'
     function copyAiPromptToClipboard(kind) {
         const variant = (kind === 'system') ? 'system' : 'user';
