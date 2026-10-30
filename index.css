@@ -34,7 +34,7 @@
     --indent-step: 22px;
 
     /* Build marker: lets the app detect a stale cached stylesheet (compared against APP_BUILD in index.html) */
-    --lp-css-build: "1.60";
+    --lp-css-build: "1.61";
 
     --completed-opacity: 0.42;
 

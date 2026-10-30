@@ -1,1 +1,0 @@
-Convert the milestones/goals and tasks from our discussion above into List Puncher list format (a Markdown checklist with metadata). Please publish your results in a code block for safe copy/paste into the List Puncher app.

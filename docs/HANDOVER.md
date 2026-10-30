@@ -188,10 +188,10 @@ probe when that answers `404` (a client's own project). A POST selects its schem
 ```
 index.html                                  app (build markers at the top)
 index.css                                   styles (--lp-css-build at the top)
-prompts/ai-prompt-user.md                   HEAD of the user prompt (the one-off ask)
-prompts/ai-prompt-system.md                 HEAD of the system prompt (role + standing rules)
-prompts/ai-prompt-shared.md                 BODY both prompts end with (format rules + list structure)
-tools/sync-ai-prompts.mjs                   composes prompts/*.md into the AI-PROMPT-LIBRARY block in index.html
+prompts/ai-prompt-shared.js                 BODY both prompts end with (format rules + list structure)
+prompts/ai-prompt-system.js                 HEAD only the system prompt uses (role + standing rules)
+prompts/ai-prompt-user.js                   HEAD only the user prompt uses (the one-off ask)
+prompts/README.md                           why script tags instead of .md + fetch, and how to edit
 tools/validate-list-format.mjs              runs a list file through the app's own parser
 supabase/setup-agency-hub.sql               agency-hub schema: Phase 1, Phase 1B (applied), Phase 2 (commented)
                                             → also creates list_puncher.lists_backup_pre1b / tenants_backup_pre1b
@@ -210,7 +210,7 @@ docs/SETUP-SUPABASE-MCP.md                  Supabase + VS Code MCP runbook, in l
 - Phase 1B **and** Phase 2 are applied and verified. The hub is RPC-only: never `grant` table privileges or recreate `lists_anon_all` on it. Client-owned projects are the opposite — they *need* the table grant (`setup-client-project.sql`).
 - `checklist_text` only — no legacy `yaml` fallback.
 - Keep `APP_BUILD`, `index.css?v=` and `--lp-css-build` identical, and verify with `node --check` on the extracted inline script before committing.
-- AI prompt text lives in `prompts/*.md` — edit there, then run `node tools/sync-ai-prompts.mjs` (or `--check` to prove `index.html` is current). Never hand-edit the `AI-PROMPT-LIBRARY` block.
+- AI prompt text lives in `prompts/ai-prompt-*.js` — that is the **only** copy. Edit the text between the backticks, reload, done. `index.html` must never hold prompt text, and there is no build/sync step to run. Check syntax with `node --check prompts/ai-prompt-*.js`.
 - Update this file when the state changes.
 
 
@@ -1441,45 +1441,46 @@ the editor or a byte-exact script, never with `Get-Content | Set-Content`.**
 
 ---
 
-## 29. Build 1.60 - the AI prompts live in `prompts/` (2026-10-30)
+## 29. Build 1.61 - the AI prompts live only in `prompts/` (2026-10-30)
 
-The prompt behind the **Copy AI Prompt** button was a template literal inside `index.html`. It is now
-three Markdown files, composed at authoring time and embedded into the page between markers.
+The prompt behind the **Copy AI Prompt** button was a template literal inside `index.html`. It now
+lives in `prompts/*.js`, and `index.html` contains **none** of the text: there is exactly one copy in
+the repo, so editing a prompt never means touching the app.
 
-### Why not `fetch()` at runtime
+### Why plain script tags, not `.md` + `fetch()`
 
-It would work on GitHub Pages, but the app is routinely opened **straight off disk** (`file://`), and
-every current browser blocks reading a sibling file from there - the Copy buttons would silently die
-in the normal dev workflow. Pages also caches assets for ~10 minutes. So the text is embedded by a
-sync step instead, and the shipped product stays exactly two files: still no build step, still no
-network call just to copy a prompt.
+| | script tags | `fetch('*.md')` |
+|---|---|---|
+| GitHub Pages / the GHL menu link | works | needs a `.nojekyll` file, otherwise Jekyll turns `.md` into `.html` |
+| `index.html` opened off disk (`file://`) | works | **blocked** by every browser (origin null), the Copy buttons would die |
+
+The fragments are therefore loaded by plain script tags placed before the app script. That keeps the
+zero-build rule intact - no bundler, no npm install, no generated second copy - and a prompt edit is
+just a reload. `?v=APP_BUILD` on each tag busts the Pages 10-minute cache.
+
+Build 1.60 briefly generated the same text into `index.html` with `tools/sync-ai-prompts.mjs`; that
+duplication is exactly what this build removes, and the tool is gone with it.
 
 ### The split - HEAD + BODY
 
 | File | Holds |
 |---|---|
-| `prompts/ai-prompt-user.md` | the one-off ask ("convert the discussion above into a list") |
-| `prompts/ai-prompt-system.md` | the role plus the standing-instructions framing |
-| `prompts/ai-prompt-shared.md` | the format rules and the list structure |
+| `prompts/ai-prompt-user.js` | `AI_PROMPT_USER_HEAD` - the one-off ask ("convert the discussion above into a list") |
+| `prompts/ai-prompt-system.js` | `AI_PROMPT_SYSTEM_HEAD` - the role plus the standing-instructions framing |
+| `prompts/ai-prompt-shared.js` | `AI_PROMPT_SHARED_BODY` - the format rules and the list structure |
 
 Only the opening differs, so a rule change is a **one-file diff** and the two versions cannot drift
 apart. All three share the `ai-prompt-` prefix, so they sort next to each other.
 
-### The sync step
+### How they are assembled
 
-```bash
-node tools/sync-ai-prompts.mjs          # rewrite between the markers in index.html
-node tools/sync-ai-prompts.mjs --check  # exit 1 when index.html is stale
-```
+`buildAiPrompt(kind)` in `index.html` normalises each fragment to LF, trims it, and joins HEAD and
+BODY with exactly one blank line, so the copied text is byte-identical on every platform - the same
+rule `formatChecklistText()` already follows for the list itself. `aiPromptReady()` guards a fragment
+that failed to load, so the button reports it on the toast instead of silently doing nothing.
 
-- It rewrites **only** the text between `// >>> AI-PROMPT-LIBRARY` and `// <<< AI-PROMPT-LIBRARY`;
-  the markers themselves are hand-written so the script cannot mangle them.
-- It escapes backslashes, backticks and `${`, and **refuses** a fragment containing `</script`
-  (which would terminate the inline script block however deeply it was escaped).
-- It rewrites the prompt's own line breaks to the file's line endings, so `--check` stays honest
-  after a fresh clone; `buildAiPrompt()` normalises back to LF at copy time, so the copied text is
-  byte-identical on every platform (same rule as `formatChecklistText()`).
-- `--check` was proved by appending a line to a fragment and watching it exit 1.
+Editing rules: the text sits inside a template literal, so a fragment must not contain bare backticks
+or `${`. `node --check prompts/ai-prompt-*.js` catches a stray one before it ever reaches the page.
 
 ### UI
 
@@ -1493,9 +1494,10 @@ Trailing spaces after two of the opening fences, "exisitng" -> "existing", "chec
 generating" -> "checklists you're generating", "if needed ?t=111s" -> "such as ?t=111s". Every rule,
 example and comment description is otherwise unchanged.
 
-**Verification:** 3/3 inline scripts compile; a 29-assert harness on the assembled prompts (each
-starts with its own head, both end with the shared body, 4 balanced fence pairs each, all six
-markers and the `comments: |` rule present in both, no escaped backtick or `${` leaks, both handlers
-wired twice per surface, no parameterless handler left, three build markers at 1.60, no U+FFFD);
-`--check` in sync.
+**Verification:** the assembled prompts are **byte-identical** to the 1.60 build (3053 and 3391
+chars - proved by composing the old committed fragments and the new files, then comparing the two
+strings); 3/3 inline script blocks compile; `node --check` clean on all three prompt files;
+`index.html` contains no `Format rules:`, no `List Structure:`, no prompt constants and no
+`AI-PROMPT-LIBRARY` markers; all three tags load before the app script; both handlers wired twice per
+surface; three build markers at 1.61; no U+FFFD.
 

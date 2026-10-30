@@ -15,7 +15,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
     
     <!-- Separated Master Stylesheet (Zero Prism Crash) - version query busts the GitHub Pages 10min cache -->
-    <link rel="stylesheet" href="index.css?v=1.60">
+    <link rel="stylesheet" href="index.css?v=1.61">
 
     <script>
     /* Universal Dark Reader Kill Switch (Rule 9) */
@@ -357,13 +357,23 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
 <!-- Toast Popup Notification -->
 <div id="toast" class="toast">Action completed!</div>
 
+<!-- =========================================================================
+     AI PROMPT TEXT - the one and only copy of it lives in these files.
+     Loaded with plain script tags (not a fetch) so it also works when
+     index.html is opened straight off disk, and so GitHub Pages cannot
+     Jekyll the fragments into .html.
+     ========================================================================= -->
+<script src="prompts/ai-prompt-shared.js?v=1.61"></script>
+<script src="prompts/ai-prompt-system.js?v=1.61"></script>
+<script src="prompts/ai-prompt-user.js?v=1.61"></script>
+
 <script>
     // =========================================================================
     // CONFIGURATION CONSTANTS (ALL_CAPS_SEPARATED_BY_UNDERSCORES)
     // =========================================================================
     const AUTOSAVE_DELAY_MS = 500;
     const INDENT_SPACES_PER_LEVEL = 2;
-    const APP_BUILD = '1.60'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
+    const APP_BUILD = '1.61'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
     // Bump whenever the UI_STATE defaults below change: a saved state older than this gets
     // the new defaults applied exactly ONCE (afterwards the user's own toggles win).
     const UI_STATE_DEFAULTS_VERSION = 2;
@@ -7511,80 +7521,31 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     // =========================================================================
     // AI PROMPT LIBRARY - where both Copy AI Prompt buttons get their text
     // -------------------------------------------------------------------------
-    // The prompt text is NOT authored here. It lives in prompts/*.md:
-    //   prompts/ai-prompt-user.md    HEAD of the user prompt (the one-off ask)
-    //   prompts/ai-prompt-system.md  HEAD of the system prompt (role + standing rules)
-    //   prompts/ai-prompt-shared.md  BODY both of them end with (format rules + structure)
-    // The block below is generated from those files by tools/sync-ai-prompts.mjs.
-    // Run `node tools/sync-ai-prompts.mjs` after editing a prompt; `--check` proves
-    // index.html is current. The text is embedded rather than fetched so the Copy
-    // buttons still work when the page is opened straight off disk (file://).
+    // The prompt text is NOT in this file. It lives in exactly one place:
+    //   prompts/ai-prompt-user.js    AI_PROMPT_USER_HEAD    (the one-off ask)
+    //   prompts/ai-prompt-system.js  AI_PROMPT_SYSTEM_HEAD  (role + standing rules)
+    //   prompts/ai-prompt-shared.js  AI_PROMPT_SHARED_BODY  (format rules, once)
+    // Those files are loaded by the <script src> tags above this block, so there
+    // is no generated copy here and no second place to keep in sync.
+    //
+    // HEAD + BODY: only the opening differs between the two versions, so a rule
+    // change is a one-file diff and both buttons inherit it.
     // =========================================================================
-    // >>> AI-PROMPT-LIBRARY (generated - edit prompts/*.md, then run: node tools/sync-ai-prompts.mjs) >>>
-    const AI_PROMPT_USER = `Convert the milestones/goals and tasks from our discussion above into List Puncher list format (a Markdown checklist with metadata). Please publish your results in a code block for safe copy/paste into the List Puncher app.`;
+    function aiPromptReady() {
+        return typeof AI_PROMPT_USER_HEAD === 'string'
+            && typeof AI_PROMPT_SYSTEM_HEAD === 'string'
+            && typeof AI_PROMPT_SHARED_BODY === 'string';
+    }
 
-    const AI_PROMPT_SYSTEM = `You are the planning assistant for my List Puncher lists. List Puncher is the app I use to run real client onboarding and project checklists, and from now on you are the one drafting those checklists for me.
-
-Treat this message as your standing instructions for the whole conversation. Whenever I ask you to draft, extend, merge, reorder or review a list - even when my message is only a few words - reply with a complete List Puncher list in the format below. Do not ask me to confirm the format, and do not wait for me to restate these rules in every message.`;
-
-    const AI_PROMPT_SHARED = `I'd like you to merge, refine, dedup and logistically order the step-by-step parts of the list to make it easy for me to go through everything while I'm completing all the tasks on the checklists you're generating.
-
-Please check all existing tasks you know are already completed and mark them as finished in the list. Please also add any subtasks you think are necessary to complete the main tasks.
-
-Format rules:
-- Output the list as clean plain text only - no conversational preamble.
-- This is NOT standard YAML, so do NOT try to "fix" it into strict YAML and do NOT add task: / checked: / subtasks: keys. Follow the shape below exactly.
-- Use strictly 2-space indentation for subtasks. Never use tabs.
-- Write tasks with the three-state marker: "- [ ] untouched", "- [v] Yes (approved/done)", "- [x] No (rejected/ignored)". Never use [x] to mean done.
-- Nest subtasks exactly 2 additional spaces deeper than their parent task, one step per nesting level.
-- Each milestone uses metadata keys:
-
-\`\`\`
-section: "Goal/Milestone Name"
-description: "Overview, objectives and prerequisites..."
-tasks:
-\`\`\`
-
-- Notes sit under their task on a \`notes: "..."\` line, or as a multi-line block:
-
-\`\`\`
-notes: |
-  line one
-  line two
-\`\`\`
-
-  The notes: key sits 2 spaces deeper than its task's "- ", and a multi-line body sits 2 spaces deeper again (never aligned with the "- ").
-
-- Comments are NOT yours to invent. If the list you are given already carries a "comments: |" block on a task or a section, reproduce it EXACTLY as it was (same lines, same order). When you are explicitly asked to add a comment, write it as a "comments: |" block one indent step under the node, one comment per line, as "Name: text" - the author's name, a colon, a space, then the text in one line. Example:
-
-\`\`\`
-  - [ ] Task Title
-    notes: "Helpful instructions or links"
-    comments: |
-      Day: I tried this and it tasted awful
-      Brian: The benefits are still worth it
-\`\`\`
-
-- Use clean section names WITHOUT numbers (e.g. section: "Cloudflare Infrastructure") because List Puncher automatically numbers milestones dynamically.
-- Include a full, detailed description under each section explaining the objectives, prerequisites, and context (descriptions can be as long as needed).
-- Feel free to include YouTube video/tutorial links (including timestamps such as ?t=111s) and image links inside task notes or descriptions (List Puncher auto-renders them into video players and images).
-- Nesting depth limit doesn't exist. Nest the tasks as deep as needed.
-
-List Structure:
-
-\`\`\`
-section: "Goal/Milestone Name"
-description: |
-  Multi-line overview of this goal/milestone...
-tasks:
-  - [ ] Task Title
-    notes: "Helpful instructions or links"
-    - [ ] Subtask Title
-      notes: |
-        Diagram Example:
-        https://www.example.com/diagram.png
-\`\`\``;
-    // <<< AI-PROMPT-LIBRARY <<<
+    // The fragments follow the file's line endings (CRLF on Windows), so normalise
+    // here - the copied text is then byte-identical on every platform, exactly
+    // like formatChecklistText() does for the list itself.
+    function buildAiPrompt(kind) {
+        if (!aiPromptReady()) return '';
+        const head = (kind === 'system') ? AI_PROMPT_SYSTEM_HEAD : AI_PROMPT_USER_HEAD;
+        const parts = [head, AI_PROMPT_SHARED_BODY].map(part => part.replace(/\r\n/g, '\n').trim());
+        return parts.join('\n\n') + '\n';
+    }
 
     // HEAD + BODY. The user and system versions differ only in their opening, so
     // the rules are written once and both buttons inherit every change to them.
@@ -7596,11 +7557,15 @@ tasks:
         const parts = [head, AI_PROMPT_SHARED].map(part => part.replace(/\r\n/g, '\n').trim());
         return parts.join('\n\n') + '\n';
     }
-
     // Context-friendly AI Prompt Copier - kind is 'user' or 'system'
     function copyAiPromptToClipboard(kind) {
         const variant = (kind === 'system') ? 'system' : 'user';
-        navigator.clipboard.writeText(buildAiPrompt(variant)).then(() => {
+        const aiPromptText = buildAiPrompt(variant);
+        if (!aiPromptText) {
+            showToast('⚠ AI prompt file did not load - check prompts/ai-prompt-*.js');
+            return;
+        }
+        navigator.clipboard.writeText(aiPromptText).then(() => {
             showToast(`🤖 AI ${(variant === 'system') ? 'System' : 'User'} prompt copied! Paste into ChatGPT, Claude, or Gemini.`);
         }).catch(() => {
             showToast('Failed to copy. Please allow clipboard permissions.');

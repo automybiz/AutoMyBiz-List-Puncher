@@ -1,4 +1,18 @@
-I'd like you to merge, refine, dedup and logistically order the step-by-step parts of the list to make it easy for me to go through everything while I'm completing all the tasks on the checklists you're generating.
+/* ============================================================================
+   ai-prompt-shared.js
+   ----------------------------------------------------------------------------
+   The BODY both List Puncher AI prompts end with: the format rules and the list
+   structure. Written ONCE here - ai-prompt-user.js and ai-prompt-system.js only
+   add the opening that differs, so a rule change is a one-file diff and the two
+   versions cannot drift apart.
+
+   Loaded by index.html with a plain <script src> tag, which works over https
+   (GitHub Pages, the GHL menu link) and when the page is opened off disk.
+   Keep the text free of bare backticks and ${ - this is a template literal.
+   After editing: node --check prompts/ai-prompt-shared.js
+   ========================================================================= */
+
+const AI_PROMPT_SHARED_BODY = `I'd like you to merge, refine, dedup and logistically order the step-by-step parts of the list to make it easy for me to go through everything while I'm completing all the tasks on the checklists you're generating.
 
 Please check all existing tasks you know are already completed and mark them as finished in the list. Please also add any subtasks you think are necessary to complete the main tasks.
 
@@ -10,31 +24,31 @@ Format rules:
 - Nest subtasks exactly 2 additional spaces deeper than their parent task, one step per nesting level.
 - Each milestone uses metadata keys:
 
-```
+\`\`\`
 section: "Goal/Milestone Name"
 description: "Overview, objectives and prerequisites..."
 tasks:
-```
+\`\`\`
 
-- Notes sit under their task on a `notes: "..."` line, or as a multi-line block:
+- Notes sit under their task on a \`notes: "..."\` line, or as a multi-line block:
 
-```
+\`\`\`
 notes: |
   line one
   line two
-```
+\`\`\`
 
   The notes: key sits 2 spaces deeper than its task's "- ", and a multi-line body sits 2 spaces deeper again (never aligned with the "- ").
 
 - Comments are NOT yours to invent. If the list you are given already carries a "comments: |" block on a task or a section, reproduce it EXACTLY as it was (same lines, same order). When you are explicitly asked to add a comment, write it as a "comments: |" block one indent step under the node, one comment per line, as "Name: text" - the author's name, a colon, a space, then the text in one line. Example:
 
-```
+\`\`\`
   - [ ] Task Title
     notes: "Helpful instructions or links"
     comments: |
       Day: I tried this and it tasted awful
       Brian: The benefits are still worth it
-```
+\`\`\`
 
 - Use clean section names WITHOUT numbers (e.g. section: "Cloudflare Infrastructure") because List Puncher automatically numbers milestones dynamically.
 - Include a full, detailed description under each section explaining the objectives, prerequisites, and context (descriptions can be as long as needed).
@@ -43,7 +57,7 @@ notes: |
 
 List Structure:
 
-```
+\`\`\`
 section: "Goal/Milestone Name"
 description: |
   Multi-line overview of this goal/milestone...
@@ -54,4 +68,5 @@ tasks:
       notes: |
         Diagram Example:
         https://www.example.com/diagram.png
-```
+\`\`\`
+`;

@@ -1,41 +1,43 @@
 # prompts/
 
-The AI prompts the app copies to the clipboard, kept as Markdown so they can be read, reviewed and
-diffed properly instead of living inside a template literal in `index.html`.
+The AI prompt text the two Copy buttons put on the clipboard. **This folder holds the only copy of
+it** - `index.html` contains none of it.
 
-| File | What it holds |
+| File | Holds |
 |---|---|
-| `ai-prompt-user.md` | **HEAD** of the user prompt - the one-off ask ("convert the discussion above"). |
-| `ai-prompt-system.md` | **HEAD** of the system prompt - the role and the standing-instructions framing. |
-| `ai-prompt-shared.md` | **BODY** both prompts end with - the format rules and the list structure. |
+| `ai-prompt-shared.js` | **BODY** both prompts end with - the format rules and the list structure |
+| `ai-prompt-system.js` | **HEAD** used only by the system prompt - the role and the standing instructions |
+| `ai-prompt-user.js` | **HEAD** only the user prompt uses - the one-off ask |
 
 Every file shares the `ai-prompt-` prefix, so they sort next to each other.
 
-## How the sharing works
+## How the two versions share text
 
-Both prompts are composed as **HEAD + blank line + BODY**. Only the opening differs, so:
+Copied text = **HEAD + blank line + BODY**. Only the opening differs, so:
 
-- change a format rule -> edit `ai-prompt-shared.md`, and both prompts change together;
-- change the tone of the user prompt -> edit `ai-prompt-user.md`, and the system prompt is untouched.
+- change a format rule -> edit `ai-prompt-shared.js`, and both prompts change together;
+- change the tone of the user prompt -> edit `ai-prompt-user.js`, and the system prompt is untouched.
 
-Nothing is duplicated, so a rule can never drift out of sync between the two versions.
+Nothing is duplicated anywhere, so a rule cannot drift between the two versions, and `index.html`
+contains no prompt text at all.
 
-## After editing
+## Why `.js` and not `.md`
 
-```bash
-node tools/sync-ai-prompts.mjs          # rewrite the block in index.html
-node tools/sync-ai-prompts.mjs --check  # exit 1 if index.html is out of date (use before committing)
-```
+`index.html` loads these files with plain `<script src="...">` tags. That is the only way one copy of
+the text can load everywhere this app runs:
 
-Commit the `.md` file **and** the regenerated `index.html` in the same commit.
+| | `<script src>` | `fetch('*.md')` |
+|---|---|---|
+| GitHub Pages / the GHL menu link | works | works only with a `.nojekyll` file - Jekyll otherwise converts `.md` into `.html` |
+| `index.html` opened off disk (`file://`) | works | **blocked** by every browser (CORS), so the Copy buttons would die |
 
-## Why the text is embedded instead of fetched
+## Editing
 
-`fetch('prompts/ai-prompt-user.md')` would work on GitHub Pages, but the app is routinely opened
-straight off disk (`file://`), where every current browser blocks reading a sibling file - the Copy
-buttons would silently stop working in the normal dev workflow. GitHub Pages also caches assets for
-about 10 minutes. So `tools/sync-ai-prompts.mjs` copies the text into `index.html` at authoring time
-and the shipped product stays exactly two files, with no network call and no build step.
+Open the file, change the text inside the backticks, save, reload. There is no build step and no
+second copy to keep in sync.
 
-`index.html` between the `// >>> AI-PROMPT-LIBRARY` and `// <<< AI-PROMPT-LIBRARY` markers is
-generated - edit the `.md` files, not that block.
+Two rules, because the text sits inside a JS template literal:
+
+- no bare backticks and no `${` in the prompt text (escape them, or reword);
+- run `node --check prompts/ai-prompt-*.js` after editing.
+
