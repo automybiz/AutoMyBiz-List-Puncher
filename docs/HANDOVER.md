@@ -13,7 +13,7 @@ Kickoff for a new Cline task:
 | Repo | `github.com/automybiz/AutoMyBiz-List-Puncher` (public, branch `main`) |
 | Local | `x:\DATA\_SOFTWARE\_3D_PRINTING\_PROJECTS\_WEB\CODE\AutoMyBiz List Puncher` |
 | App | single-file `index.html` + `index.css`, served by GitHub Pages, embedded in GoHighLevel via a Custom Menu Link |
-| Build | **1.44** (`APP_BUILD`, `index.css?v=`, `--lp-css-build` — keep all three in sync) |
+| Build | **1.60** (`APP_BUILD`, `index.css?v=`, `--lp-css-build` — keep all three in sync) |
 | Database | Supabase project ref `dhuhkinuruxbwddhffwk` (org AutoMyBiz, us-west-2, free plan), schema `list_puncher` |
 | Product goal | zero-touch onboarding per GHL sub-account (agency hosts the data, per-tenant isolation), with an optional upgrade path to a client's own Supabase project |
 
@@ -188,6 +188,11 @@ probe when that answers `404` (a client's own project). A POST selects its schem
 ```
 index.html                                  app (build markers at the top)
 index.css                                   styles (--lp-css-build at the top)
+prompts/ai-prompt-user.md                   HEAD of the user prompt (the one-off ask)
+prompts/ai-prompt-system.md                 HEAD of the system prompt (role + standing rules)
+prompts/ai-prompt-shared.md                 BODY both prompts end with (format rules + list structure)
+tools/sync-ai-prompts.mjs                   composes prompts/*.md into the AI-PROMPT-LIBRARY block in index.html
+tools/validate-list-format.mjs              runs a list file through the app's own parser
 supabase/setup-agency-hub.sql               agency-hub schema: Phase 1, Phase 1B (applied), Phase 2 (commented)
                                             → also creates list_puncher.lists_backup_pre1b / tenants_backup_pre1b
 supabase/setup-client-project.sql           one-paste setup for a client's OWN project
@@ -205,6 +210,7 @@ docs/SETUP-SUPABASE-MCP.md                  Supabase + VS Code MCP runbook, in l
 - Phase 1B **and** Phase 2 are applied and verified. The hub is RPC-only: never `grant` table privileges or recreate `lists_anon_all` on it. Client-owned projects are the opposite — they *need* the table grant (`setup-client-project.sql`).
 - `checklist_text` only — no legacy `yaml` fallback.
 - Keep `APP_BUILD`, `index.css?v=` and `--lp-css-build` identical, and verify with `node --check` on the extracted inline script before committing.
+- AI prompt text lives in `prompts/*.md` — edit there, then run `node tools/sync-ai-prompts.mjs` (or `--check` to prove `index.html` is current). Never hand-edit the `AI-PROMPT-LIBRARY` block.
 - Update this file when the state changes.
 
 
@@ -1432,4 +1438,64 @@ whole file** (Windows PowerShell reads a BOM-less file as ANSI/CP1252, then writ
 every emoji into mojibake. It was reversible (`Encoding.GetEncoding(1252).GetBytes()` then decode as
 UTF-8, verified by zero U+FFFD and the return of `U+26A0`), but the lesson is: **bump the build with
 the editor or a byte-exact script, never with `Get-Content | Set-Content`.**
+
+---
+
+## 29. Build 1.60 - the AI prompts live in `prompts/` (2026-10-30)
+
+The prompt behind the **Copy AI Prompt** button was a template literal inside `index.html`. It is now
+three Markdown files, composed at authoring time and embedded into the page between markers.
+
+### Why not `fetch()` at runtime
+
+It would work on GitHub Pages, but the app is routinely opened **straight off disk** (`file://`), and
+every current browser blocks reading a sibling file from there - the Copy buttons would silently die
+in the normal dev workflow. Pages also caches assets for ~10 minutes. So the text is embedded by a
+sync step instead, and the shipped product stays exactly two files: still no build step, still no
+network call just to copy a prompt.
+
+### The split - HEAD + BODY
+
+| File | Holds |
+|---|---|
+| `prompts/ai-prompt-user.md` | the one-off ask ("convert the discussion above into a list") |
+| `prompts/ai-prompt-system.md` | the role plus the standing-instructions framing |
+| `prompts/ai-prompt-shared.md` | the format rules and the list structure |
+
+Only the opening differs, so a rule change is a **one-file diff** and the two versions cannot drift
+apart. All three share the `ai-prompt-` prefix, so they sort next to each other.
+
+### The sync step
+
+```bash
+node tools/sync-ai-prompts.mjs          # rewrite between the markers in index.html
+node tools/sync-ai-prompts.mjs --check  # exit 1 when index.html is stale
+```
+
+- It rewrites **only** the text between `// >>> AI-PROMPT-LIBRARY` and `// <<< AI-PROMPT-LIBRARY`;
+  the markers themselves are hand-written so the script cannot mangle them.
+- It escapes backslashes, backticks and `${`, and **refuses** a fragment containing `</script`
+  (which would terminate the inline script block however deeply it was escaped).
+- It rewrites the prompt's own line breaks to the file's line endings, so `--check` stays honest
+  after a fresh clone; `buildAiPrompt()` normalises back to LF at copy time, so the copied text is
+  byte-identical on every platform (same rule as `formatChecklistText()`).
+- `--check` was proved by appending a line to a fragment and watching it exit 1.
+
+### UI
+
+Two buttons, in the header **and** in the empty state: `🤖 Copy AI User Prompt` and
+`🧠 Copy AI System Prompt`. `copyAiPromptToClipboard(kind)` takes `'user'` or `'system'`; the toast
+names which one it copied.
+
+### Also fixed while moving the text
+
+Trailing spaces after two of the opening fences, "exisitng" -> "existing", "check lists your
+generating" -> "checklists you're generating", "if needed ?t=111s" -> "such as ?t=111s". Every rule,
+example and comment description is otherwise unchanged.
+
+**Verification:** 3/3 inline scripts compile; a 29-assert harness on the assembled prompts (each
+starts with its own head, both end with the shared body, 4 balanced fence pairs each, all six
+markers and the `comments: |` rule present in both, no escaped backtick or `${` leaks, both handlers
+wired twice per surface, no parameterless handler left, three build markers at 1.60, no U+FFFD);
+`--check` in sync.
 
