@@ -5,9 +5,9 @@ it** - `index.html` contains none of it.
 
 | File | Holds |
 |---|---|
-| `ai-prompt-shared.js` | **BODY** both prompts end with - the format rules and the list structure |
-| `ai-prompt-system.js` | **HEAD** used only by the system prompt - the role and the standing instructions |
-| `ai-prompt-user.js` | **HEAD** only the user prompt uses - the one-off ask |
+| `ai-prompt-shared.md` | **BODY** both prompts end with - the format rules and the list structure |
+| `ai-prompt-system.md` | **HEAD** used only by the system prompt - the role and the standing instructions |
+| `ai-prompt-user.md` | **HEAD** only the user prompt uses - the one-off ask |
 
 Every file shares the `ai-prompt-` prefix, so they sort next to each other.
 
@@ -15,29 +15,42 @@ Every file shares the `ai-prompt-` prefix, so they sort next to each other.
 
 Copied text = **HEAD + blank line + BODY**. Only the opening differs, so:
 
-- change a format rule -> edit `ai-prompt-shared.js`, and both prompts change together;
-- change the tone of the user prompt -> edit `ai-prompt-user.js`, and the system prompt is untouched.
+- change a format rule -> edit `ai-prompt-shared.md`, and both prompts change together;
+- change the tone of the user prompt -> edit `ai-prompt-user.md`, and the system prompt is untouched.
 
 Nothing is duplicated anywhere, so a rule cannot drift between the two versions, and `index.html`
 contains no prompt text at all.
 
-## Why `.js` and not `.md`
-
-`index.html` loads these files with plain `<script src="...">` tags. That is the only way one copy of
-the text can load everywhere this app runs:
-
-| | `<script src>` | `fetch('*.md')` |
-|---|---|---|
-| GitHub Pages / the GHL menu link | works | works only with a `.nojekyll` file - Jekyll otherwise converts `.md` into `.html` |
-| `index.html` opened off disk (`file://`) | works | **blocked** by every browser (CORS), so the Copy buttons would die |
-
 ## Editing
 
-Open the file, change the text inside the backticks, save, reload. There is no build step and no
-second copy to keep in sync.
+Plain Markdown, nothing to escape: real ``` fences, quotes, `$`, apostrophes and all. Edit the file,
+save, reload the page, click the button. There is no build step and no second copy to keep in sync.
 
-Two rules, because the text sits inside a JS template literal:
+## It needs http(s)
 
-- no bare backticks and no `${` in the prompt text (escape them, or reword);
-- run `node --check prompts/ai-prompt-*.js` after editing.
+The app fetches these files at runtime:
+
+```js
+fetch('prompts/ai-prompt-user.md?v=' + APP_BUILD)
+```
+
+- **GitHub Pages / the GHL menu link:** works. Pages serves `.md` as `text/markdown` (measured:
+  `docs/HANDOVER.md` and `docs/SETUP-SUPABASE-MCP.md` both return `200 text/markdown`), so no
+  `.nojekyll` file is needed.
+- **`index.html` opened straight off disk (`file://`):** the browser refuses to fetch a sibling file
+  (CORS, origin `null`), so both buttons toast *"Copy AI Prompt needs http(s)"* instead of copying.
+  Everything else in the app still works.
+
+`.md` was chosen over `.js` deliberately: a `.js` file has to be loaded by a script tag (which would
+work off disk) but then the prompt sits inside a template literal, so every ``` has to be written as
+`\`\`\`` and every `${` escaped. Markdown keeps the text exactly as a human would write it.
+
+**Working on a prompt locally?** Serve the folder instead of opening the file:
+
+```bash
+python -m http.server 8765     # then open http://127.0.0.1:8765/index.html
+```
+
+That reads your working copy (no commit, no push) and copies correctly.
+
 

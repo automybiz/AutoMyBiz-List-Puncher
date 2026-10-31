@@ -15,7 +15,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
     
     <!-- Separated Master Stylesheet (Zero Prism Crash) - version query busts the GitHub Pages 10min cache -->
-    <link rel="stylesheet" href="index.css?v=1.62">
+    <link rel="stylesheet" href="index.css?v=1.63">
 
     <script>
     /* Universal Dark Reader Kill Switch (Rule 9) */
@@ -357,15 +357,6 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
 <!-- Toast Popup Notification -->
 <div id="toast" class="toast">Action completed!</div>
 
-<!-- =========================================================================
-     AI PROMPT TEXT - the one and only copy of it lives in these files.
-     Loaded with plain script tags (not a fetch) so it also works when
-     index.html is opened straight off disk, and so GitHub Pages cannot
-     Jekyll the fragments into .html.
-     ========================================================================= -->
-<script src="prompts/ai-prompt-shared.js?v=1.62"></script>
-<script src="prompts/ai-prompt-system.js?v=1.62"></script>
-<script src="prompts/ai-prompt-user.js?v=1.62"></script>
 
 <script>
     // =========================================================================
@@ -373,7 +364,7 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     // =========================================================================
     const AUTOSAVE_DELAY_MS = 500;
     const INDENT_SPACES_PER_LEVEL = 2;
-    const APP_BUILD = '1.62'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
+    const APP_BUILD = '1.63'; // Bump together with index.css?v= AND --lp-css-build in index.css so stale-cache states are visible
     // Bump whenever the UI_STATE defaults below change: a saved state older than this gets
     // the new defaults applied exactly ONCE (afterwards the user's own toggles win).
     const UI_STATE_DEFAULTS_VERSION = 2;
@@ -7521,45 +7512,78 @@ Paste straight from any AI - List Puncher tidies the indentation on Apply.</span
     // =========================================================================
     // AI PROMPT LIBRARY - where both Copy AI Prompt buttons get their text
     // -------------------------------------------------------------------------
-    // The prompt text is NOT in this file. It lives in exactly one place:
-    //   prompts/ai-prompt-user.js    AI_PROMPT_USER_HEAD    (the one-off ask)
-    //   prompts/ai-prompt-system.js  AI_PROMPT_SYSTEM_HEAD  (role + standing rules)
-    //   prompts/ai-prompt-shared.js  AI_PROMPT_SHARED_BODY  (format rules, once)
-    // Those files are loaded by the <script src> tags above this block, so there
-    // is no generated copy here and no second place to keep in sync.
+    // The prompt text is NOT in this file. It lives in exactly one place, as
+    // plain Markdown that needs no escaping and no build step:
+    //   prompts/ai-prompt-user.md    the one-off ask
+    //   prompts/ai-prompt-system.md  the role + the standing rules
+    //   prompts/ai-prompt-shared.md  the format rules + list structure (once)
+    //
+    // They are FETCHED, because a browser cannot execute Markdown and cannot read
+    // a sibling file from a file:// page. GitHub Pages serves .md as
+    // text/markdown (measured: docs/*.md come back 200 text/markdown), so http(s)
+    // is the only requirement. Opened off disk the buttons say so instead of
+    // copying - see the toast in copyAiPromptToClipboard().
     //
     // HEAD + BODY: only the opening differs between the two versions, so a rule
     // change is a one-file diff and both buttons inherit it.
     // =========================================================================
-    function aiPromptReady() {
-        return typeof AI_PROMPT_USER_HEAD === 'string'
-            && typeof AI_PROMPT_SYSTEM_HEAD === 'string'
-            && typeof AI_PROMPT_SHARED_BODY === 'string';
+    const AI_PROMPT_FILES = {
+        user: 'prompts/ai-prompt-user.md',
+        system: 'prompts/ai-prompt-system.md',
+        shared: 'prompts/ai-prompt-shared.md'
+    };
+    // A file:// page cannot fetch a sibling file (CORS, origin null), so say that
+    // plainly rather than showing a network error.
+    const AI_PROMPT_NEEDS_SERVER = (location.protocol === 'file:');
+    let aiPromptLoad = null;    // one promise, shared by both buttons
+
+    function aiPromptFragments() {
+        if (aiPromptLoad) return aiPromptLoad;
+        aiPromptLoad = Promise.all(Object.entries(AI_PROMPT_FILES).map(([key, path]) => {
+            // ?v=APP_BUILD busts the 10-minute GitHub Pages cache, like index.css?v=
+            return fetch(path + '?v=' + APP_BUILD)
+                .then(res => {
+                    if (!res.ok) throw new Error(path + ': HTTP ' + res.status);
+                    return res.text().then(text => [key, text]);
+                });
+        }))
+            .then(Object.fromEntries)
+            .catch(err => { aiPromptLoad = null; throw err; });   // the next click retries
+        return aiPromptLoad;
     }
 
-    // The fragments follow the file's line endings (CRLF on Windows), so normalise
-    // here - the copied text is then byte-identical on every platform, exactly
-    // like formatChecklistText() does for the list itself.
-    function buildAiPrompt(kind) {
-        if (!aiPromptReady()) return '';
-        const head = (kind === 'system') ? AI_PROMPT_SYSTEM_HEAD : AI_PROMPT_USER_HEAD;
-        const parts = [head, AI_PROMPT_SHARED_BODY].map(part => part.replace(/\r\n/g, '\n').trim());
-        return parts.join('\n\n') + '\n';
+    // The .md files may be CRLF on disk, so normalise here - the copied text is
+    // then byte-identical on every platform, the same rule formatChecklistText()
+    // follows for the list itself. HEAD, one blank line, BODY.
+    function buildAiPrompt(fragments, kind) {
+        const head = (kind === 'system') ? fragments.system : fragments.user;
+        return [head, fragments.shared]
+            .map(part => part.replace(/\r\n/g, '\n').trim())
+            .join('\n\n') + '\n';
     }
+
+    // Warm the cache over http(s) so the first click is instant. Skipped off disk,
+    // where the fetch cannot work and the button explains why instead.
+    if (!AI_PROMPT_NEEDS_SERVER) aiPromptFragments().catch(() => {});
+
 
     // Context-friendly AI Prompt Copier - kind is 'user' or 'system'
-    function copyAiPromptToClipboard(kind) {
+    async function copyAiPromptToClipboard(kind) {
         const variant = (kind === 'system') ? 'system' : 'user';
-        const aiPromptText = buildAiPrompt(variant);
-        if (!aiPromptText) {
-            showToast('⚠ AI prompt file did not load - check prompts/ai-prompt-*.js');
+        if (AI_PROMPT_NEEDS_SERVER) {
+            // Opened straight off disk: fetch('prompts/*.md') is blocked by the
+            // browser, so say why instead of a misleading "failed to copy".
+            showToast('⚠ Copy AI Prompt needs http(s) - a page opened from disk cannot read prompts/*.md');
             return;
         }
-        navigator.clipboard.writeText(aiPromptText).then(() => {
+        try {
+            const aiPromptText = buildAiPrompt(await aiPromptFragments(), variant);
+            await navigator.clipboard.writeText(aiPromptText);
             showToast(`🤖 AI ${(variant === 'system') ? 'System' : 'User'} prompt copied! Paste into ChatGPT, Claude, or Gemini.`);
-        }).catch(() => {
-            showToast('Failed to copy. Please allow clipboard permissions.');
-        });
+        } catch (err) {
+            console.error('[List Puncher] AI prompt failed to load:', err);
+            showToast(`⚠ Could not load ${AI_PROMPT_FILES[variant]} - check the prompts folder`);
+        }
     }
 
     function showToast(msg) {

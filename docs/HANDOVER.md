@@ -188,10 +188,10 @@ probe when that answers `404` (a client's own project). A POST selects its schem
 ```
 index.html                                  app (build markers at the top)
 index.css                                   styles (--lp-css-build at the top)
-prompts/ai-prompt-shared.js                 BODY both prompts end with (format rules + list structure)
-prompts/ai-prompt-system.js                 HEAD only the system prompt uses (role + standing rules)
-prompts/ai-prompt-user.js                   HEAD only the user prompt uses (the one-off ask)
-prompts/README.md                           why script tags instead of .md + fetch, and how to edit
+prompts/ai-prompt-shared.md                 BODY both prompts end with (format rules + list structure)
+prompts/ai-prompt-system.md                 HEAD only the system prompt uses (role + standing rules)
+prompts/ai-prompt-user.md                   HEAD only the user prompt uses (the one-off ask)
+prompts/README.md                           plain .md, fetched at runtime - how to edit + the http(s) rule
 tools/validate-list-format.mjs              runs a list file through the app's own parser
 supabase/setup-agency-hub.sql               agency-hub schema: Phase 1, Phase 1B (applied), Phase 2 (commented)
                                             → also creates list_puncher.lists_backup_pre1b / tenants_backup_pre1b
@@ -210,7 +210,7 @@ docs/SETUP-SUPABASE-MCP.md                  Supabase + VS Code MCP runbook, in l
 - Phase 1B **and** Phase 2 are applied and verified. The hub is RPC-only: never `grant` table privileges or recreate `lists_anon_all` on it. Client-owned projects are the opposite — they *need* the table grant (`setup-client-project.sql`).
 - `checklist_text` only — no legacy `yaml` fallback.
 - Keep `APP_BUILD`, `index.css?v=` and `--lp-css-build` identical, and verify with `node --check` on the extracted inline script before committing.
-- AI prompt text lives in `prompts/ai-prompt-*.js` — that is the **only** copy. Edit the text between the backticks, reload, done. `index.html` must never hold prompt text, and there is no build/sync step to run. Check syntax with `node --check prompts/ai-prompt-*.js`.
+- AI prompt text lives in `prompts/ai-prompt-*.md` — plain Markdown, nothing to escape, and the **only** copy. `index.html` must never hold prompt text. The buttons `fetch()` those files, so they need http(s): opened from `file://` they toast that instead of copying. Serve the folder (`python -m http.server`) when working on a prompt, and never add a GitHub fallback — a local edit must not be shadowed by `main`.
 - Update this file when the state changes.
 
 
@@ -1441,46 +1441,56 @@ the editor or a byte-exact script, never with `Get-Content | Set-Content`.**
 
 ---
 
-## 29. Builds 1.60-1.62 - the AI prompts live only in `prompts/` (2026-10-30)
+## 29. Builds 1.60-1.63 - the AI prompts live only in `prompts/` (2026-10-30)
 
 The prompt behind the **Copy AI Prompt** button was a template literal inside `index.html`. It now
-lives in `prompts/*.js`, and `index.html` contains **none** of the text: there is exactly one copy in
-the repo, so editing a prompt never means touching the app.
+lives in `prompts/*.md` as plain Markdown, and `index.html` contains **none** of the text: there is
+exactly one copy in the repo, so editing a prompt never means touching the app.
 
-### Why plain script tags, not `.md` + `fetch()`
+### Why `.md` + `fetch()`, and not `.js` script tags
 
-| | script tags | `fetch('*.md')` |
-|---|---|---|
-| GitHub Pages / the GHL menu link | works | needs a `.nojekyll` file, otherwise Jekyll turns `.md` into `.html` |
-| `index.html` opened off disk (`file://`) | works | **blocked** by every browser (origin null), the Copy buttons would die |
+1.61 used `.js` script tags, which do load from `file://` - but a `.js` file forces the prompt into a
+template literal, so every ``` fence has to be typed as `\`\`\`` and every `${` escaped. That is
+precisely the human-editing tax the Markdown files were meant to remove, so 1.63 went back to `.md`.
 
-The fragments are therefore loaded by plain script tags placed before the app script. That keeps the
-zero-build rule intact - no bundler, no npm install, no generated second copy - and a prompt edit is
-just a reload. `?v=APP_BUILD` on each tag busts the Pages 10-minute cache.
+The reason I originally gave for avoiding `.md` was **wrong**, and it was measured rather than assumed:
 
-Build 1.60 briefly generated the same text into `index.html` with `tools/sync-ai-prompts.mjs`; that
-duplication is exactly what this build removes, and the tool is gone with it.
+```
+data-example.md            HTTP 200  text/markdown   2997 bytes
+docs/HANDOVER.md           HTTP 200  text/markdown 101912 bytes
+docs/SETUP-SUPABASE-MCP.md HTTP 200  text/markdown  18270 bytes     (no .nojekyll in the repo)
+```
+
+GitHub Pages serves `.md` raw as `text/markdown`, so a plain `fetch()` works and no `.nojekyll` file
+is needed. The only real cost is `file://`: a page opened off disk cannot fetch a sibling file (CORS,
+origin null), and no file format can dodge that browser rule.
+
+Build 1.60 generated the same text into `index.html` with `tools/sync-ai-prompts.mjs`; that
+duplication is gone, and the tool with it.
 
 ### The split - HEAD + BODY
 
 | File | Holds |
 |---|---|
-| `prompts/ai-prompt-user.js` | `AI_PROMPT_USER_HEAD` - the one-off ask ("convert the discussion above into a list") |
-| `prompts/ai-prompt-system.js` | `AI_PROMPT_SYSTEM_HEAD` - the role plus the standing-instructions framing |
-| `prompts/ai-prompt-shared.js` | `AI_PROMPT_SHARED_BODY` - the format rules and the list structure |
+| `prompts/ai-prompt-user.md` | the one-off ask ("convert the discussion above into a list") |
+| `prompts/ai-prompt-system.md` | the role plus the standing-instructions framing |
+| `prompts/ai-prompt-shared.md` | the format rules and the list structure |
 
 Only the opening differs, so a rule change is a **one-file diff** and the two versions cannot drift
 apart. All three share the `ai-prompt-` prefix, so they sort next to each other.
 
 ### How they are assembled
 
-`buildAiPrompt(kind)` in `index.html` normalises each fragment to LF, trims it, and joins HEAD and
-BODY with exactly one blank line, so the copied text is byte-identical on every platform - the same
-rule `formatChecklistText()` already follows for the list itself. `aiPromptReady()` guards a fragment
-that failed to load, so the button reports it on the toast instead of silently doing nothing.
+`aiPromptFragments()` fetches the three files once (`?v=APP_BUILD` busts the Pages cache), keeps the
+promise so both buttons share a single load, and clears it on failure so the next click retries.
+`buildAiPrompt(fragments, kind)` then normalises each fragment to LF, trims it and joins HEAD and BODY
+with exactly one blank line, so the copied text is byte-identical on every platform - the same rule
+`formatChecklistText()` already follows for the list itself.
 
-Editing rules: the text sits inside a template literal, so a fragment must not contain bare backticks
-or `${`. `node --check prompts/ai-prompt-*.js` catches a stray one before it ever reaches the page.
+Failure handling, deliberately with **no fallback to GitHub**: a local prompt edit must never be
+shadowed by the copy on `main`. Over http(s) a failed load toasts which file is missing; from
+`file://` the button says `Copy AI Prompt needs http(s)` and copies nothing. Serve the folder
+(`python -m http.server 8765`) while working on a prompt and the button reads your working copy.
 
 ### UI
 
@@ -1505,15 +1515,27 @@ never changed, and nothing reached the clipboard.
 Found by loading the deployed page in headless Chrome and calling the real handler. Compiling the
 script block did **not** catch it: duplicate function declarations compile perfectly happily.
 
-**Standing check after this:** the live/local page must be exercised, not just compiled -
-`buildAiPrompt('user').length === 3053`, `buildAiPrompt('system').length === 3391`, and a real
-clipboard read of 3112 chars on Windows (3053 + 59 CRs, because the OS normalises LF to CRLF on the
-clipboard - the string the app hands over is LF-only and correct).
+**Standing check after this:** the live/local page must be exercised, not just compiled - click both
+buttons and read the clipboard back: 3112 chars for the user prompt and 3452 for the system one on
+Windows (3053 / 3391 plus the CRs the OS adds, because it normalises LF to CRLF on the clipboard - the
+string the app hands over is LF-only and correct).
 
 **Verification:** the assembled prompts are **byte-identical** to the 1.60 build (3053 and 3391
 chars - proved by composing the old committed fragments and the new files, then comparing the two
-strings); 3/3 inline script blocks compile; `node --check` clean on all three prompt files;
-`index.html` contains no `Format rules:`, no `List Structure:`, no prompt constants and no
-`AI-PROMPT-LIBRARY` markers; all three tags load before the app script; both handlers wired twice per
-surface; three build markers at 1.61; no U+FFFD.
+strings); 3/3 inline script blocks compile; `index.html` contains no `Format rules:`, no
+`List Structure:`, no prompt constants and no `AI-PROMPT-LIBRARY` markers; both handlers wired twice
+per surface; no U+FFFD.
+
+### Build 1.63 - back to `.md`, fetched at runtime
+
+- The three fragments are Markdown again (restored verbatim from `45aea32`, so the copied text is
+  unchanged); `prompts/ai-prompt-*.js` is gone and nothing needs escaping.
+- `index.html` fetches them. `AI_PROMPT_NEEDS_SERVER` short-circuits `file://` with a plain toast
+  instead of a network error, and there is **no** raw-GitHub fallback on purpose - a local prompt edit
+  must not be shadowed by `main`.
+- Build markers 1.63.
+
+Verification: served the folder with `python -m http.server` and drove headless Chrome - both buttons
+copy, 3112 / 3452 chars in the clipboard, ending in a closing fence; over `file://` both buttons show
+the http(s) toast and the clipboard is left untouched; `index.html` still contains no prompt text.
 
