@@ -150,6 +150,12 @@ tasks:
       notes: "Every extra feature is another tool surface to authorise and audit."
     - [x] Add read_only when you actually need to write
       notes: "The URL param only REQUESTS read-only, it never grants write. A 403 after trying upscoping means the grant itself is read-only."
+  - [ ] Know where that settings file actually lives
+    notes: "Cline keeps two copies of it: one for the VS Code extension, one for the Agents app. Both sit outside the project folder, so neither can reach this repo by accident."
+    - [ ] VS Code extension: %APPDATA%/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json
+    - [ ] Cline Agents app: ~/.cline/data/settings/cline_mcp_settings.json
+    - [ ] Treat it as a credential store, not a config file
+      notes: "It holds a live client_secret (sba_...), an access_token (sbp_oauth_...) and a refresh_token. That is why it never goes into a handover, a screenshot or a chat log - and why a new machine re-authenticates instead of copying the file across."
   - [ ] Authenticate
     - [ ] Trigger Authenticate from the MCP panel
     - [ ] Complete OAuth in the browser with READ and WRITE scopes

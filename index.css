@@ -806,7 +806,7 @@ body {
 }
 
 .section-counter-badge {
-    font-size: 0.75rem;
+    font-size: 0.8rem;
     font-weight: 700;
     padding: 3px 8px;
     border-radius: 12px;
@@ -2190,7 +2190,7 @@ body.is-resizing .container-resize-handle {
     background: rgba(0, 229, 255, 0.10);
     color: var(--accent-cyan);
     font-family: var(--font-family);
-    font-size: 0.68rem;
+    font-size: 0.8rem;
     font-weight: 800;
     line-height: 1.55;
     letter-spacing: 0.3px;
@@ -2200,7 +2200,7 @@ body.is-resizing .container-resize-handle {
 }
 
 .comment-pill-key {
-    font-size: 0.6rem;
+    font-size: 0.8rem;
     opacity: 0.75;
 }
 

@@ -1,6 +1,8 @@
-I'd like you to merge, refine, dedup and logistically order the step-by-step parts of the list to make it easy for me to go through everything while I'm completing all the tasks on the checklists you're generating.
+######## LIST PUNCHER FORMAT ( LPF ) AND HOW IT WORKS ########
 
-Please check all existing tasks you know are already completed and mark them as finished in the list. Please also add any subtasks you think are necessary to complete the main tasks.
+When asked: Please merge, refine, dedup and logistically order the step-by-step parts of the list to make it easy for me to go through everything while I'm completing all the tasks on the checklists you're generating.
+
+Please check all existing tasks you know are already completed in order to mark them as finished in the list. Please also add any subtasks you think are necessary to complete the main tasks.
 
 Format rules:
 - Output the list as clean plain text only - no conversational preamble.

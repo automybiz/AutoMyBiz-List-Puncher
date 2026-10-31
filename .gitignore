@@ -1,0 +1,39 @@
+# ============================================================================
+# AutoMyBiz List Puncher - scratch files that must never be committed
+# ----------------------------------------------------------------------------
+# The shipped product is exactly two files: index.html and index.css.
+# Everything matched below is throwaway scaffolding produced while testing a
+# feature. If one of these shows up as "untracked", delete it - do not commit.
+# ============================================================================
+
+# Snapshot / backup copies of the app (index.html is the source of truth)
+index.b[0-9]*.html
+index.head.html
+pre-fix.index.html
+smoke-dom.html
+*.bak
+*.orig
+
+# Headless test harnesses and their output (the lp-*.js / lp-*.txt litter)
+lp-*.js
+lp-*.txt
+lp-*.png
+lp-*.html
+verify-build.*
+demo-check.*
+demo-out.*
+api-check.*
+smoke-check.*
+smoke-order.*
+repair-encoding.ps1
+repair-css.ps1
+fix-mojibake.js
+encoding-report*.txt
+enc-check.txt
+body*.json
+sb-status.json
+
+# OS noise
+Thumbs.db
+desktop.ini
+.DS_Store
